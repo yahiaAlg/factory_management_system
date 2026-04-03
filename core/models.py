@@ -1,3 +1,4 @@
+# core/models.py
 from django.db import models, transaction
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal

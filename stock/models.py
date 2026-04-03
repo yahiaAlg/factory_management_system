@@ -6,7 +6,15 @@ from decimal import Decimal
 
 
 class RawMaterialStockBalance(models.Model):
-    """Current stock balance for raw materials"""
+    """Current stock balance for raw materials.
+
+    SPEC BR-RM-05: quantity MUST NOT be set via a form or direct view
+    assignment.  The only permitted write paths are:
+      - stock.signals.supplier_dn_validated()
+      - stock.signals.production_order_closed()
+    Both signal handlers call StockMovement.objects.create(), which
+    triggers update_stock_balance() below.
+    """
 
     raw_material = models.OneToOneField(
         "catalog.RawMaterial", on_delete=models.CASCADE, related_name="stock_balance"
@@ -16,9 +24,10 @@ class RawMaterialStockBalance(models.Model):
         decimal_places=3,
         default=Decimal("0.000"),
         verbose_name="Quantité en stock",
+        editable=False,
     )
     last_movement_date = models.DateTimeField(
-        null=True, blank=True, verbose_name="Dernière mouvement"
+        null=True, blank=True, verbose_name="Dernier mouvement"
     )
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -27,19 +36,24 @@ class RawMaterialStockBalance(models.Model):
         verbose_name_plural = "Soldes stock matières premières"
 
     def __str__(self):
-        return f"{self.raw_material.designation} - {self.quantity} {self.raw_material.unit_of_measure.symbol}"
+        return (
+            f"{self.raw_material.designation} — "
+            f"{self.quantity} {self.raw_material.unit_of_measure.symbol}"
+        )
 
     def get_stock_status(self):
-        """Get current stock status"""
         return self.raw_material.get_stock_status()
 
     def get_stock_value(self):
-        """Calculate stock value using reference price"""
         return self.quantity * self.raw_material.reference_price
 
 
 class FinishedProductStockBalance(models.Model):
-    """Current stock balance for finished products"""
+    """Current stock balance for finished products.
+
+    weighted_average_cost is recomputed via signal after every PO closure
+    (spec S7) — never user-editable.
+    """
 
     finished_product = models.OneToOneField(
         "catalog.FinishedProduct",
@@ -51,15 +65,17 @@ class FinishedProductStockBalance(models.Model):
         decimal_places=3,
         default=Decimal("0.000"),
         verbose_name="Quantité en stock",
+        editable=False,
     )
     weighted_average_cost = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         default=Decimal("0.00"),
         verbose_name="Coût moyen pondéré",
+        editable=False,
     )
     last_movement_date = models.DateTimeField(
-        null=True, blank=True, verbose_name="Dernière mouvement"
+        null=True, blank=True, verbose_name="Dernier mouvement"
     )
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -68,48 +84,55 @@ class FinishedProductStockBalance(models.Model):
         verbose_name_plural = "Soldes stock produits finis"
 
     def __str__(self):
-        return f"{self.finished_product.designation} - {self.quantity} {self.finished_product.sales_unit.symbol}"
+        return (
+            f"{self.finished_product.designation} — "
+            f"{self.quantity} {self.finished_product.sales_unit.symbol}"
+        )
 
     def get_stock_status(self):
-        """Get current stock status"""
         return self.finished_product.get_stock_status()
 
     def get_stock_value(self):
-        """Calculate stock value using WAC"""
         return self.quantity * self.weighted_average_cost
 
     def update_weighted_average_cost(self):
-        """Recalculate weighted average cost from production movements"""
-        production_movements = StockMovement.objects.filter(
+        """Recompute WAC from all production movements (called by signal)."""
+        movements = StockMovement.objects.filter(
             finished_product=self.finished_product,
             movement_type="production",
             quantity__gt=0,
         ).order_by("movement_date")
 
-        if not production_movements.exists():
+        if not movements.exists():
             self.weighted_average_cost = Decimal("0.00")
-            self.save()
+            self.save(update_fields=["weighted_average_cost"])
             return
 
         total_cost = Decimal("0.00")
-        total_quantity = Decimal("0.000")
+        total_qty = Decimal("0.000")
+        for m in movements:
+            if m.unit_cost and m.unit_cost > 0:
+                total_cost += m.quantity * m.unit_cost
+                total_qty += m.quantity
 
-        for movement in production_movements:
-            if movement.unit_cost and movement.unit_cost > 0:
-                batch_cost = movement.quantity * movement.unit_cost
-                total_cost += batch_cost
-                total_quantity += movement.quantity
-
-        if total_quantity > 0:
-            self.weighted_average_cost = total_cost / total_quantity
-        else:
-            self.weighted_average_cost = Decimal("0.00")
-
-        self.save()
+        self.weighted_average_cost = (
+            total_cost / total_qty if total_qty > 0 else Decimal("0.00")
+        )
+        self.save(update_fields=["weighted_average_cost"])
 
 
 class StockMovement(models.Model):
-    """Stock movement history for traceability"""
+    """Stock movement history for full traceability.
+
+    Positive quantity = inflow; negative = outflow.
+    update_stock_balance() is called from save() to keep balance current,
+    but the ONLY callers that may create StockMovements are:
+      - stock.signals.supplier_dn_validated()
+      - stock.signals.production_order_closed()
+      - stock.signals.client_dn_validated()
+      - StockAdjustment.approve()
+    Never from a form view directly (spec BR-RM-05).
+    """
 
     MOVEMENT_TYPE_CHOICES = [
         ("receipt", "Réception"),
@@ -130,7 +153,6 @@ class StockMovement(models.Model):
         ("opening", "Stock d'ouverture"),
     ]
 
-    # Material references (one of these will be filled)
     raw_material = models.ForeignKey(
         "catalog.RawMaterial",
         on_delete=models.PROTECT,
@@ -153,7 +175,6 @@ class StockMovement(models.Model):
         max_digits=12, decimal_places=3, verbose_name="Quantité"
     )
 
-    # Pricing information
     unit_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -169,7 +190,6 @@ class StockMovement(models.Model):
         verbose_name="Coût unitaire",
     )
 
-    # Source document traceability
     source_document_type = models.CharField(
         max_length=20,
         choices=SOURCE_DOCUMENT_CHOICES,
@@ -183,7 +203,6 @@ class StockMovement(models.Model):
     movement_date = models.DateField(verbose_name="Date mouvement")
     remarks = models.TextField(blank=True, verbose_name="Observations")
 
-    # Metadata
     created_by = models.ForeignKey(
         User, on_delete=models.PROTECT, verbose_name="Créé par"
     )
@@ -201,63 +220,55 @@ class StockMovement(models.Model):
 
     def __str__(self):
         material = self.raw_material or self.finished_product
-        return f"{self.get_movement_type_display()} - {material} - {self.quantity}"
+        return f"{self.get_movement_type_display()} — {material} — {self.quantity}"
 
     def save(self, *args, **kwargs):
-        # Validate that exactly one material is specified
         if not (
             (self.raw_material and not self.finished_product)
             or (self.finished_product and not self.raw_material)
         ):
             raise ValueError(
-                "Exactly one of raw_material or finished_product must be specified"
+                "Exactly one of raw_material or finished_product must be specified."
             )
-
         super().save(*args, **kwargs)
-
-        # Update stock balances
         self.update_stock_balance()
 
     def update_stock_balance(self):
-        """Update the corresponding stock balance"""
         if self.raw_material:
-            balance, created = RawMaterialStockBalance.objects.get_or_create(
-                raw_material=self.raw_material, defaults={"quantity": Decimal("0.000")}
+            balance, _ = RawMaterialStockBalance.objects.get_or_create(
+                raw_material=self.raw_material,
+                defaults={"quantity": Decimal("0.000")},
             )
-
-            # Recalculate balance from all movements
-            total_quantity = StockMovement.objects.filter(
+            total = StockMovement.objects.filter(
                 raw_material=self.raw_material
             ).aggregate(total=models.Sum("quantity"))["total"] or Decimal("0.000")
-
-            balance.quantity = total_quantity
+            balance.quantity = total
             balance.last_movement_date = timezone.now()
-            balance.save()
+            balance.save(
+                update_fields=["quantity", "last_movement_date", "last_updated"]
+            )
 
         elif self.finished_product:
-            balance, created = FinishedProductStockBalance.objects.get_or_create(
+            balance, _ = FinishedProductStockBalance.objects.get_or_create(
                 finished_product=self.finished_product,
                 defaults={
                     "quantity": Decimal("0.000"),
                     "weighted_average_cost": Decimal("0.00"),
                 },
             )
-
-            # Recalculate balance from all movements
-            total_quantity = StockMovement.objects.filter(
+            total = StockMovement.objects.filter(
                 finished_product=self.finished_product
             ).aggregate(total=models.Sum("quantity"))["total"] or Decimal("0.000")
-
-            balance.quantity = total_quantity
+            balance.quantity = total
             balance.last_movement_date = timezone.now()
-            balance.save()
-
-            # Update weighted average cost
+            balance.save(
+                update_fields=["quantity", "last_movement_date", "last_updated"]
+            )
             balance.update_weighted_average_cost()
 
 
 class StockAdjustment(models.Model):
-    """Stock adjustment for corrections and inventory updates"""
+    """Stock adjustment for inventory corrections."""
 
     ADJUSTMENT_TYPE_CHOICES = [
         ("inventory", "Inventaire"),
@@ -268,7 +279,7 @@ class StockAdjustment(models.Model):
     ]
 
     reference = models.CharField(
-        max_length=50, unique=True, verbose_name="Référence ajustement"
+        max_length=50, unique=True, verbose_name="Référence ajustement", editable=False
     )
     adjustment_type = models.CharField(
         max_length=20, choices=ADJUSTMENT_TYPE_CHOICES, verbose_name="Type d'ajustement"
@@ -276,7 +287,6 @@ class StockAdjustment(models.Model):
     adjustment_date = models.DateField(verbose_name="Date ajustement")
     reason = models.TextField(verbose_name="Motif")
 
-    # Approval
     approved_by = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
@@ -289,7 +299,6 @@ class StockAdjustment(models.Model):
         null=True, blank=True, verbose_name="Approuvé le"
     )
 
-    # Metadata
     created_by = models.ForeignKey(
         User, on_delete=models.PROTECT, verbose_name="Créé par"
     )
@@ -301,11 +310,10 @@ class StockAdjustment(models.Model):
         ordering = ["-adjustment_date"]
 
     def __str__(self):
-        return f"{self.reference} - {self.get_adjustment_type_display()}"
+        return f"{self.reference} — {self.get_adjustment_type_display()}"
 
     def save(self, *args, **kwargs):
         if not self.reference:
-            # Generate reference: ADJ-YYYY-NNNN
             from core.models import DocumentSequence
 
             year = (
@@ -314,19 +322,14 @@ class StockAdjustment(models.Model):
                 else timezone.now().year
             )
             self.reference = DocumentSequence.get_next_reference("ADJ", year)
-
         super().save(*args, **kwargs)
 
     def approve(self, user):
-        """Approve the adjustment and create stock movements"""
         if self.approved_by:
-            raise ValueError("Cet ajustement est déjà approuvé")
-
+            raise ValueError("Cet ajustement est déjà approuvé.")
         self.approved_by = user
         self.approved_at = timezone.now()
         self.save()
-
-        # Create stock movements for each line
         for line in self.lines.all():
             StockMovement.objects.create(
                 raw_material=line.raw_material,
@@ -338,18 +341,15 @@ class StockAdjustment(models.Model):
                 source_line_id=line.id,
                 movement_date=self.adjustment_date,
                 created_by=user,
-                remarks=f"Ajustement {self.reference}: {self.reason}",
+                remarks=f"Ajustement {self.reference} : {self.reason}",
             )
 
 
 class StockAdjustmentLine(models.Model):
-    """Line item in a stock adjustment"""
-
     stock_adjustment = models.ForeignKey(
         StockAdjustment, on_delete=models.CASCADE, related_name="lines"
     )
 
-    # Material references (one of these will be filled)
     raw_material = models.ForeignKey(
         "catalog.RawMaterial",
         on_delete=models.PROTECT,
@@ -371,9 +371,11 @@ class StockAdjustmentLine(models.Model):
     quantity_after = models.DecimalField(
         max_digits=12, decimal_places=3, verbose_name="Quantité après"
     )
-    quantity_adjustment = models.DecimalField(
-        max_digits=12, decimal_places=3, verbose_name="Ajustement"
-    )
+
+    @property
+    def quantity_adjustment(self):
+        """Computed — never stored."""
+        return self.quantity_after - self.quantity_before
 
     remarks = models.TextField(blank=True, verbose_name="Observations")
 
@@ -381,11 +383,5 @@ class StockAdjustmentLine(models.Model):
         verbose_name = "Ligne ajustement stock"
         verbose_name_plural = "Lignes ajustement stock"
 
-    def save(self, *args, **kwargs):
-        # Calculate adjustment quantity
-        self.quantity_adjustment = self.quantity_after - self.quantity_before
-        super().save(*args, **kwargs)
-
     def __str__(self):
-        material = self.raw_material or self.finished_product
-        return f"{self.stock_adjustment.reference} - {material}"
+        return f"{self.stock_adjustment.reference} — {self.raw_material or self.finished_product}"

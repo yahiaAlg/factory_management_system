@@ -1,15 +1,20 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from decimal import Decimal
 
 
 class Formulation(models.Model):
-    """Production formulation/recipe"""
+    """Production formulation/recipe.
+
+    SPEC BR-PROD-03: editing blocked if any PO with status='in_progress'.
+    SPEC S8: reference F-NNN, sequential, no year.
+    """
 
     reference = models.CharField(
-        max_length=50, unique=True, verbose_name="Référence formulation"
+        max_length=50, verbose_name="Référence formulation", editable=False
     )
     designation = models.CharField(max_length=200, verbose_name="Désignation")
     finished_product = models.ForeignKey(
@@ -40,7 +45,6 @@ class Formulation(models.Model):
     is_active = models.BooleanField(default=True, verbose_name="Active")
     technical_notes = models.TextField(blank=True, verbose_name="Notes techniques")
 
-    # Metadata
     created_by = models.ForeignKey(
         User, on_delete=models.PROTECT, verbose_name="Créé par"
     )
@@ -61,26 +65,35 @@ class Formulation(models.Model):
         return f"{self.reference} v{self.version} - {self.designation}"
 
     def save(self, *args, **kwargs):
-        if not self.reference:
-            # Generate reference: F-NNN
-            next_num = Formulation.objects.count() + 1
-            self.reference = f"F-{next_num:03d}"
+        if not self.pk and not self.reference:
+            from core.models import DocumentSequence
 
+            self.reference = DocumentSequence.get_next_reference("F", 0)
         super().save(*args, **kwargs)
 
-    def create_new_version(self, user):
-        """Create a new version of this formulation"""
-        if self.has_active_production_orders():
-            raise ValueError(
-                "Impossible de modifier une formulation avec des ordres de production actifs"
+    # ------------------------------------------------------------------
+    # BR-PROD-03: block modification when in_progress PO exists
+    # ------------------------------------------------------------------
+    def clean(self):
+        if self.pk and self.has_active_production_orders():
+            raise ValidationError(
+                "Impossible de modifier une formulation avec des ordres de production en cours (BR-PROD-03)."
             )
 
-        # Deactivate current version
+    def has_active_production_orders(self):
+        return self.production_orders.filter(status="in_progress").exists()
+
+    # ------------------------------------------------------------------
+    def create_new_version(self, user):
+        """Create a new version; blocks if in_progress POs exist."""
+        if self.has_active_production_orders():
+            raise ValidationError(
+                "Impossible de créer une nouvelle version : des ordres de production sont en cours."
+            )
         self.is_active = False
         self.save()
 
-        # Create new version
-        new_formulation = Formulation.objects.create(
+        new_f = Formulation.objects.create(
             reference=self.reference,
             designation=self.designation,
             finished_product=self.finished_product,
@@ -91,33 +104,23 @@ class Formulation(models.Model):
             technical_notes=self.technical_notes,
             created_by=user,
         )
-
-        # Copy formulation lines
         for line in self.lines.all():
             FormulationLine.objects.create(
-                formulation=new_formulation,
+                formulation=new_f,
                 raw_material=line.raw_material,
                 qty_per_batch=line.qty_per_batch,
                 unit_of_measure=line.unit_of_measure,
                 tolerance_pct=line.tolerance_pct,
             )
-
-        return new_formulation
-
-    def has_active_production_orders(self):
-        """Check if formulation has active production orders"""
-        return self.production_orders.filter(status="in_progress").exists()
+        return new_f
 
     def calculate_theoretical_cost(self):
-        """Calculate theoretical cost per batch"""
-        total_cost = Decimal("0.00")
-        for line in self.lines.all():
-            material_cost = line.qty_per_batch * line.raw_material.reference_price
-            total_cost += material_cost
-        return total_cost
+        return sum(
+            line.qty_per_batch * line.raw_material.reference_price
+            for line in self.lines.all()
+        )
 
     def get_unit_theoretical_cost(self):
-        """Get theoretical cost per unit of finished product"""
         batch_cost = self.calculate_theoretical_cost()
         if self.reference_batch_qty > 0:
             return batch_cost / self.reference_batch_qty
@@ -125,7 +128,7 @@ class Formulation(models.Model):
 
 
 class FormulationLine(models.Model):
-    """Raw material line in a formulation"""
+    """Raw material line in a formulation."""
 
     formulation = models.ForeignKey(
         Formulation, on_delete=models.CASCADE, related_name="lines"
@@ -161,13 +164,22 @@ class FormulationLine(models.Model):
     def __str__(self):
         return f"{self.formulation.reference} - {self.raw_material.designation}"
 
-    def get_theoretical_cost(self):
-        """Get theoretical cost for this line"""
+    @property
+    def theoretical_cost(self):
         return self.qty_per_batch * self.raw_material.reference_price
 
 
 class ProductionOrder(models.Model):
-    """Production Order (Ordre de Production)"""
+    """Production Order (Ordre de Production).
+
+    SPEC S2 / S6 status transitions:
+      pending → validated  (via validate())
+      validated → in_progress  (via launch())
+      in_progress → completed  (via close())
+      in_progress / pending → cancelled
+
+    SPEC S3: yield_rate and yield_status are @property — NOT stored DB fields.
+    """
 
     STATUS_CHOICES = [
         ("pending", "En attente"),
@@ -177,14 +189,16 @@ class ProductionOrder(models.Model):
         ("cancelled", "Annulé"),
     ]
 
-    YIELD_STATUS_CHOICES = [
-        ("normal", "Normal"),
-        ("warning", "Attention"),
-        ("critical", "Critique"),
-    ]
+    VALID_TRANSITIONS = {
+        "pending": ["validated", "cancelled"],
+        "validated": ["in_progress", "cancelled"],
+        "in_progress": ["completed", "cancelled"],
+        "completed": [],
+        "cancelled": [],
+    }
 
     reference = models.CharField(
-        max_length=50, unique=True, verbose_name="Référence OP"
+        max_length=50, unique=True, verbose_name="Référence OP", editable=False
     )
     formulation = models.ForeignKey(
         Formulation,
@@ -212,7 +226,6 @@ class ProductionOrder(models.Model):
         max_length=20, choices=STATUS_CHOICES, default="pending", verbose_name="Statut"
     )
 
-    # Production results
     actual_qty_produced = models.DecimalField(
         max_digits=10,
         decimal_places=3,
@@ -221,28 +234,12 @@ class ProductionOrder(models.Model):
         validators=[MinValueValidator(Decimal("0.000"))],
         verbose_name="Quantité réellement produite",
     )
-    yield_rate = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        verbose_name="Taux de rendement (%)",
-    )
-    yield_status = models.CharField(
-        max_length=20,
-        choices=YIELD_STATUS_CHOICES,
-        default="normal",
-        verbose_name="Statut rendement",
-    )
 
-    # Stock validation
     stock_check_passed = models.BooleanField(
         default=False, verbose_name="Vérification stock OK"
     )
-
     notes = models.TextField(blank=True, verbose_name="Notes")
 
-    # Metadata
     created_by = models.ForeignKey(
         User, on_delete=models.PROTECT, verbose_name="Créé par"
     )
@@ -270,119 +267,90 @@ class ProductionOrder(models.Model):
         return f"{self.reference} - {self.formulation.designation}"
 
     def save(self, *args, **kwargs):
-        if not self.reference:
-            # Generate reference: OP-YYYY-NNNN
-            from core.models import DocumentSequence
+        if not self.pk:
+            if not self.reference:
+                from core.models import DocumentSequence
 
-            year = self.launch_date.year if self.launch_date else timezone.now().year
-            self.reference = DocumentSequence.get_next_reference("OP", year)
-
-        # Store formulation version
-        if self.formulation and not self.formulation_version:
-            self.formulation_version = self.formulation.version
-
+                year = (
+                    self.launch_date.year if self.launch_date else timezone.now().year
+                )
+                self.reference = DocumentSequence.get_next_reference("OP", year)
+            if self.formulation and not self.formulation_version:
+                self.formulation_version = self.formulation.version
         super().save(*args, **kwargs)
 
-    def validate_stock_availability(self):
-        """Check if all required materials are available in stock"""
-        insufficient_materials = []
+    # ------------------------------------------------------------------
+    # SPEC S3: yield_rate and yield_status as @property
+    # ------------------------------------------------------------------
+    @property
+    def yield_rate(self):
+        """Computed — never stored directly (spec S3)."""
+        if self.actual_qty_produced is not None and self.target_qty > 0:
+            return (self.actual_qty_produced / self.target_qty) * 100
+        return None
 
-        for line in self.consumption_lines.all():
-            from stock.models import RawMaterialStockBalance
+    @property
+    def yield_status(self):
+        """Derived from yield_rate vs configurable thresholds (spec S3)."""
+        rate = self.yield_rate
+        if rate is None:
+            return None
+        from core.models import SystemParameter
 
-            try:
-                balance = RawMaterialStockBalance.objects.get(
-                    raw_material=line.raw_material
-                )
-                if balance.quantity < line.qty_theoretical:
-                    insufficient_materials.append(
-                        {
-                            "material": line.raw_material,
-                            "required": line.qty_theoretical,
-                            "available": balance.quantity,
-                            "shortage": line.qty_theoretical - balance.quantity,
-                        }
-                    )
-            except RawMaterialStockBalance.DoesNotExist:
-                insufficient_materials.append(
-                    {
-                        "material": line.raw_material,
-                        "required": line.qty_theoretical,
-                        "available": Decimal("0.000"),
-                        "shortage": line.qty_theoretical,
-                    }
-                )
+        warning = SystemParameter.get_decimal_value(
+            "yield_warning_threshold", Decimal("90.00")
+        )
+        critical = SystemParameter.get_decimal_value(
+            "yield_critical_threshold", Decimal("80.00")
+        )
+        if rate >= warning:
+            return "normal"
+        if rate >= critical:
+            return "warning"
+        return "critical"
 
-        self.stock_check_passed = len(insufficient_materials) == 0
+    # ------------------------------------------------------------------
+    # Status transitions
+    # ------------------------------------------------------------------
+    def _transition(self, new_status):
+        allowed = self.VALID_TRANSITIONS.get(self.status, [])
+        if new_status not in allowed:
+            raise ValidationError(
+                f"Transition invalide : {self.status} → {new_status}."
+            )
+        self.status = new_status
+
+    def validate(self, user):
+        """pending → validated: stock availability check."""
+        self._transition("validated")
+        insufficient = self._check_stock_availability()
+        self.stock_check_passed = len(insufficient) == 0
         self.save()
-
-        return insufficient_materials
+        return insufficient
 
     def launch(self, user):
-        """Launch the production order"""
-        if self.status != "pending":
-            raise ValueError("Seuls les ordres en attente peuvent être lancés")
-
-        # Create consumption lines based on formulation
-        self.create_consumption_lines()
-
-        # Validate stock availability
-        insufficient_materials = self.validate_stock_availability()
-
-        if insufficient_materials and not user.userprofile.role == "manager":
-            raise ValueError("Stock insuffisant pour certaines matières premières")
-
-        self.status = "in_progress"
+        """validated → in_progress: create consumption lines."""
+        self._transition("in_progress")
+        self._create_consumption_lines()
         self.save()
 
-    def create_consumption_lines(self):
-        """Create consumption lines based on formulation"""
-        # Clear existing lines
-        self.consumption_lines.all().delete()
-
-        # Calculate scaling factor
-        scaling_factor = self.target_qty / self.formulation.reference_batch_qty
-
-        # Create lines
-        for formulation_line in self.formulation.lines.all():
-            ProductionOrderLine.objects.create(
-                production_order=self,
-                raw_material=formulation_line.raw_material,
-                qty_theoretical=formulation_line.qty_per_batch * scaling_factor,
-                tolerance_pct=formulation_line.tolerance_pct,
-            )
-
     def close(self, user, actual_qty_produced, consumption_data):
-        """Close the production order with actual results"""
-        if self.status != "in_progress":
-            raise ValueError("Seul un ordre en cours peut être clôturé")
+        """
+        in_progress → completed.
 
+        SPEC BR-PROD-05: uses qty_actual (not qty_theoretical) for RM
+        stock deductions — handled by the post_save signal in
+        production/signals.py, NOT called directly here.
+
+        consumption_data: {raw_material_id: actual_qty, ...}
+        """
+        self._transition("completed")
         self.actual_qty_produced = actual_qty_produced
         self.closure_date = timezone.now().date()
         self.closed_by = user
+        self.save()
 
-        # Calculate yield rate
-        if self.target_qty > 0:
-            self.yield_rate = (actual_qty_produced / self.target_qty) * 100
-
-        # Determine yield status
-        from core.models import SystemParameter
-
-        warning_threshold = SystemParameter.get_decimal_value(
-            "yield_warning_threshold", Decimal("90.00")
-        )
-        critical_threshold = SystemParameter.get_decimal_value(
-            "yield_critical_threshold", Decimal("80.00")
-        )
-
-        if self.yield_rate >= warning_threshold:
-            self.yield_status = "normal"
-        elif self.yield_rate >= critical_threshold:
-            self.yield_status = "warning"
-        else:
-            self.yield_status = "critical"
-
-        # Update consumption lines with actual quantities
+        # Record actual consumption on lines
         for material_id, actual_qty in consumption_data.items():
             try:
                 line = self.consumption_lines.get(raw_material_id=material_id)
@@ -390,34 +358,71 @@ class ProductionOrder(models.Model):
                 line.save()
             except ProductionOrderLine.DoesNotExist:
                 pass
+        # Signal production.signals.production_order_post_save handles
+        # RM deductions + FG credit + WAC recalculation (spec S7).
 
-        self.status = "completed"
+    def cancel(self, user):
+        """pending or in_progress → cancelled."""
+        self._transition("cancelled")
         self.save()
 
-        # Trigger stock movements via signals
-        from django.db.models.signals import post_save
+    # ------------------------------------------------------------------
+    def _check_stock_availability(self):
+        insufficient = []
+        for line in self.consumption_lines.all():
+            from stock.models import RawMaterialStockBalance
 
-        post_save.send(sender=self.__class__, instance=self, created=False)
+            try:
+                balance = RawMaterialStockBalance.objects.get(
+                    raw_material=line.raw_material
+                )
+                available = balance.quantity
+            except RawMaterialStockBalance.DoesNotExist:
+                available = Decimal("0.000")
+            if available < line.qty_theoretical:
+                insufficient.append(
+                    {
+                        "material": line.raw_material,
+                        "required": line.qty_theoretical,
+                        "available": available,
+                        "shortage": line.qty_theoretical - available,
+                    }
+                )
+        return insufficient
+
+    def _create_consumption_lines(self):
+        """Scale formulation lines to target_qty."""
+        self.consumption_lines.all().delete()
+        scaling = self.target_qty / self.formulation.reference_batch_qty
+        for fl in self.formulation.lines.all():
+            ProductionOrderLine.objects.create(
+                production_order=self,
+                raw_material=fl.raw_material,
+                qty_theoretical=fl.qty_per_batch * scaling,
+                tolerance_pct=fl.tolerance_pct,
+            )
 
     def calculate_batch_cost(self):
-        """Calculate actual cost of this production batch"""
-        total_cost = Decimal("0.00")
-        for line in self.consumption_lines.all():
-            if line.qty_actual is not None:
-                material_cost = line.qty_actual * line.raw_material.reference_price
-                total_cost += material_cost
-        return total_cost
+        """Actual cost using qty_actual (spec BR-PROD-05)."""
+        return sum(
+            (line.qty_actual or Decimal("0.000")) * line.raw_material.reference_price
+            for line in self.consumption_lines.all()
+        )
 
     def get_unit_cost(self):
-        """Get actual unit cost of produced goods"""
-        batch_cost = self.calculate_batch_cost()
+        cost = self.calculate_batch_cost()
         if self.actual_qty_produced and self.actual_qty_produced > 0:
-            return batch_cost / self.actual_qty_produced
+            return cost / self.actual_qty_produced
         return Decimal("0.00")
 
 
 class ProductionOrderLine(models.Model):
-    """Raw material consumption line in a production order"""
+    """Raw material consumption line in a production order.
+
+    SPEC S3: delta_qty and financial_impact are @property — NOT stored.
+    qty_theoretical is computed at PO creation from formulation, never
+    accepted from form input.
+    """
 
     production_order = models.ForeignKey(
         ProductionOrder, on_delete=models.CASCADE, related_name="consumption_lines"
@@ -425,11 +430,13 @@ class ProductionOrderLine(models.Model):
     raw_material = models.ForeignKey(
         "catalog.RawMaterial", on_delete=models.PROTECT, verbose_name="Matière première"
     )
+    # SPEC S3: computed at PO creation — editable=False prevents form submission
     qty_theoretical = models.DecimalField(
         max_digits=10,
         decimal_places=3,
         validators=[MinValueValidator(Decimal("0.000"))],
         verbose_name="Quantité théorique",
+        editable=False,
     )
     qty_actual = models.DecimalField(
         max_digits=10,
@@ -439,23 +446,11 @@ class ProductionOrderLine(models.Model):
         validators=[MinValueValidator(Decimal("0.000"))],
         verbose_name="Quantité réelle",
     )
-    delta_qty = models.DecimalField(
-        max_digits=10,
-        decimal_places=3,
-        default=Decimal("0.000"),
-        verbose_name="Écart quantité",
-    )
     tolerance_pct = models.DecimalField(
         max_digits=5,
         decimal_places=2,
         default=Decimal("5.00"),
         verbose_name="Tolérance (%)",
-    )
-    financial_impact = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal("0.00"),
-        verbose_name="Impact financier",
     )
 
     class Meta:
@@ -463,28 +458,31 @@ class ProductionOrderLine(models.Model):
         verbose_name_plural = "Lignes consommation OP"
         unique_together = ["production_order", "raw_material"]
 
-    def save(self, *args, **kwargs):
-        # Calculate delta and financial impact
-        if self.qty_actual is not None:
-            self.delta_qty = self.qty_actual - self.qty_theoretical
-            self.financial_impact = self.delta_qty * self.raw_material.reference_price
-
-        super().save(*args, **kwargs)
-
     def __str__(self):
         return f"{self.production_order.reference} - {self.raw_material.designation}"
 
+    # SPEC S3: computed properties — never stored
+    @property
+    def delta_qty(self):
+        if self.qty_actual is not None:
+            return self.qty_actual - self.qty_theoretical
+        return None
+
+    @property
+    def financial_impact(self):
+        dq = self.delta_qty
+        if dq is not None:
+            return dq * self.raw_material.reference_price
+        return None
+
     def is_within_tolerance(self):
-        """Check if actual consumption is within tolerance"""
         if self.qty_actual is None:
             return True
-
         tolerance_amount = self.qty_theoretical * (self.tolerance_pct / 100)
-        return abs(self.delta_qty) <= tolerance_amount
+        dq = self.delta_qty
+        return abs(dq) <= tolerance_amount if dq is not None else True
 
     def get_variance_percentage(self):
-        """Get variance percentage from theoretical"""
         if self.qty_theoretical == 0 or self.qty_actual is None:
             return Decimal("0.00")
-
         return (self.delta_qty / self.qty_theoretical) * 100

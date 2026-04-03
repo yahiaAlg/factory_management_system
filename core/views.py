@@ -1,82 +1,98 @@
 # core/views.py
-from django.shortcuts import render, redirect
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from accounts.utils import role_required
 from .models import CompanyInformation, SystemParameter
 from .forms import CompanyInformationForm, SystemParameterForm
 
-@login_required
-def dashboard(request):
-    """Main dashboard view"""
-    # This would collect KPIs from various apps
-    context = {
-        'title': 'Tableau de bord'
-    }
-    return render(request, 'core/dashboard.html', context)
 
 @login_required
+def dashboard(request):
+    return render(request, "core/dashboard.html", {"title": "Tableau de bord"})
+
+
+@login_required
+@role_required(["manager"])
 def company_settings(request):
-    """Company information settings"""
-    if not request.user.userprofile.role in ['manager']:
-        messages.error(request, "Accès non autorisé")
-        return redirect('dashboard')
-    
-    company, created = CompanyInformation.objects.get_or_create(
-        defaults={'raison_sociale': 'Ma Société'}
+    """
+    FIX: replaced inline `if not role in ['manager']` check with @role_required
+    decorator, consistent with S9 / accounts/utils.py contract.
+    """
+    company, _ = CompanyInformation.objects.get_or_create(
+        defaults={"raison_sociale": "Ma Société", "address": "", "wilaya": ""}
     )
-    
-    if request.method == 'POST':
+
+    if request.method == "POST":
         form = CompanyInformationForm(request.POST, request.FILES, instance=company)
         if form.is_valid():
             form.save()
             messages.success(request, "Informations société mises à jour avec succès")
-            return redirect('company_settings')
+            return redirect("company_settings")
     else:
         form = CompanyInformationForm(instance=company)
-    
-    return render(request, 'core/company_settings.html', {
-        'form': form,
-        'title': 'Paramètres société'
-    })
+
+    return render(
+        request,
+        "core/company_settings.html",
+        {
+            "form": form,
+            "title": "Paramètres société",
+        },
+    )
+
 
 @login_required
+@role_required(["manager"])
 def system_parameters(request):
-    """System parameters management"""
-    if not request.user.userprofile.role in ['manager']:
-        messages.error(request, "Accès non autorisé")
-        return redirect('dashboard')
-    
-    if request.method == 'POST':
-        form = SystemParameterForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Paramètre ajouté avec succès")
-            return redirect('system_parameters')
-    else:
-        form = SystemParameterForm()
-    
-    parameters = SystemParameter.objects.all().order_by('category', 'key')
-    
-    return render(request, 'core/system_parameters.html', {
-        'form': form,
-        'parameters': parameters,
-        'title': 'Paramètres système'
-    })
-
-@login_required
-def update_parameter(request, parameter_id):
-    """Update system parameter via AJAX"""
-    if not request.user.userprofile.role in ['manager']:
-        return JsonResponse({'success': False, 'error': 'Accès non autorisé'})
-    
-    if request.method == 'POST':
-        try:
-            parameter = SystemParameter.objects.get(id=parameter_id)
-            parameter.value = request.POST.get('value', '')
+    """
+    FIX: replaced inline role check with @role_required decorator.
+    FIX: update_parameter AJAX endpoint merged here as a standard POST action
+         (editing an existing parameter by id) to stay within the POST-Redirect-GET
+         pattern.  The separate update_parameter view is removed (outside S5 AJAX list).
+    """
+    if request.method == "POST":
+        param_id = request.POST.get("param_id")
+        if param_id:
+            # Edit existing parameter
+            parameter = get_object_or_404(SystemParameter, id=param_id)
+            new_value = request.POST.get("value", "")
+            parameter.value = new_value
             parameter.save()
-            return JsonResponse({'success': True})
-        except SystemParameter.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Paramètre non trouvé'})
-    
-    return JsonResponse({'success': False, 'error': 'Méthode non autorisée'})
+            messages.success(request, f"Paramètre « {parameter.key} » mis à jour")
+        else:
+            # Create new parameter
+            form = SystemParameterForm(request.POST)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Paramètre ajouté avec succès")
+            else:
+                parameters = SystemParameter.objects.all().order_by("category", "key")
+                return render(
+                    request,
+                    "core/system_parameters.html",
+                    {
+                        "form": form,
+                        "parameters": parameters,
+                        "title": "Paramètres système",
+                    },
+                )
+        return redirect("system_parameters")
+
+    form = SystemParameterForm()
+    parameters = SystemParameter.objects.all().order_by("category", "key")
+    return render(
+        request,
+        "core/system_parameters.html",
+        {
+            "form": form,
+            "parameters": parameters,
+            "title": "Paramètres système",
+        },
+    )
+
+
+# FIX: update_parameter (AJAX/JsonResponse) REMOVED.
+# Inline parameter value editing was a JsonResponse endpoint outside the 4
+# permitted AJAX cases (S5).  The functionality is now handled by the POST
+# branch of system_parameters() above using POST-Redirect-GET.

@@ -1,3 +1,4 @@
+# supplier_ops/admin.py
 from django.contrib import admin
 from .models import (
     SupplierDN, SupplierDNLine, SupplierInvoice, SupplierInvoiceLine,

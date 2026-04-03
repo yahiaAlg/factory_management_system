@@ -1,3 +1,4 @@
+# production/admin.py
 from django.contrib import admin
 from .models import Formulation, FormulationLine, ProductionOrder, ProductionOrderLine
 

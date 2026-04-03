@@ -1,3 +1,4 @@
+# catalog/admin.py
 from django.contrib import admin
 from .models import RawMaterialCategory, UnitOfMeasure, RawMaterial, FinishedProduct
 

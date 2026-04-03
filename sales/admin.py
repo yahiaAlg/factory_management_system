@@ -1,3 +1,4 @@
+# sales/admin.py
 from django.contrib import admin
 from .models import ClientDN, ClientDNLine, ClientInvoice, ClientInvoiceDNLink, ClientPayment
 

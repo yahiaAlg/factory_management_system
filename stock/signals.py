@@ -1,45 +1,18 @@
 # stock/signals.py
-from django.db.models.signals import post_save, post_delete
-from django.dispatch import receiver
-from .models import StockMovement, RawMaterialStockBalance, FinishedProductStockBalance
+#
+# NOTE (spec BR-RM-05): StockMovement records are NEVER deleted — they are
+# the immutable audit trail for all stock changes.  The post_delete handler
+# below is therefore removed: it contradicts the spec and was also broken
+# (missing 'models' and 'Decimal' imports).
+#
+# The only permitted write paths for stock balances are:
+#   - stock.signals.supplier_dn_validated  (via supplier_ops/signals.py)
+#   - stock.signals.production_order_closed (via production/signals.py)
+#   - stock.signals.client_dn_validated    (via sales/signals.py)
+#   - StockAdjustment.approve()
+#
+# StockMovement.save() already calls update_stock_balance() directly, so no
+# post_save signal is needed here either — it would double-update the balance.
 
-@receiver(post_save, sender=StockMovement)
-def update_stock_balance_on_movement(sender, instance, created, **kwargs):
-    """Update stock balance when a movement is created"""
-    if created:
-        instance.update_stock_balance()
-
-@receiver(post_delete, sender=StockMovement)
-def update_stock_balance_on_movement_delete(sender, instance, **kwargs):
-    """Update stock balance when a movement is deleted"""
-    # Recalculate balance after deletion
-    if instance.raw_material:
-        try:
-            balance = RawMaterialStockBalance.objects.get(raw_material=instance.raw_material)
-            # Recalculate from remaining movements
-            total_quantity = StockMovement.objects.filter(
-                raw_material=instance.raw_material
-            ).aggregate(
-                total=models.Sum('quantity')
-            )['total'] or Decimal('0.000')
-            
-            balance.quantity = total_quantity
-            balance.save()
-        except RawMaterialStockBalance.DoesNotExist:
-            pass
-    
-    elif instance.finished_product:
-        try:
-            balance = FinishedProductStockBalance.objects.get(finished_product=instance.finished_product)
-            # Recalculate from remaining movements
-            total_quantity = StockMovement.objects.filter(
-                finished_product=instance.finished_product
-            ).aggregate(
-                total=models.Sum('quantity')
-            )['total'] or Decimal('0.000')
-            
-            balance.quantity = total_quantity
-            balance.save()
-            balance.update_weighted_average_cost()
-        except FinishedProductStockBalance.DoesNotExist:
-            pass
+# No signal registrations required for stock app.
+# Balance updates are handled inside StockMovement.save() → update_stock_balance().

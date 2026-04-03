@@ -6,6 +6,23 @@ from django.utils import timezone
 from decimal import Decimal
 
 
+class ExpenseCategory(models.Model):
+    """Dynamic expense categories — managed via admin or seed command."""
+
+    code = models.CharField(max_length=50, unique=True, verbose_name="Code")
+    label = models.CharField(max_length=100, verbose_name="Libellé")
+    is_active = models.BooleanField(default=True, verbose_name="Active")
+    order = models.PositiveSmallIntegerField(default=0, verbose_name="Ordre")
+
+    class Meta:
+        verbose_name = "Catégorie de dépense"
+        verbose_name_plural = "Catégories de dépenses"
+        ordering = ["order", "label"]
+
+    def __str__(self):
+        return self.label
+
+
 class Expense(models.Model):
     """Operational expenses management.
 
@@ -19,21 +36,6 @@ class Expense(models.Model):
 
     Never deleted — deactivate/reject only.
     """
-
-    CATEGORY_CHOICES = [
-        ("salaries", "Salaires et charges sociales"),
-        ("maintenance", "Maintenance et réparations"),
-        ("energy", "Énergie et utilités"),
-        ("transport", "Transport et logistique"),
-        ("rent", "Loyers et charges locatives"),
-        ("supplies", "Fournitures et consommables"),
-        ("taxes", "Taxes et impôts"),
-        ("insurance", "Assurances"),
-        ("professional", "Services professionnels"),
-        ("marketing", "Marketing et communication"),
-        ("training", "Formation"),
-        ("other", "Autres charges"),
-    ]
 
     STATUS_CHOICES = [
         ("recorded", "Enregistrée"),
@@ -54,8 +56,11 @@ class Expense(models.Model):
         max_length=50, unique=True, verbose_name="Référence dépense", editable=False
     )
     expense_date = models.DateField(verbose_name="Date de la dépense")
-    category = models.CharField(
-        max_length=20, choices=CATEGORY_CHOICES, verbose_name="Catégorie"
+    category = models.ForeignKey(
+        ExpenseCategory,
+        on_delete=models.PROTECT,
+        verbose_name="Catégorie",
+        limit_choices_to={"is_active": True},
     )
     description = models.TextField(verbose_name="Description")
     amount = models.DecimalField(

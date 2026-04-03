@@ -1,4 +1,7 @@
-Django==4.2.7
-django-import-export==3.3.1
-Pillow==10.0.1
-python-dateutil==2.8.2
+Django
+django-import-export
+Pillow
+python-dateutil
+gunicorn
+psycopg2-binary
+whitenoise[brotli]

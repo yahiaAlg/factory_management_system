@@ -73,7 +73,9 @@ def formulation_create(request):
             messages.success(
                 request, f"Formulation {formulation.reference} créée avec succès"
             )
-            return redirect("formulation_detail", formulation_id=formulation.id)
+            return redirect(
+                "production:formulation_detail", formulation_id=formulation.id
+            )
     else:
         form = FormulationForm()
         formset = FormulationLineFormSet()
@@ -131,11 +133,13 @@ def formulation_edit(request, formulation_id):
             messages.success(
                 request, f"Nouvelle version {new_formulation.version} créée"
             )
-            return redirect("formulation_detail", formulation_id=new_formulation.id)
+            return redirect(
+                "production:formulation_detail", formulation_id=new_formulation.id
+            )
         except ValidationError as e:
             messages.error(request, e.message if hasattr(e, "message") else str(e))
 
-    return redirect("formulation_detail", formulation_id=formulation.id)
+    return redirect("production:formulation_detail", formulation_id=formulation.id)
 
 
 @login_required
@@ -210,7 +214,7 @@ def production_order_create(request):
             messages.success(
                 request, f"Ordre de production {order.reference} créé avec succès"
             )
-            return redirect("production_order_detail", order_id=order.id)
+            return redirect("production:production_order_detail", order_id=order.id)
     else:
         form = ProductionOrderForm()
 
@@ -289,7 +293,7 @@ def production_order_validate(request, order_id):
         except ValidationError as e:
             messages.error(request, e.message if hasattr(e, "message") else str(e))
 
-    return redirect("production_order_detail", order_id=order.id)
+    return redirect("production:production_order_detail", order_id=order.id)
 
 
 @login_required
@@ -313,7 +317,7 @@ def production_order_launch(request, order_id):
         except ValidationError as e:
             messages.error(request, e.message if hasattr(e, "message") else str(e))
 
-    return redirect("production_order_detail", order_id=order.id)
+    return redirect("production:production_order_detail", order_id=order.id)
 
 
 @login_required
@@ -324,7 +328,7 @@ def production_order_close(request, order_id):
 
     if order.status != "in_progress":
         messages.error(request, "Cet ordre ne peut pas être clôturé")
-        return redirect("production_order_detail", order_id=order.id)
+        return redirect("production:production_order_detail", order_id=order.id)
 
     if request.method == "POST":
         form = ProductionOrderCloseForm(request.POST, instance=order)
@@ -344,7 +348,7 @@ def production_order_close(request, order_id):
                 messages.success(
                     request, f"Ordre de production {order.reference} clôturé"
                 )
-                return redirect("production_order_detail", order_id=order.id)
+                return redirect("production:production_order_detail", order_id=order.id)
             except ValidationError as e:
                 messages.error(request, e.message if hasattr(e, "message") else str(e))
     else:

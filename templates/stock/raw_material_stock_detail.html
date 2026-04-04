@@ -1,0 +1,248 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Stock — {{ material.designation }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'stock:raw_materials_stock_list' %}">Stock MP</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ material.reference }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.detail-section-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700; font-size: 13px; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 14px;
+}
+.info-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+.info-row:last-child { border-bottom:none; }
+.info-label { font-size:12.5px; color:var(--text-muted); }
+.info-value { font-size:13.5px; font-weight:500; color:var(--text-primary); text-align:right; }
+.stock-gauge {
+  background: var(--border); border-radius: 99px; height: 8px; overflow: hidden; margin-top: 10px;
+}
+.stock-gauge-fill { height: 100%; border-radius: 99px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+.mv-type-badge {
+  display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
+  border-radius:99px; font-size:11.5px; font-weight:600; font-family:'Plus Jakarta Sans',sans-serif;
+}
+.mv-receipt { background:#dcfce7; color:#15803d; }
+.mv-consumption { background:#fee2e2; color:#dc2626; }
+.mv-adjustment { background:#f3e8ff; color:#7c3aed; }
+.mv-opening { background:#f1f5f9; color:#475569; }
+.mv-return { background:#fef9c3; color:#a16207; }
+.mv-loss { background:#fee2e2; color:#dc2626; }
+.qty-positive { color:#16a34a; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; }
+.qty-negative { color:#dc2626; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+  <div class="d-flex align-items-center gap-3">
+    <div class="metric-icon ic-teal" style="width:52px;height:52px;border-radius:var(--radius-lg);font-size:22px;">
+      <i class="bx bx-package"></i>
+    </div>
+    <div>
+      <h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text-primary);margin:0;">
+        {{ material.designation }}
+      </h1>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+        <span class="col-ref">{{ material.reference }}</span>
+        {% if stock_status == 'available' %}
+          <span class="badge-disponible"><i class="bx bx-check-circle"></i> Disponible</span>
+        {% elif stock_status == 'running_low' %}
+          <span class="badge-presque"><i class="bx bx-error"></i> Stock faible</span>
+        {% elif stock_status == 'stockout' %}
+          <span class="badge-rupture"><i class="bx bx-x-circle"></i> Rupture</span>
+        {% elif stock_status == 'on_order' %}
+          <span class="badge-commande"><i class="bx bx-time"></i> Commandé</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if request.user.userprofile.role in 'manager,stock_prod' %}
+    <a href="{% url 'stock:stock_adjustment_create' %}" class="btn-secondary-app">
+      <i class="bx bx-edit-alt"></i> Ajustement
+    </a>
+    {% endif %}
+    <a href="{% url 'stock:raw_materials_stock_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Current Stock Gauge Card -->
+  <div class="col-lg-4">
+    <div class="card-app h-100">
+      <div class="card-app-header">
+        <span class="card-app-title">Niveau de stock</span>
+      </div>
+      <div class="card-app-body">
+        <div style="text-align:center;padding:10px 0 16px;">
+          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:36px;
+               color:{% if stock_status == 'stockout' %}#dc2626{% elif stock_status == 'running_low' %}#d97706{% else %}#16a34a{% endif %};">
+            {{ current_qty|floatformat:3 }}
+          </div>
+          <div style="font-size:14px;color:var(--text-muted);margin-top:2px;">{{ material.unit_of_measure.symbol }}</div>
+        </div>
+        {% if balance and material.alert_threshold > 0 %}
+        <div class="stock-gauge">
+          <div class="stock-gauge-fill {% if stock_status == 'stockout' %}bg-danger{% elif stock_status == 'running_low' %}bg-warning{% else %}bg-success{% endif %}"
+               style="width:{% widthratio current_qty material.alert_threshold 100 %}%;max-width:100%;
+                      background:{% if stock_status == 'stockout' %}#dc2626{% elif stock_status == 'running_low' %}#d97706{% else %}#16a34a{% endif %};">
+          </div>
+        </div>
+        {% endif %}
+        <div style="margin-top:20px;">
+          <div class="info-row">
+            <span class="info-label">Seuil d'alerte</span>
+            <span class="info-value">{{ material.alert_threshold|floatformat:3 }} {{ material.unit_of_measure.symbol }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Seuil de rupture</span>
+            <span class="info-value">{{ material.stockout_threshold|floatformat:3 }} {{ material.unit_of_measure.symbol }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Valeur du stock</span>
+            <span class="info-value" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;">{{ stock_value|floatformat:0 }} DA</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Material Info -->
+  <div class="col-lg-4">
+    <div class="card-app h-100">
+      <div class="card-app-header">
+        <span class="card-app-title">Informations matière</span>
+      </div>
+      <div class="card-app-body">
+        <div class="info-row">
+          <span class="info-label">Référence</span>
+          <span class="col-ref">{{ material.reference }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Catégorie</span>
+          <span class="info-value">{{ material.category.name }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Unité de mesure</span>
+          <span class="info-value">{{ material.unit_of_measure.name }} ({{ material.unit_of_measure.symbol }})</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Prix de référence</span>
+          <span class="info-value" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">{{ material.reference_price|floatformat:2 }} DA</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Fournisseur défaut</span>
+          <span class="info-value">{{ material.default_supplier.name|default:"—" }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Statut</span>
+          <span class="info-value">{% if material.is_active %}<span class="badge-valide">Actif</span>{% else %}<span class="badge-annule">Inactif</span>{% endif %}</span>
+        </div>
+        {% if balance %}
+        <div class="info-row">
+          <span class="info-label">Dernier mouvement</span>
+          <span class="info-value" style="font-size:12px;">{{ balance.last_movement_date|date:"d/m/Y H:i"|default:"—" }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="col-lg-4">
+    <div class="card-app h-100">
+      <div class="card-app-header">
+        <span class="card-app-title">Accès rapides</span>
+      </div>
+      <div class="card-app-body d-flex flex-column gap-2">
+        <a href="{% url 'stock:stock_movements_list' %}?material_type=raw_material&material_id={{ material.id }}"
+           class="btn-secondary-app w-100 justify-content-center">
+          <i class="bx bx-transfer-alt"></i> Voir tous les mouvements
+        </a>
+        {% if request.user.userprofile.role in 'manager,stock_prod' %}
+        <a href="{% url 'stock:stock_adjustment_create' %}" class="btn-secondary-app w-100 justify-content-center">
+          <i class="bx bx-edit-alt"></i> Créer un ajustement
+        </a>
+        {% endif %}
+        <a href="{% url 'stock:stock_adjustments_list' %}" class="btn-secondary-app w-100 justify-content-center">
+          <i class="bx bx-list-ul"></i> Historique ajustements
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Movement History -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title"><i class="bx bx-history" style="color:var(--accent);margin-right:6px;"></i>Historique des mouvements (50 derniers)</span>
+    <a href="{% url 'stock:stock_movements_list' %}?material_type=raw_material&material_id={{ material.id }}"
+       class="btn-secondary-app" style="padding:5px 12px;font-size:12px;">
+      Voir tout <i class="bx bx-right-arrow-alt"></i>
+    </a>
+  </div>
+  <div class="table-container" style="border:none;border-radius:0;">
+    {% if movements %}
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Document source</th>
+          <th class="text-end">Quantité</th>
+          <th class="text-end">Prix unitaire</th>
+          <th>Observations</th>
+          <th>Opérateur</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mv in movements %}
+        <tr>
+          <td style="white-space:nowrap;font-size:13px;color:var(--text-secondary);">{{ mv.movement_date|date:"d/m/Y" }}</td>
+          <td>
+            <span class="mv-type-badge mv-{{ mv.movement_type }}">{{ mv.get_movement_type_display }}</span>
+          </td>
+          <td>
+            <span style="font-size:12px;color:var(--text-muted);">{{ mv.get_source_document_type_display }}</span>
+            <div class="col-ref" style="font-size:12px;">#{{ mv.source_document_id }}</div>
+          </td>
+          <td class="text-end">
+            <span class="{% if mv.quantity >= 0 %}qty-positive{% else %}qty-negative{% endif %}">
+              {% if mv.quantity >= 0 %}+{% endif %}{{ mv.quantity|floatformat:3 }} {{ material.unit_of_measure.symbol }}
+            </span>
+          </td>
+          <td class="text-end" style="font-size:13px;color:var(--text-secondary);">
+            {% if mv.unit_price %}{{ mv.unit_price|floatformat:2 }} DA{% else %}—{% endif %}
+          </td>
+          <td style="font-size:12.5px;color:var(--text-secondary);max-width:200px;">
+            {{ mv.remarks|default:"—"|truncatechars:60 }}
+          </td>
+          <td style="font-size:12.5px;color:var(--text-muted);">{{ mv.created_by.get_full_name|default:mv.created_by.username }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bx bx-transfer-alt"></i></div>
+      <div class="empty-title">Aucun mouvement enregistré</div>
+      <div class="empty-desc">Les mouvements de stock apparaîtront ici après réception, production ou ajustement.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

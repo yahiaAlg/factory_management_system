@@ -1,0 +1,95 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'expenses:expenses_list' %}">Dépenses</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'expenses:expense_detail' expense_id=expense.id %}">{{ expense.reference }}</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Ajouter justificatif</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1" style="font-size:22px; font-weight:700;">Ajouter un justificatif</h1>
+    <p class="mb-0" style="color:var(--text-muted); font-size:13px;">
+      Dépense {{ expense.reference }} — {{ expense.amount|da_format }}
+    </p>
+  </div>
+  <a href="{% url 'expenses:expense_detail' expense_id=expense.id %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Document justificatif</span>
+      </div>
+      <div class="card-app-body">
+
+        {% if form.non_field_errors %}
+        <div class="alert-banner alert-banner-error mb-4">
+          <i class="bx bx-error-circle"></i>
+          <div>{{ form.non_field_errors }}</div>
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-app">Type de document <span class="req-star">*</span></label>
+              {{ form.doc_type }}
+              {% if form.doc_type.errors %}
+              <div class="field-error">{{ form.doc_type.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Description <span class="req-star">*</span></label>
+              {{ form.description }}
+              {% if form.description.errors %}
+              <div class="field-error">{{ form.description.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Référence fichier <span style="color:var(--text-muted); font-weight:400;">(optionnel)</span></label>
+              {{ form.file_reference }}
+              {% if form.file_reference.errors %}
+              <div class="field-error">{{ form.file_reference.errors.0 }}</div>
+              {% endif %}
+              <p style="font-size:12px; color:var(--text-muted); margin-top:6px; margin-bottom:0;">
+                Indiquez le chemin ou numéro de référence du document physique ou numérique.
+              </p>
+            </div>
+            <div class="col-12 d-flex gap-2 mt-2">
+              <button type="submit" class="btn-primary-app flex-grow-1">
+                <i class="bx bx-save"></i> Enregistrer le document
+              </button>
+              <a href="{% url 'expenses:expense_detail' expense_id=expense.id %}" class="btn-secondary-app">
+                Annuler
+              </a>
+            </div>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('select, input[type="text"], textarea').forEach(function (el) {
+  el.classList.add('form-control-app');
+});
+</script>
+{% endblock %}

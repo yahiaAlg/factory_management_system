@@ -1,0 +1,255 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Nouveau BL Fournisseur{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_dns_list' %}">BL Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Nouveau BL</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.line-row td { vertical-align: middle; padding: 8px 10px; }
+.line-row .form-control-app { font-size: 13px; }
+.delete-line-btn { color: #dc2626; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-xs); }
+.delete-line-btn:hover { background: #fef2f2; }
+.line-total-cell { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; text-align: right; font-size: 13px; }
+#line-total-ht { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700; color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Nouveau BL Fournisseur</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Bon de livraison fournisseur</p>
+  </div>
+  <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<form method="post" id="dn-form">
+  {% csrf_token %}
+
+  <!-- En-tête du BL -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-file ic-teal me-2" style="font-size:16px;"></i>Informations générales</span>
+    </div>
+    <div class="card-app-body">
+      {% if form.non_field_errors %}
+      <div class="alert-banner alert-banner-error mb-3">
+        {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label-app">Fournisseur <span style="color:#dc2626;">*</span></label>
+          {{ form.supplier }}
+          {% if form.supplier.errors %}<div class="field-error">{{ form.supplier.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Référence fournisseur <span style="color:#dc2626;">*</span></label>
+          {{ form.external_reference }}
+          {% if form.external_reference.errors %}<div class="field-error">{{ form.external_reference.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Date de livraison <span style="color:#dc2626;">*</span></label>
+          {{ form.delivery_date }}
+          {% if form.delivery_date.errors %}<div class="field-error">{{ form.delivery_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <label class="form-label-app">Observations</label>
+          {{ form.remarks }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lignes -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-list-ul ic-blue me-2" style="font-size:16px;"></i>Lignes de livraison</span>
+      <div class="card-header-actions">
+        <button type="button" class="btn-secondary-app" id="add-line-btn">
+          <i class="bx bx-plus"></i> Ajouter une ligne
+        </button>
+      </div>
+    </div>
+    <div class="card-app-body p-0">
+      {{ formset.management_form }}
+      <div class="table-container" style="border:none;border-radius:0;">
+        <table class="table mb-0" id="lines-table">
+          <thead class="bg-raised">
+            <tr>
+              <th style="width:30%;">Matière première</th>
+              <th style="width:15%;">Quantité reçue</th>
+              <th style="width:18%;">Unité</th>
+              <th style="width:18%;">Prix unitaire (DA)</th>
+              <th style="width:14%;text-align:right;">Montant HT</th>
+              <th style="width:5%;"></th>
+            </tr>
+          </thead>
+          <tbody id="lines-body">
+            {% for line_form in formset %}
+            <tr class="line-row" id="line-row-{{ forloop.counter0 }}">
+              <td>
+                {{ line_form.raw_material }}
+                {{ line_form.id }}
+                {% if line_form.raw_material.errors %}<div class="field-error">{{ line_form.raw_material.errors.0 }}</div>{% endif %}
+              </td>
+              <td>
+                {{ line_form.quantity_received }}
+                {% if line_form.quantity_received.errors %}<div class="field-error">{{ line_form.quantity_received.errors.0 }}</div>{% endif %}
+              </td>
+              <td>
+                {{ line_form.unit_of_measure }}
+                {% if line_form.unit_of_measure.errors %}<div class="field-error">{{ line_form.unit_of_measure.errors.0 }}</div>{% endif %}
+              </td>
+              <td>
+                {{ line_form.agreed_unit_price }}
+                {% if line_form.agreed_unit_price.errors %}<div class="field-error">{{ line_form.agreed_unit_price.errors.0 }}</div>{% endif %}
+              </td>
+              <td class="line-total-cell" data-line="{{ forloop.counter0 }}">—</td>
+              <td>
+                {% if line_form.DELETE %}
+                <button type="button" class="delete-line-btn" title="Supprimer">
+                  <i class="bx bx-trash" style="font-size:15px;"></i>
+                </button>
+                {{ line_form.DELETE }}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Total footer -->
+      <div class="d-flex align-items-center justify-content-end gap-3 p-3" style="border-top:1px solid var(--border);">
+        <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">Total HT :</span>
+        <span id="line-total-ht">0 DA</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="d-flex justify-content-end gap-3">
+    <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="btn-secondary-app">Annuler</a>
+    <button type="submit" class="btn-primary-app">
+      <i class="bx bx-save"></i> Enregistrer le BL
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  /* ── Apply form-control-app to all inputs/selects in formset ── */
+  document.querySelectorAll('#lines-body input, #lines-body select').forEach(function (el) {
+    el.classList.add('form-control-app');
+  });
+
+  /* ── Line total computation ── */
+  function getFloat(el) { return parseFloat(el.value) || 0; }
+
+  function recomputeLineTotals() {
+    var grandTotal = 0;
+    document.querySelectorAll('.line-row').forEach(function (row) {
+      var deleteCheck = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (deleteCheck && deleteCheck.checked) {
+        row.style.opacity = '0.4';
+        return;
+      }
+      row.style.opacity = '1';
+      var qty = getFloat(row.querySelector('input[name$="-quantity_received"]'));
+      var price = getFloat(row.querySelector('input[name$="-agreed_unit_price"]'));
+      var amount = qty * price;
+      grandTotal += amount;
+      var cell = row.querySelector('.line-total-cell');
+      if (cell) cell.textContent = amount > 0 ? amount.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA' : '—';
+    });
+    document.getElementById('line-total-ht').textContent =
+      grandTotal.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA';
+  }
+
+  document.getElementById('lines-body').addEventListener('input', recomputeLineTotals);
+  document.getElementById('lines-body').addEventListener('change', recomputeLineTotals);
+  recomputeLineTotals();
+
+  /* ── Delete line toggle ── */
+  document.getElementById('lines-body').addEventListener('click', function (e) {
+    var btn = e.target.closest('.delete-line-btn');
+    if (!btn) return;
+    var row = btn.closest('.line-row');
+    var chk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (chk) {
+      chk.checked = !chk.checked;
+      btn.querySelector('i').className = chk.checked ? 'bx bx-undo' : 'bx bx-trash';
+      btn.style.background = chk.checked ? '#fef2f2' : '';
+    } else {
+      row.remove();
+    }
+    recomputeLineTotals();
+  });
+
+  /* ── Add new line ── */
+  document.getElementById('add-line-btn').addEventListener('click', function () {
+    var totalFormsEl = document.getElementById('id_lines-TOTAL_FORMS');
+    var formCount = parseInt(totalFormsEl.value, 10);
+
+    var existingRow = document.querySelector('.line-row');
+    if (!existingRow) { alert('Erreur: impossible de cloner une ligne.'); return; }
+
+    var clone = existingRow.cloneNode(true);
+    clone.id = 'line-row-' + formCount;
+    clone.style.opacity = '1';
+
+    // Update all name/id/for attributes
+    clone.querySelectorAll('[name],[id],[for]').forEach(function (el) {
+      ['name', 'id', 'for'].forEach(function (attr) {
+        if (el.getAttribute(attr)) {
+          el.setAttribute(attr, el.getAttribute(attr).replace(/-\d+-/, '-' + formCount + '-'));
+        }
+      });
+      // Clear values
+      if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.value = '';
+      if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      if (el.type === 'checkbox') el.checked = false;
+      if (el.type === 'hidden' && el.name.endsWith('-id')) el.value = '';
+    });
+
+    // Reset delete button icon
+    var delBtn = clone.querySelector('.delete-line-btn i');
+    if (delBtn) delBtn.className = 'bx bx-trash';
+    var delBtnEl = clone.querySelector('.delete-line-btn');
+    if (delBtnEl) delBtnEl.style.background = '';
+
+    // Reset line total cell
+    var totalCell = clone.querySelector('.line-total-cell');
+    if (totalCell) { totalCell.textContent = '—'; totalCell.setAttribute('data-line', formCount); }
+
+    document.getElementById('lines-body').appendChild(clone);
+    totalFormsEl.value = formCount + 1;
+    recomputeLineTotals();
+  });
+
+  /* ── Apply class to dynamically added inputs ── */
+  new MutationObserver(function () {
+    document.querySelectorAll('#lines-body input, #lines-body select').forEach(function (el) {
+      el.classList.add('form-control-app');
+    });
+  }).observe(document.getElementById('lines-body'), { childList: true, subtree: true });
+
+})();
+</script>
+{% endblock %}

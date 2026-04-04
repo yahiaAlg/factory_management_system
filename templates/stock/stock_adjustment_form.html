@@ -1,0 +1,388 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Nouvel Ajustement de Stock{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'stock:stock_adjustments_list' %}">Ajustements</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Nouvel ajustement</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 22px; color: var(--text-primary); margin: 0; }
+.form-section-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700; font-size: 12px; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.07em;
+  margin-bottom: 16px;
+}
+/* Formset table */
+.line-table { width:100%; border-collapse:collapse; }
+.line-table th {
+  font-family:'Plus Jakarta Sans',sans-serif; font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.05em;
+  color:var(--text-secondary); background:var(--bg-raised);
+  padding:10px 12px; border-bottom:1px solid var(--border);
+}
+.line-table td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.line-table tr:last-child td { border-bottom:none; }
+.line-row { transition: background 0.15s; }
+.line-row:hover td { background: var(--bg-hover); }
+.line-row.deleted-row td { opacity:0.35; background:#fef2f2; }
+.delta-pill {
+  font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;
+  padding:3px 9px; border-radius:99px; font-size:12px;
+}
+.delta-plus { background:#dcfce7; color:#15803d; }
+.delta-minus { background:#fee2e2; color:#dc2626; }
+.delta-zero { background:var(--bg-raised); color:var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="adjustmentForm">
+{% csrf_token %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title">Nouvel Ajustement de Stock</h1>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Correction d'inventaire — matières premières ou produits finis</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'stock:stock_adjustments_list' %}" class="btn-secondary-app">
+      <i class="bx bx-x"></i> Annuler
+    </a>
+    <button type="submit" class="btn-primary-app">
+      <i class="bx bx-save"></i> Enregistrer l'ajustement
+    </button>
+  </div>
+</div>
+
+{% if form.non_field_errors or formset.non_form_errors %}
+<div class="alert-banner error mb-3">
+  <i class="bx bx-error-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <div>
+    {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+    {% for error in formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <!-- Left: Header form -->
+  <div class="col-lg-4">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-info-circle" style="color:var(--accent);margin-right:6px;"></i>Informations générales</span>
+      </div>
+      <div class="card-app-body">
+
+        <!-- Type -->
+        <div class="mb-3">
+          <label class="form-label-app" for="{{ form.adjustment_type.id_for_label }}">
+            Type d'ajustement <span class="required">*</span>
+          </label>
+          <select name="{{ form.adjustment_type.html_name }}" id="{{ form.adjustment_type.id_for_label }}" class="form-control-app">
+            <option value="">— Choisir un type —</option>
+            {% for val, label in form.fields.adjustment_type.choices %}
+            {% if val %}
+            <option value="{{ val }}" {% if form.adjustment_type.value == val %}selected{% endif %}>{{ label }}</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+          {% if form.adjustment_type.errors %}
+          <div class="form-error"><i class="bx bx-error-circle"></i>{{ form.adjustment_type.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Date -->
+        <div class="mb-3">
+          <label class="form-label-app" for="{{ form.adjustment_date.id_for_label }}">
+            Date d'ajustement <span class="required">*</span>
+          </label>
+          <input type="date" name="{{ form.adjustment_date.html_name }}"
+                 id="{{ form.adjustment_date.id_for_label }}"
+                 value="{{ form.adjustment_date.value|default:'' }}"
+                 class="form-control-app {% if form.adjustment_date.errors %}border-danger{% endif %}">
+          {% if form.adjustment_date.errors %}
+          <div class="form-error"><i class="bx bx-error-circle"></i>{{ form.adjustment_date.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Reason -->
+        <div class="mb-0">
+          <label class="form-label-app" for="{{ form.reason.id_for_label }}">
+            Motif de l'ajustement <span class="required">*</span>
+          </label>
+          <textarea name="{{ form.reason.html_name }}" id="{{ form.reason.id_for_label }}"
+                    rows="4" class="form-control-app {% if form.reason.errors %}border-danger{% endif %}"
+                    placeholder="Décrivez la raison de cet ajustement…">{{ form.reason.value|default:'' }}</textarea>
+          {% if form.reason.errors %}
+          <div class="form-error"><i class="bx bx-error-circle"></i>{{ form.reason.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Lines formset -->
+  <div class="col-lg-8">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-list-ul" style="color:var(--accent);margin-right:6px;"></i>Lignes d'ajustement</span>
+        <button type="button" class="btn-primary-app" id="addLineBtn" style="padding:5px 14px;font-size:12px;">
+          <i class="bx bx-plus"></i> Ajouter une ligne
+        </button>
+      </div>
+      <div class="card-app-body" style="padding:0;">
+
+        {{ formset.management_form }}
+
+        <div id="linesWrapper" style="overflow-x:auto;">
+          <table class="line-table" id="linesTable">
+            <thead>
+              <tr>
+                <th style="min-width:160px;">Matière 1ère</th>
+                <th style="min-width:160px;">Produit Fini</th>
+                <th style="min-width:100px;text-align:right;">Qté avant</th>
+                <th style="min-width:100px;text-align:right;">Qté après</th>
+                <th style="min-width:80px;text-align:center;">Delta</th>
+                <th style="min-width:120px;">Observations</th>
+                <th style="width:40px;text-align:center;">Sup.</th>
+              </tr>
+            </thead>
+            <tbody id="linesBody">
+              {% for lf in formset %}
+              <tr class="line-row" id="line-{{ forloop.counter0 }}">
+                {% for hidden in lf.hidden_fields %}{{ hidden }}{% endfor %}
+                <td>
+                  <select name="{{ lf.raw_material.html_name }}" class="form-control-app rm-select" style="font-size:12.5px;"
+                          onchange="fetchQtyBefore(this.closest('tr'), 'raw_material', this.value)">
+                    <option value="">—</option>
+                    {% for choice in lf.fields.raw_material.queryset %}
+                    <option value="{{ choice.pk }}" {% if lf.raw_material.value|stringformat:'s' == choice.pk|stringformat:'s' %}selected{% endif %}>
+                      {{ choice.reference }} — {{ choice.designation }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  {% if lf.raw_material.errors %}
+                  <div class="form-error" style="font-size:11px;"><i class="bx bx-error-circle"></i>{{ lf.raw_material.errors.0 }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <select name="{{ lf.finished_product.html_name }}" class="form-control-app fp-select" style="font-size:12.5px;"
+                          onchange="fetchQtyBefore(this.closest('tr'), 'finished_product', this.value)">
+                    <option value="">—</option>
+                    {% for choice in lf.fields.finished_product.queryset %}
+                    <option value="{{ choice.pk }}" {% if lf.finished_product.value|stringformat:'s' == choice.pk|stringformat:'s' %}selected{% endif %}>
+                      {{ choice.reference }} — {{ choice.designation }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                  {% if lf.finished_product.errors %}
+                  <div class="form-error" style="font-size:11px;"><i class="bx bx-error-circle"></i>{{ lf.finished_product.errors.0 }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <input type="number" name="{{ lf.quantity_before.html_name }}"
+                         value="{{ lf.quantity_before.value|default:'' }}"
+                         class="form-control-app qty-before" step="0.001" readonly
+                         style="font-size:12.5px;text-align:right;background:var(--bg-raised);color:var(--text-muted);">
+                </td>
+                <td>
+                  <input type="number" name="{{ lf.quantity_after.html_name }}"
+                         value="{{ lf.quantity_after.value|default:'' }}"
+                         class="form-control-app qty-after" step="0.001" min="0"
+                         style="font-size:12.5px;text-align:right;"
+                         oninput="updateDelta(this.closest('tr'))">
+                  {% if lf.quantity_after.errors %}
+                  <div class="form-error" style="font-size:11px;"><i class="bx bx-error-circle"></i>{{ lf.quantity_after.errors.0 }}</div>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  <span class="delta-pill delta-cell delta-zero">—</span>
+                </td>
+                <td>
+                  <input type="text" name="{{ lf.remarks.html_name }}"
+                         value="{{ lf.remarks.value|default:'' }}"
+                         class="form-control-app" style="font-size:12.5px;"
+                         placeholder="Optionnel">
+                </td>
+                <td class="text-center">
+                  {% if lf.can_delete %}
+                  <label style="cursor:pointer;" data-bs-toggle="tooltip" title="Supprimer cette ligne">
+                    <input type="checkbox" name="{{ lf.DELETE.html_name }}"
+                           {% if lf.DELETE.value %}checked{% endif %}
+                           class="delete-checkbox d-none">
+                    <i class="bx bx-trash" style="font-size:18px;color:var(--text-muted);transition:color 0.15s;"></i>
+                  </label>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- non-field errors per line -->
+        {% for lf in formset %}
+          {% if lf.non_field_errors %}
+          <div class="alert-banner error" style="margin:8px 16px;border-radius:var(--radius-sm);">
+            <i class="bx bx-error-circle"></i>
+            <div>Ligne {{ forloop.counter }}: {% for e in lf.non_field_errors %}{{ e }}{% endfor %}</div>
+          </div>
+          {% endif %}
+        {% endfor %}
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</form>
+
+<!-- Empty line template for JS cloning -->
+<template id="emptyLineTemplate">
+  <tr class="line-row" id="line-__prefix__">
+    <td>
+      <select name="lines-__prefix__-raw_material" class="form-control-app rm-select" style="font-size:12.5px;"
+              onchange="fetchQtyBefore(this.closest('tr'), 'raw_material', this.value)">
+        <option value="">—</option>
+        {% for choice in formset.forms.0.fields.raw_material.queryset %}
+        <option value="{{ choice.pk }}">{{ choice.reference }} — {{ choice.designation }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td>
+      <select name="lines-__prefix__-finished_product" class="form-control-app fp-select" style="font-size:12.5px;"
+              onchange="fetchQtyBefore(this.closest('tr'), 'finished_product', this.value)">
+        <option value="">—</option>
+        {% for choice in formset.forms.0.fields.finished_product.queryset %}
+        <option value="{{ choice.pk }}">{{ choice.reference }} — {{ choice.designation }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td>
+      <input type="number" name="lines-__prefix__-quantity_before" class="form-control-app qty-before" step="0.001" readonly
+             style="font-size:12.5px;text-align:right;background:var(--bg-raised);color:var(--text-muted);">
+    </td>
+    <td>
+      <input type="number" name="lines-__prefix__-quantity_after" class="form-control-app qty-after" step="0.001" min="0"
+             style="font-size:12.5px;text-align:right;"
+             oninput="updateDelta(this.closest('tr'))">
+    </td>
+    <td class="text-center">
+      <span class="delta-pill delta-cell delta-zero">—</span>
+    </td>
+    <td>
+      <input type="text" name="lines-__prefix__-remarks" class="form-control-app" style="font-size:12.5px;" placeholder="Optionnel">
+    </td>
+    <td class="text-center">
+      <label style="cursor:pointer;" data-bs-toggle="tooltip" title="Supprimer">
+        <input type="checkbox" name="lines-__prefix__-DELETE" class="delete-checkbox d-none">
+        <i class="bx bx-trash" style="font-size:18px;color:var(--text-muted);"></i>
+      </label>
+    </td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const AJAX_URL = "{% url 'stock:stock_availability_ajax' %}";
+
+// ── Delta display ──────────────────────────────────────────────────
+function updateDelta(row) {
+  const before = parseFloat(row.querySelector('.qty-before').value) || 0;
+  const after  = parseFloat(row.querySelector('.qty-after').value);
+  const cell   = row.querySelector('.delta-cell');
+  if (isNaN(after)) { cell.textContent = '—'; cell.className = 'delta-pill delta-cell delta-zero'; return; }
+  const delta = after - before;
+  if (delta > 0) {
+    cell.textContent = '+' + delta.toFixed(3);
+    cell.className = 'delta-pill delta-cell delta-plus';
+  } else if (delta < 0) {
+    cell.textContent = delta.toFixed(3);
+    cell.className = 'delta-pill delta-cell delta-minus';
+  } else {
+    cell.textContent = '0.000';
+    cell.className = 'delta-pill delta-cell delta-zero';
+  }
+}
+
+// ── Fetch current stock qty for qty_before ─────────────────────────
+function fetchQtyBefore(row, materialType, materialId) {
+  if (!materialId) { row.querySelector('.qty-before').value = ''; updateDelta(row); return; }
+  // Mutual exclusivity: clear the other select
+  if (materialType === 'raw_material') {
+    row.querySelector('.fp-select').value = '';
+  } else {
+    row.querySelector('.rm-select').value = '';
+  }
+  fetch(`${AJAX_URL}?material_type=${materialType}&material_id=${materialId}&required_qty=0`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        row.querySelector('.qty-before').value = parseFloat(data.current_stock).toFixed(3);
+        updateDelta(row);
+      }
+    })
+    .catch(() => {});
+}
+
+// ── Add new line ───────────────────────────────────────────────────
+document.getElementById('addLineBtn').addEventListener('click', function () {
+  const totalInput = document.getElementById('id_lines-TOTAL_FORMS');
+  const currentCount = parseInt(totalInput.value);
+  const tmpl = document.getElementById('emptyLineTemplate');
+  const clone = tmpl.content.cloneNode(true);
+  // Replace __prefix__ with current index
+  clone.querySelector('tr').id = 'line-' + currentCount;
+  clone.querySelectorAll('[name]').forEach(el => {
+    el.name = el.name.replace('__prefix__', currentCount);
+    if (el.id) el.id = el.id.replace('__prefix__', currentCount);
+  });
+  document.getElementById('linesBody').appendChild(clone);
+  totalInput.value = currentCount + 1;
+  // Re-init tooltips
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+    bootstrap.Tooltip.getOrCreateInstance(el);
+  });
+});
+
+// ── Delete row toggle ─────────────────────────────────────────────
+document.getElementById('linesBody').addEventListener('change', function (e) {
+  if (e.target.classList.contains('delete-checkbox')) {
+    const row = e.target.closest('tr');
+    if (e.target.checked) {
+      row.classList.add('deleted-row');
+      row.querySelector('.bx-trash').style.color = '#dc2626';
+    } else {
+      row.classList.remove('deleted-row');
+      row.querySelector('.bx-trash').style.color = '';
+    }
+  }
+});
+
+// ── Init deltas for pre-filled rows (form errors) ─────────────────
+document.querySelectorAll('.line-row').forEach(row => updateDelta(row));
+
+// ── Submit guard: warn if no lines ───────────────────────────────
+document.getElementById('adjustmentForm').addEventListener('submit', function (e) {
+  const activeRows = [...document.querySelectorAll('.line-row')].filter(r => {
+    const del = r.querySelector('.delete-checkbox');
+    return !(del && del.checked);
+  });
+  if (activeRows.length === 0) {
+    e.preventDefault();
+    alert('Veuillez ajouter au moins une ligne d\'ajustement.');
+  }
+});
+</script>
+{% endblock %}

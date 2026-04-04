@@ -1,0 +1,196 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:production_orders_list' %}">Ordres de production</a></li>
+    <li class="breadcrumb-item active">{{ title }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.scaling-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.scaling-table td { font-size: 13px; font-family: 'Inter', sans-serif; }
+.stock-ok { color: #16a34a; font-weight: 600; }
+.stock-ko { color: #dc2626; font-weight: 600; }
+.scaling-panel { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin-top: 12px; }
+.scaling-loading { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="page-title mb-0">{{ title }}</h1>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<form method="post" id="po-form">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card-app">
+        <div class="card-app-header"><span class="card-app-title">Paramètres de l'ordre</span></div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-app">Formulation <span class="text-danger">*</span></label>
+              {{ form.formulation }}
+              {% if form.formulation.errors %}<div class="form-error">{{ form.formulation.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-5">
+              <label class="form-label-app">Quantité cible <span class="text-danger">*</span></label>
+              {{ form.target_qty }}
+              {% if form.target_qty.errors %}<div class="form-error">{{ form.target_qty.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label-app">Unité <span class="text-danger">*</span></label>
+              {{ form.target_unit }}
+              {% if form.target_unit.errors %}<div class="form-error">{{ form.target_unit.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Date de lancement <span class="text-danger">*</span></label>
+              {{ form.launch_date }}
+              {% if form.launch_date.errors %}<div class="form-error">{{ form.launch_date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Notes</label>
+              {{ form.notes }}
+            </div>
+          </div>
+          {% if form.non_field_errors %}
+          <div class="form-error mt-2">{{ form.non_field_errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─── Live scaling preview ─── #}
+    <div class="col-lg-5">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Besoins théoriques en MP</span>
+          <span class="scaling-loading text-muted small"><i class="bi bi-arrow-repeat spin me-1"></i>Calcul…</span>
+        </div>
+        <div class="card-app-body p-0">
+          <div id="scaling-placeholder" class="empty-state" style="padding:28px 16px;">
+            <i class="bi bi-calculator"></i>
+            <p class="mb-0 small">Sélectionnez une formulation et une quantité cible pour prévisualiser les besoins matières</p>
+          </div>
+          <div id="scaling-result" style="display:none;">
+            <div class="px-3 pt-3 pb-1">
+              <span class="text-muted small">Facteur d'échelle : <strong id="scaling-factor">—</strong></span>
+            </div>
+            <div class="table-container" style="border:none;border-radius:0;">
+              <table class="table mb-0 scaling-table">
+                <thead class="bg-raised">
+                  <tr>
+                    <th>Matière première</th>
+                    <th class="text-end">Besoin</th>
+                    <th class="text-end">Stock dispo</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="scaling-tbody"></tbody>
+              </table>
+            </div>
+            <div id="scaling-warning" class="px-3 pb-3" style="display:none;">
+              <div class="alert-banner alert-banner-warning mt-2">
+                <i class="bi bi-exclamation-triangle me-1"></i> Stock insuffisant pour certaines matières — l'OP peut quand même être créé.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex gap-2 justify-content-end pb-4">
+      <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app">Annuler</a>
+      <button type="submit" class="btn-primary-app">
+        <i class="bi bi-check2 me-1"></i> Créer l'ordre
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Apply design-system class to all inputs
+  document.querySelectorAll('#po-form input:not([type=hidden]), #po-form select, #po-form textarea')
+    .forEach(el => el.classList.add('form-control-app'));
+
+  const formulationSel = document.getElementById('id_formulation');
+  const targetQtyInput = document.getElementById('id_target_qty');
+  const placeholder    = document.getElementById('scaling-placeholder');
+  const resultPanel    = document.getElementById('scaling-result');
+  const loadingEl      = document.querySelector('.scaling-loading');
+  const scalingTbody   = document.getElementById('scaling-tbody');
+  const scalingFactor  = document.getElementById('scaling-factor');
+  const scalingWarning = document.getElementById('scaling-warning');
+
+  let debounceTimer;
+
+  function fetchScaling() {
+    const fId = formulationSel.value;
+    const qty  = targetQtyInput.value;
+    if (!fId || !qty || parseFloat(qty) <= 0) {
+      placeholder.style.display = '';
+      resultPanel.style.display  = 'none';
+      return;
+    }
+    loadingEl.style.display = '';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const url = `{% url 'production:formulation_scaling_ajax' %}?formulation_id=${fId}&target_qty=${qty}`;
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+          loadingEl.style.display = 'none';
+          if (!data.success) { return; }
+          placeholder.style.display = 'none';
+          resultPanel.style.display = '';
+          scalingFactor.textContent = parseFloat(data.scaling_factor).toFixed(4);
+          let hasShortage = false;
+          scalingTbody.innerHTML = data.lines.map(l => {
+            if (!l.sufficient) hasShortage = true;
+            const cls = l.sufficient ? 'stock-ok' : 'stock-ko';
+            const icon = l.sufficient ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger"></i>';
+            return `<tr>
+              <td>${l.material_name}</td>
+              <td class="text-end fw-500">${parseFloat(l.theoretical_qty).toFixed(3)} ${l.unit}</td>
+              <td class="text-end ${cls}">${parseFloat(l.available_qty).toFixed(3)}</td>
+              <td class="text-center">${icon}</td>
+            </tr>`;
+          }).join('');
+          scalingWarning.style.display = hasShortage ? '' : 'none';
+        })
+        .catch(() => { loadingEl.style.display = 'none'; });
+    }, 400);
+  }
+
+  formulationSel.addEventListener('change', fetchScaling);
+  targetQtyInput.addEventListener('input',  fetchScaling);
+
+  // Pre-fill formulation from query string (when coming from formulation detail)
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('formulation') && formulationSel) {
+    formulationSel.value = params.get('formulation');
+    fetchScaling();
+  }
+})();
+</script>
+<style>.spin{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style>
+{% endblock %}

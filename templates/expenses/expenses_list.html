@@ -1,0 +1,227 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Dépenses{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Dépenses</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-mini {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .stat-mini-body { flex: 1; min-width: 0; }
+  .stat-mini-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+    font-family: 'Inter', sans-serif;
+  }
+  .stat-mini-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1" style="font-size:22px; font-weight:700;">Gestion des dépenses</h1>
+    <p class="mb-0" style="color:var(--text-muted); font-size:13px;">Suivi et validation des dépenses opérationnelles</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'expenses:expenses_dashboard' %}" class="btn-secondary-app">
+      <i class="bx bx-bar-chart-alt-2"></i> Tableau de bord
+    </a>
+    {% if request.user.userprofile.role in 'manager,accountant' %}
+    <a href="{% url 'expenses:expense_create' %}" class="btn-primary-app">
+      <i class="bx bx-plus"></i> Nouvelle dépense
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stats row -->
+<div class="stats-row">
+  <div class="stat-mini">
+    <div class="ic-box ic-slate"><i class="bx bx-wallet"></i></div>
+    <div class="stat-mini-body">
+      <div class="stat-mini-label">Total filtré</div>
+      <div class="stat-mini-value">{{ total_amount|da_format }}</div>
+    </div>
+  </div>
+  <div class="stat-mini">
+    <div class="ic-box ic-teal"><i class="bx bx-check-circle"></i></div>
+    <div class="stat-mini-body">
+      <div class="stat-mini-label">Validé / Payé</div>
+      <div class="stat-mini-value">{{ validated_amount|da_format }}</div>
+    </div>
+  </div>
+  <div class="stat-mini">
+    <div class="ic-box ic-green"><i class="bx bx-money"></i></div>
+    <div class="stat-mini-body">
+      <div class="stat-mini-label">Payé</div>
+      <div class="stat-mini-value">{{ paid_amount|da_format }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<form method="get" class="filter-bar mb-4">
+  <div class="filter-search-wrap">
+    <i class="bx bx-search filter-search-icon"></i>
+    <input type="text" name="search" value="{{ request.GET.search }}"
+           placeholder="Rechercher référence, description, bénéficiaire…"
+           class="form-control-app filter-search-input">
+  </div>
+
+  <select name="category" class="form-control-app" style="min-width:160px;">
+    <option value="">Toutes catégories</option>
+    {% for cat in categories %}
+    <option value="{{ cat.id }}" {% if request.GET.category == cat.id|stringformat:"s" %}selected{% endif %}>
+      {{ cat.label }}
+    </option>
+    {% endfor %}
+  </select>
+
+  <select name="status" class="form-control-app" style="min-width:145px;">
+    <option value="">Tous statuts</option>
+    {% for val, label in status_choices %}
+    <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  <input type="date" name="date_from" value="{{ request.GET.date_from }}"
+         class="form-control-app" style="max-width:148px;" title="Date début">
+  <input type="date" name="date_to" value="{{ request.GET.date_to }}"
+         class="form-control-app" style="max-width:148px;" title="Date fin">
+
+  <button type="submit" class="btn-primary-app">
+    <i class="bx bx-filter-alt"></i> Filtrer
+  </button>
+  <a href="{% url 'expenses:expenses_list' %}" class="btn-secondary-app">
+    Réinitialiser
+  </a>
+</form>
+
+<!-- Table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">Liste des dépenses</span>
+    <div class="card-header-actions">
+      <a href="{% url 'expenses:expenses_report' %}" class="btn-secondary-app btn-sm">
+        <i class="bx bx-export"></i> Rapport
+      </a>
+    </div>
+  </div>
+  <div class="card-app-body p-0">
+    {% if expenses %}
+    <div class="table-container">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr class="bg-raised">
+            <th style="width:130px;">Référence</th>
+            <th>Date</th>
+            <th>Catégorie</th>
+            <th>Description</th>
+            <th>Bénéficiaire</th>
+            <th class="text-end">Montant</th>
+            <th>Statut</th>
+            <th>Créé par</th>
+            <th style="width:80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for expense in expenses %}
+          <tr>
+            <td>
+              <a href="{% url 'expenses:expense_detail' expense_id=expense.id %}"
+                 style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:13px; color:var(--accent);">
+                {{ expense.reference }}
+              </a>
+            </td>
+            <td style="color:var(--text-secondary);">{{ expense.expense_date|date:"d/m/Y" }}</td>
+            <td>
+              <span style="font-size:12px; padding:3px 8px; background:var(--accent-dim); color:var(--accent); border-radius:var(--radius-xs); font-weight:500;">
+                {{ expense.category.label }}
+              </span>
+            </td>
+            <td style="color:var(--text-primary); max-width:220px;">
+              <span title="{{ expense.description }}" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                {{ expense.description }}
+              </span>
+            </td>
+            <td style="color:var(--text-secondary);">{{ expense.beneficiary }}</td>
+            <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; white-space:nowrap;">
+              {{ expense.amount|da_format }}
+            </td>
+            <td>
+              {% if expense.status == 'recorded' %}
+                <span class="badge-en-attente">Enregistrée</span>
+              {% elif expense.status == 'validated' %}
+                <span class="badge-valide">Validée</span>
+              {% elif expense.status == 'paid' %}
+                <span class="badge-paye">Payée</span>
+              {% elif expense.status == 'rejected' %}
+                <span class="badge-annule">Rejetée</span>
+              {% endif %}
+            </td>
+            <td style="color:var(--text-muted); font-size:12px;">
+              {{ expense.created_by.get_full_name|default:expense.created_by.username }}
+            </td>
+            <td>
+              <a href="{% url 'expenses:expense_detail' expense_id=expense.id %}"
+                 class="btn-icon" data-bs-toggle="tooltip" title="Détail">
+                <i class="bx bx-show"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-state-icon"><i class="bx bx-wallet"></i></div>
+      <div class="empty-state-title">Aucune dépense trouvée</div>
+      <div class="empty-state-sub">
+        {% if request.GET.search or request.GET.status or request.GET.category %}
+          Essayez d'ajuster vos critères de recherche.
+        {% else %}
+          Commencez par enregistrer une nouvelle dépense.
+        {% endif %}
+      </div>
+      {% if request.user.userprofile.role in 'manager,accountant' %}
+      <a href="{% url 'expenses:expense_create' %}" class="btn-primary-app mt-3">
+        <i class="bx bx-plus"></i> Nouvelle dépense
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

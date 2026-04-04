@@ -1,0 +1,263 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Analyse des rendements — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item active">Analyse des rendements</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.metric-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+.metric-tile { background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 20px; }
+.metric-tile .lbl { font-family:'Inter',sans-serif; font-size:12px; color:var(--text-muted); margin-bottom:4px; }
+.metric-tile .val { font-family:'Plus Jakarta Sans',sans-serif; font-size:24px; font-weight:700; color:var(--text-primary); }
+.metric-tile .sub { font-family:'Inter',sans-serif; font-size:11px; color:var(--text-muted); margin-top:2px; }
+.chart-panel { background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; margin-bottom:16px; }
+.chart-title { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:14px; color:var(--text-primary); margin-bottom:16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="page-title mb-0">{{ title }}</h1>
+  <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app">
+    <i class="bi bi-list-ul me-1"></i> Tous les ordres
+  </a>
+</div>
+
+{# Date filter #}
+<form method="get" class="filter-bar mb-3">
+  <input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control-app" placeholder="Date début">
+  <input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control-app" placeholder="Date fin">
+  <button type="submit" class="btn-secondary-app">Filtrer</button>
+  <a href="{% url 'production:production_yield_report' %}" class="btn-secondary-app">Réinitialiser</a>
+</form>
+
+{# ─── KPI tiles ─── #}
+<div class="metric-row">
+  <div class="metric-tile">
+    <div class="lbl">Ordres clôturés</div>
+    <div class="val">{{ total_orders }}</div>
+  </div>
+  <div class="metric-tile">
+    <div class="lbl">Rendement moyen</div>
+    <div class="val" style="color:{% if avg_yield >= 90 %}var(--accent){% elif avg_yield >= 75 %}#d97706{% else %}#dc2626{% endif %}">
+      {{ avg_yield|floatformat:1 }} %
+    </div>
+  </div>
+  <div class="metric-tile">
+    <div class="lbl">Ordres normaux</div>
+    <div class="val" style="color:#16a34a;">{{ normal_count }}</div>
+    <div class="sub">rendement ≥ seuil</div>
+  </div>
+  <div class="metric-tile">
+    <div class="lbl">Ordres en alerte</div>
+    <div class="val" style="color:#d97706;">{{ warning_orders|length }}</div>
+    <div class="sub">rendement moyen-bas</div>
+  </div>
+  <div class="metric-tile">
+    <div class="lbl">Ordres critiques</div>
+    <div class="val" style="color:#dc2626;">{{ critical_orders|length }}</div>
+    <div class="sub">rendement critique</div>
+  </div>
+  <div class="metric-tile">
+    <div class="lbl">Surcoût total MP</div>
+    <div class="val" style="color:#dc2626;font-size:18px;">{{ total_over_consumption_cost|floatformat:0 }} DA</div>
+    <div class="sub">dépassements de consommation</div>
+  </div>
+</div>
+
+{# ─── Charts ─── #}
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="chart-panel">
+      <div class="chart-title">Répartition des rendements</div>
+      <canvas id="yieldDistChart" height="220"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="chart-panel">
+      <div class="chart-title">Rendement par ordre ({{ orders|length }} derniers)</div>
+      <canvas id="yieldLineChart" height="220"></canvas>
+    </div>
+  </div>
+</div>
+
+{# ─── Critical orders table ─── #}
+{% if critical_orders or warning_orders %}
+<div class="card-app mb-3">
+  <div class="card-app-header"><span class="card-app-title">Ordres à surveiller</span></div>
+  <div class="card-app-body p-0">
+    <div class="table-container" style="border:none;border-radius:0;">
+      <table class="table table-hover mb-0">
+        <thead class="bg-raised">
+          <tr>
+            <th>Référence</th>
+            <th>Produit fini</th>
+            <th class="text-end">Qté cible</th>
+            <th class="text-end">Qté produite</th>
+            <th class="text-end">Rendement</th>
+            <th>Date clôture</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in critical_orders %}
+          <tr>
+            <td><a href="{% url 'production:production_order_detail' o.id %}" class="text-decoration-none" style="font-family:monospace;color:var(--accent);">{{ o.reference }}</a></td>
+            <td>{{ o.formulation.finished_product.designation }}</td>
+            <td class="text-end">{{ o.target_qty|floatformat:3 }} {{ o.target_unit.symbol }}</td>
+            <td class="text-end">{{ o.actual_qty_produced|floatformat:3 }}</td>
+            <td class="text-end"><span class="badge-crit-yield">{{ o.yield_rate|floatformat:1 }} %</span></td>
+            <td class="text-muted small">{{ o.closure_date|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'production:production_order_detail' o.id %}" class="btn-icon"><i class="bi bi-eye"></i></a></td>
+          </tr>
+          {% endfor %}
+          {% for o in warning_orders %}
+          <tr>
+            <td><a href="{% url 'production:production_order_detail' o.id %}" class="text-decoration-none" style="font-family:monospace;color:var(--accent);">{{ o.reference }}</a></td>
+            <td>{{ o.formulation.finished_product.designation }}</td>
+            <td class="text-end">{{ o.target_qty|floatformat:3 }} {{ o.target_unit.symbol }}</td>
+            <td class="text-end">{{ o.actual_qty_produced|floatformat:3 }}</td>
+            <td class="text-end"><span class="badge-warn-yield">{{ o.yield_rate|floatformat:1 }} %</span></td>
+            <td class="text-muted small">{{ o.closure_date|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'production:production_order_detail' o.id %}" class="btn-icon"><i class="bi bi-eye"></i></a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ─── Full orders table ─── #}
+<div class="card-app">
+  <div class="card-app-header"><span class="card-app-title">Détail — {{ orders|length }} ordre{{ orders|length|pluralize }} clôturé{{ orders|length|pluralize }}</span></div>
+  <div class="card-app-body p-0">
+    {% if orders %}
+    <div class="table-container" style="border:none;border-radius:0;">
+      <table class="table table-hover mb-0">
+        <thead class="bg-raised">
+          <tr>
+            <th>Référence</th>
+            <th>Produit fini</th>
+            <th class="text-end">Cible</th>
+            <th class="text-end">Produit</th>
+            <th class="text-end">Rendement</th>
+            <th class="text-end">Surcoût MP</th>
+            <th>Clôture</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+          <tr>
+            <td><a href="{% url 'production:production_order_detail' o.id %}" class="text-decoration-none fw-600" style="font-family:monospace;color:var(--accent);">{{ o.reference }}</a></td>
+            <td class="text-muted small">{{ o.formulation.finished_product.designation }}</td>
+            <td class="text-end">{{ o.target_qty|floatformat:3 }} {{ o.target_unit.symbol }}</td>
+            <td class="text-end fw-600" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ o.actual_qty_produced|floatformat:3 }}</td>
+            <td class="text-end">
+              {% if o.yield_status == 'normal' %}<span class="badge-normal-yield">
+              {% elif o.yield_status == 'warning' %}<span class="badge-warn-yield">
+              {% else %}<span class="badge-crit-yield">{% endif %}
+                {{ o.yield_rate|floatformat:1 }} %
+              </span>
+            </td>
+            <td class="text-end">
+              {% with impact=o.consumption_lines.all %}
+              <span class="text-danger fw-600 small">
+                {% for l in impact %}{% if l.delta_qty and l.delta_qty > 0 %}{{ l.financial_impact|floatformat:0 }}{% endif %}{% endfor %} DA
+              </span>
+              {% endwith %}
+            </td>
+            <td class="text-muted small">{{ o.closure_date|date:"d/m/Y" }}</td>
+            <td><a href="{% url 'production:production_order_detail' o.id %}" class="btn-icon"><i class="bi bi-eye"></i></a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state"><i class="bi bi-bar-chart-line"></i><p>Aucun ordre clôturé sur cette période</p></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const normal   = {{ normal_count }};
+  const warning  = {{ warning_orders|length }};
+  const critical = {{ critical_orders|length }};
+
+  // Donut — yield distribution
+  new Chart(document.getElementById('yieldDistChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Normal', 'Avertissement', 'Critique'],
+      datasets: [{
+        data: [normal, warning, critical],
+        backgroundColor: ['#16a34a', '#d97706', '#dc2626'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 12 }, color: '#475569' } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} ordre(s)` } }
+      }
+    }
+  });
+
+  // Line — yield per order
+  const orders = [
+    {% for o in orders reversed %}
+    { ref: "{{ o.reference }}", rate: {{ o.yield_rate|floatformat:2|default:"null" }} },
+    {% endfor %}
+  ];
+  const labels = orders.map(o => o.ref);
+  const rates  = orders.map(o => o.rate);
+
+  new Chart(document.getElementById('yieldLineChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Rendement (%)',
+        data: rates,
+        backgroundColor: rates.map(r => r === null ? '#94a3b8' : r >= 90 ? '#16a34a' : r >= 75 ? '#d97706' : '#dc2626'),
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw !== null ? ctx.raw + ' %' : 'N/D'}` } }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10, family: 'Inter' }, color: '#94a3b8', maxRotation: 45 }, grid: { display: false } },
+        y: {
+          min: 0, max: 120,
+          ticks: { font: { size: 11, family: 'Inter' }, color: '#94a3b8', callback: v => v + ' %' },
+          grid: { color: '#f1f5f9' }
+        }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

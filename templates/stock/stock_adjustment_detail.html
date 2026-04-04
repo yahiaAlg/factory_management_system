@@ -1,0 +1,251 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Ajustement {{ adjustment.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'stock:stock_adjustments_list' %}">Ajustements</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ adjustment.reference }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.info-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+.info-row:last-child { border-bottom:none; }
+.info-label { font-size:12.5px; color:var(--text-muted); }
+.info-value { font-size:13.5px; font-weight:500; color:var(--text-primary); text-align:right; }
+.delta-pill { display:inline-flex;align-items:center;padding:3px 9px;border-radius:99px;font-size:12px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif; }
+.delta-plus { background:#dcfce7; color:#15803d; }
+.delta-minus { background:#fee2e2; color:#dc2626; }
+.delta-zero { background:var(--bg-raised); color:var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+  <div class="d-flex align-items-center gap-3">
+    <div class="metric-icon ic-purple" style="width:52px;height:52px;border-radius:var(--radius-lg);font-size:22px;">
+      <i class="bx bx-edit-alt"></i>
+    </div>
+    <div>
+      <h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text-primary);margin:0;">
+        Ajustement {{ adjustment.reference }}
+      </h1>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+        <span style="font-size:13px;color:var(--text-secondary);">{{ adjustment.get_adjustment_type_display }}</span>
+        <span style="color:var(--border-strong);">·</span>
+        <span style="font-size:13px;color:var(--text-muted);">{{ adjustment.adjustment_date|date:"d/m/Y" }}</span>
+        {% if adjustment.approved_by %}
+          <span class="badge-valide"><i class="bx bx-check-circle"></i> Approuvé</span>
+        {% else %}
+          <span class="badge-en-attente"><i class="bx bx-time"></i> En attente</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    {% if can_approve %}
+    <!-- Approve button with confirmation modal trigger -->
+    <button type="button" class="btn-validate" data-bs-toggle="modal" data-bs-target="#approveModal">
+      <i class="bx bx-check-double"></i> Approuver
+    </button>
+    {% endif %}
+    <a href="{% url 'stock:stock_adjustments_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Info card -->
+  <div class="col-lg-5">
+    <div class="card-app h-100">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-info-circle" style="color:var(--accent);margin-right:6px;"></i>Informations</span>
+      </div>
+      <div class="card-app-body">
+        <div class="info-row">
+          <span class="info-label">Référence</span>
+          <span class="col-ref">{{ adjustment.reference }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Type</span>
+          <span class="info-value">{{ adjustment.get_adjustment_type_display }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Date</span>
+          <span class="info-value">{{ adjustment.adjustment_date|date:"d/m/Y" }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Nombre de lignes</span>
+          <span class="info-value" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;">{{ lines|length }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Créé par</span>
+          <span class="info-value">{{ adjustment.created_by.get_full_name|default:adjustment.created_by.username }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Créé le</span>
+          <span class="info-value">{{ adjustment.created_at|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% if adjustment.approved_by %}
+        <div class="info-row">
+          <span class="info-label">Approuvé par</span>
+          <span class="info-value">{{ adjustment.approved_by.get_full_name|default:adjustment.approved_by.username }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Approuvé le</span>
+          <span class="info-value">{{ adjustment.approved_at|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Motif -->
+  <div class="col-lg-7">
+    <div class="card-app h-100">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-message-square-detail" style="color:var(--accent);margin-right:6px;"></i>Motif de l'ajustement</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.7;margin:0;">{{ adjustment.reason }}</p>
+        {% if not adjustment.approved_by %}
+        <div class="alert-banner warning mt-4" style="margin-bottom:0;">
+          <i class="bx bx-error" style="font-size:18px;flex-shrink:0;"></i>
+          <div>
+            <strong>Ajustement non appliqué</strong> — Les stocks ne seront mis à jour qu'après approbation par un Manager.
+          </div>
+        </div>
+        {% else %}
+        <div class="alert-banner success mt-4" style="margin-bottom:0;">
+          <i class="bx bx-check-circle" style="font-size:18px;flex-shrink:0;"></i>
+          <div>
+            Ajustement approuvé et appliqué au stock le {{ adjustment.approved_at|date:"d/m/Y à H:i" }}.
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Lines Table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">
+      <i class="bx bx-list-ul" style="color:var(--accent);margin-right:6px;"></i>
+      Lignes d'ajustement
+    </span>
+    <span style="font-size:12px;color:var(--text-muted);">{{ lines|length }} ligne{{ lines|length|pluralize }}</span>
+  </div>
+  <div class="table-container" style="border:none;border-radius:0;">
+    {% if lines %}
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Article</th>
+          <th>Type</th>
+          <th class="text-end">Quantité avant</th>
+          <th class="text-end">Quantité après</th>
+          <th class="text-center">Delta</th>
+          <th>Observations</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td style="color:var(--text-muted);font-size:12px;">{{ forloop.counter }}</td>
+          <td>
+            {% if line.raw_material %}
+              <div style="font-weight:500;">{{ line.raw_material.designation }}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);">{{ line.raw_material.reference }} · MP</div>
+            {% elif line.finished_product %}
+              <div style="font-weight:500;">{{ line.finished_product.designation }}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);">{{ line.finished_product.reference }} · PF</div>
+            {% endif %}
+          </td>
+          <td style="font-size:12.5px;color:var(--text-secondary);">
+            {% if line.raw_material %}Matière première{% else %}Produit fini{% endif %}
+          </td>
+          <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">
+            {{ line.quantity_before|floatformat:3 }}
+            <span style="font-size:11px;color:var(--text-muted);font-weight:400;">
+              {% if line.raw_material %}{{ line.raw_material.unit_of_measure.symbol }}
+              {% elif line.finished_product %}{{ line.finished_product.sales_unit.symbol }}{% endif %}
+            </span>
+          </td>
+          <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">
+            {{ line.quantity_after|floatformat:3 }}
+            <span style="font-size:11px;color:var(--text-muted);font-weight:400;">
+              {% if line.raw_material %}{{ line.raw_material.unit_of_measure.symbol }}
+              {% elif line.finished_product %}{{ line.finished_product.sales_unit.symbol }}{% endif %}
+            </span>
+          </td>
+          <td class="text-center">
+            {% with delta=line.quantity_adjustment %}
+            {% if delta > 0 %}
+              <span class="delta-pill delta-plus">+{{ delta|floatformat:3 }}</span>
+            {% elif delta < 0 %}
+              <span class="delta-pill delta-minus">{{ delta|floatformat:3 }}</span>
+            {% else %}
+              <span class="delta-pill delta-zero">0.000</span>
+            {% endif %}
+            {% endwith %}
+          </td>
+          <td style="font-size:12.5px;color:var(--text-secondary);">{{ line.remarks|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bx bx-list-ul"></i></div>
+      <div class="empty-title">Aucune ligne</div>
+      <div class="empty-desc">Cet ajustement ne contient aucune ligne.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Approval confirm modal -->
+{% if can_approve %}
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+    <div class="modal-content" style="border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);padding:18px 20px;">
+        <h5 class="modal-title" id="approveModalLabel" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:15px;">
+          <i class="bx bx-check-double" style="color:#16a34a;margin-right:8px;"></i>
+          Confirmer l'approbation
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body" style="padding:20px;">
+        <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">
+          En approuvant cet ajustement, les <strong>{{ lines|length }} ligne{{ lines|length|pluralize }}</strong> seront appliquées immédiatement et les niveaux de stock mis à jour.
+        </p>
+        <div class="alert-banner warning" style="margin-bottom:0;">
+          <i class="bx bx-error" style="font-size:16px;flex-shrink:0;"></i>
+          <span style="font-size:12.5px;">Cette action est <strong>irréversible</strong>.</span>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px;gap:8px;">
+        <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+        <form method="post" action="{% url 'stock:stock_adjustment_approve' adjustment_id=adjustment.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn-validate">
+            <i class="bx bx-check-double"></i> Approuver et appliquer
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

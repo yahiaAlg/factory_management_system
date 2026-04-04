@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Factures Clients{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Factures Clients</span>
+{% endblock %}
+
+{% block page_actions %}
+{% if request.user.userprofile.role in 'manager,sales,accountant' %}
+<a href="{% url 'sales:client_invoice_create' %}" class="btn-primary-app">
+  <i class="bx bx-plus"></i> Nouvelle Facture
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:20px;">
+  <div class="section-eyebrow">COMMERCIAL</div>
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;">Factures Clients</h1>
+</div>
+
+<!-- Filters -->
+<form method="get" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:20px;">
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:flex-end;">
+    <div>
+      <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px;">Recherche</label>
+      <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, client…" class="form-control form-control-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px;">Statut</label>
+      <select name="status" class="form-select form-select-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+        <option value="">Tous</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:8px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;margin-bottom:0;">
+        <input type="checkbox" name="overdue" value="true" {% if request.GET.overdue == 'true' %}checked{% endif %} style="width:14px;height:14px;accent-color:var(--accent);">
+        En retard uniquement
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <button type="submit" class="btn-primary-app" style="padding:6px 16px;">
+        <i class="bx bx-search"></i> Filtrer
+      </button>
+      <a href="{% url 'sales:client_invoices_list' %}" style="padding:6px 12px;font-size:13px;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);">Réinitialiser</a>
+    </div>
+  </div>
+</form>
+
+<!-- Table -->
+<div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:var(--bg-raised);border-bottom:1px solid var(--border);">
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Référence</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Client</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Date</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Échéance</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">Total TTC</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">Solde dû</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Statut</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr style="border-bottom:1px solid var(--border);{% if inv.is_overdue %}background:rgba(220,38,38,.02);{% endif %}transition:background .12s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='{% if inv.is_overdue %}rgba(220,38,38,.02){% endif %}'">
+        <td style="padding:12px 20px;">
+          <a href="{% url 'sales:client_invoice_detail' invoice_id=inv.id %}" style="font-family:'Inter','Courier New',monospace;font-size:13px;font-weight:500;color:var(--accent);letter-spacing:.03em;">{{ inv.reference }}</a>
+        </td>
+        <td style="padding:12px 20px;">
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary);">{{ inv.client.raison_sociale }}</div>
+          <div style="font-size:11px;color:var(--text-muted);">{{ inv.client.code }}</div>
+        </td>
+        <td style="padding:12px 20px;text-align:center;font-size:13px;color:var(--text-secondary);">{{ inv.invoice_date|date:"d/m/Y" }}</td>
+        <td style="padding:12px 20px;text-align:center;font-size:13px;{% if inv.is_overdue %}color:#dc2626;font-weight:500;{% else %}color:var(--text-secondary);{% endif %}">
+          {{ inv.due_date|date:"d/m/Y" }}
+          {% if inv.is_overdue %}<br><span style="font-size:10px;">{{ inv.days_overdue }}j de retard</span>{% endif %}
+        </td>
+        <td style="padding:12px 20px;text-align:right;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;color:var(--text-primary);">{{ inv.total_ttc|floatformat:2 }} DA</td>
+        <td style="padding:12px 20px;text-align:right;font-size:14px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;color:{% if inv.balance_due > 0 and inv.is_overdue %}#dc2626{% elif inv.balance_due > 0 %}#b45309{% else %}#15803d{% endif %};">
+          {{ inv.balance_due|floatformat:2 }} DA
+        </td>
+        <td style="padding:12px 20px;text-align:center;">
+          {% if inv.status == 'paid' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(21,128,61,.08);color:#15803d;border:1px solid rgba(21,128,61,.2);">Payée</span>
+          {% elif inv.status == 'partially_paid' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(29,78,216,.08);color:#1d4ed8;border:1px solid rgba(29,78,216,.2);">Part. payée</span>
+          {% elif inv.status == 'in_dispute' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(217,119,6,.1);color:#d97706;border:1px solid rgba(217,119,6,.2);">En litige</span>
+          {% elif inv.status == 'cancelled' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(100,116,139,.08);color:#64748b;">Annulée</span>
+          {% else %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(71,85,105,.08);color:#475569;border:1px solid rgba(71,85,105,.15);">Émise</span>
+          {% endif %}
+        </td>
+        <td style="padding:12px 20px;text-align:center;">
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
+            <a href="{% url 'sales:client_invoice_detail' invoice_id=inv.id %}" data-bs-toggle="tooltip" title="Voir détail" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:var(--bg-raised);color:var(--text-secondary);border:1px solid var(--border);">
+              <i class="bx bx-show" style="font-size:14px;"></i>
+            </a>
+            <a href="{% url 'sales:client_invoice_print' invoice_id=inv.id %}" target="_blank" data-bs-toggle="tooltip" title="Imprimer" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:var(--bg-raised);color:var(--text-secondary);border:1px solid var(--border);">
+              <i class="bx bx-printer" style="font-size:14px;"></i>
+            </a>
+            {% if inv.balance_due > 0 and inv.status not in 'cancelled,in_dispute' and request.user.userprofile.role in 'manager,accountant' %}
+            <a href="{% url 'sales:client_payment_create' invoice_id=inv.id %}" data-bs-toggle="tooltip" title="Enregistrer encaissement" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:rgba(21,128,61,.08);color:#15803d;border:1px solid rgba(21,128,61,.2);">
+              <i class="bx bx-money" style="font-size:14px;"></i>
+            </a>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8" style="padding:48px;text-align:center;">
+          <i class="bx bx-spreadsheet" style="font-size:40px;color:var(--text-muted);display:block;margin-bottom:8px;"></i>
+          <div style="font-size:15px;font-weight:600;color:var(--text-secondary);font-family:'Plus Jakarta Sans',sans-serif;">Aucune facture trouvée</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Modifiez vos filtres ou créez une nouvelle facture.</div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

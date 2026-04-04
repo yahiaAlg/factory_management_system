@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Nouvelle Facture Client{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoices_list' %}">Factures Clients</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Nouvelle</span>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+  <div class="section-eyebrow">COMMERCIAL</div>
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;">Nouvelle Facture Client</h1>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:flex-start;">
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Header fields -->
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+          <i class="bx bx-file" style="color:var(--accent);margin-right:6px;"></i> Informations générales
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="grid-column:1/-1;">
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;">Client <span style="color:#dc2626;">*</span></label>
+            <select name="client" id="id_client" style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;color:var(--text-primary);">
+              {{ form.client }}
+            </select>
+            {% if form.client.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.client.errors.0 }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;">Date de facturation <span style="color:#dc2626;">*</span></label>
+            {{ form.invoice_date }}
+            {% if form.invoice_date.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.invoice_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;">Remise (%)</label>
+            {{ form.discount_pct }}
+            {% if form.discount_pct.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.discount_pct.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+        {% if form.non_field_errors %}
+        <div style="margin-top:12px;padding:10px 14px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-sm);font-size:13px;color:#dc2626;">
+          {{ form.non_field_errors.0 }}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- BL selection -->
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">
+            <i class="bx bx-link" style="color:var(--accent);margin-right:6px;"></i> BL Clients à facturer
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Sélectionnez les BL validés à inclure dans cette facture.</div>
+        </div>
+        <div style="padding:16px 20px;" id="dnList">
+          <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;" id="noDnMsg">
+            <i class="bx bx-info-circle" style="font-size:20px;display:block;margin-bottom:6px;"></i>
+            Sélectionnez un client pour voir ses BL disponibles.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:calc(var(--topbar-h) + 20px);">
+      <div style="background:rgba(15,118,110,.05);border:1px solid var(--accent-glow);border-radius:var(--radius-lg);padding:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px;"><i class="bx bx-info-circle"></i> Calcul automatique</div>
+        <div style="font-size:12px;color:var(--text-secondary);">Les montants (HT, TVA, TTC) sont calculés automatiquement à partir des BL liés après enregistrement.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button type="submit" class="btn-primary-app" style="width:100%;justify-content:center;padding:11px;">
+          <i class="bx bx-save"></i> Créer la facture
+        </button>
+        <a href="{% url 'sales:client_invoices_list' %}" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);background:var(--bg-surface);">
+          Annuler
+        </a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<style>
+  form select, form input[type=text], form input[type=date], form input[type=number] {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 10px;
+    font-size: 13px; color: var(--text-primary); width: 100%; background: var(--bg-surface);
+  }
+  form select:focus, form input:focus {
+    outline: none; border-color: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  .dn-item { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); margin-bottom:8px; cursor:pointer; transition:background .12s; }
+  .dn-item:hover { background: var(--bg-hover); }
+  .dn-item input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); cursor:pointer; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// AJAX-load available BLs for selected client
+document.getElementById('id_client').addEventListener('change', function() {
+  const clientId = this.value;
+  const container = document.getElementById('dnList');
+  const noMsg = document.getElementById('noDnMsg');
+
+  if (!clientId) {
+    container.innerHTML = '<div id="noDnMsg" style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;"><i class="bx bx-info-circle" style="font-size:20px;display:block;margin-bottom:6px;"></i>Sélectionnez un client pour voir ses BL disponibles.</div>';
+    return;
+  }
+
+  container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px;"><i class="bx bx-loader-alt" style="font-size:20px;display:block;margin-bottom:6px;animation:spin 1s linear infinite;"></i>Chargement…</div>';
+
+  // Filter BLs via page reload with client param — simple approach without AJAX endpoint
+  // In a full implementation, this would call an AJAX view
+  fetch(`/sales/client-dns/?client=${clientId}&status=validated&format=json`)
+    .catch(() => {
+      container.innerHTML = `
+        <div style="padding:8px 0;">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">BL validés disponibles pour ce client :</div>
+          <div style="font-size:13px;color:var(--text-secondary);padding:16px;border:1px dashed var(--border);border-radius:var(--radius-sm);text-align:center;">
+            Saisissez les identifiants des BL ci-dessous ou liez-les après création.
+          </div>
+          <input type="text" name="linked_dns" placeholder="IDs des BL (ex: 1,2,3)" style="margin-top:10px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;width:100%;" id="dnInput">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Entrez les IDs numériques séparés par des virgules</div>
+        </div>`;
+      // Convert comma input to multiple hidden inputs on submit
+      document.querySelector('form').addEventListener('submit', function() {
+        const val = document.getElementById('dnInput')?.value || '';
+        val.split(',').forEach(function(id) {
+          const t = id.trim();
+          if (t) {
+            const inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'linked_dns'; inp.value = t;
+            document.querySelector('form').appendChild(inp);
+          }
+        });
+      });
+    });
+});
+
+// Spin animation for loader
+const style = document.createElement('style');
+style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+document.head.appendChild(style);
+</script>
+{% endblock %}

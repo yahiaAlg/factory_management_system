@@ -69,7 +69,7 @@ def client_create(request):
                 request=request,
             )
             messages.success(request, f"Client {client.code} créé avec succès")
-            return redirect("clients_list")
+            return redirect("clients:clients_list")
     else:
         form = ClientForm()
 
@@ -130,7 +130,7 @@ def client_edit(request, client_id):
                 request=request,
             )
             messages.success(request, f"Client {client.code} modifié avec succès")
-            return redirect("client_detail", client_id=client.id)
+            return redirect("clients:client_detail", client_id=client.id)
     else:
         form = ClientForm(instance=client)
 
@@ -174,7 +174,7 @@ def client_toggle_active(request, client_id):
         status_label = "activé" if client.is_active else "désactivé"
         messages.success(request, f"Client {client.code} {status_label}")
 
-    return redirect("client_detail", client_id=client_id)
+    return redirect("clients:client_detail", client_id=client_id)
 
 
 @login_required
@@ -192,7 +192,7 @@ def client_update_credit_status(request, client_id):
 
         if new_status not in dict(Client.CREDIT_STATUS_CHOICES):
             messages.error(request, "Statut de crédit invalide")
-            return redirect("client_detail", client_id=client_id)
+            return redirect("clients:client_detail", client_id=client_id)
 
         old_status = client.credit_status
         client.credit_status = new_status
@@ -211,7 +211,7 @@ def client_update_credit_status(request, client_id):
         )
         messages.success(request, "Statut crédit mis à jour")
 
-    return redirect("client_detail", client_id=client_id)
+    return redirect("clients:client_detail", client_id=client_id)
 
 
 # FIX: client_search_ajax REMOVED.

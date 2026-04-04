@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}BL Clients{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">BL Clients</span>
+{% endblock %}
+
+{% block page_actions %}
+{% if request.user.userprofile.role in 'manager,sales' %}
+<a href="{% url 'sales:client_dn_create' %}" class="btn-primary-app">
+  <i class="bx bx-plus"></i> Nouveau BL Client
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:20px;">
+  <div class="section-eyebrow">COMMERCIAL</div>
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;">Bons de livraison clients</h1>
+</div>
+
+<!-- Filters -->
+<form method="get" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:20px;">
+  <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:12px;align-items:flex-end;">
+    <div>
+      <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px;">Recherche</label>
+      <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, client…" class="form-control form-control-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px;">Statut</label>
+      <select name="status" class="form-select form-select-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+        <option value="">Tous</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px;">Du</label>
+      <input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control form-control-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+    </div>
+    <div>
+      <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px;">Au</label>
+      <input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control form-control-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <button type="submit" class="btn-primary-app" style="padding:6px 16px;">
+        <i class="bx bx-search"></i> Filtrer
+      </button>
+      <a href="{% url 'sales:client_dns_list' %}" style="padding:6px 12px;font-size:13px;color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);">Réinitialiser</a>
+    </div>
+  </div>
+</form>
+
+<!-- Table -->
+<div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:var(--bg-raised);border-bottom:1px solid var(--border);">
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Référence</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Client</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Date livraison</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">Total HT</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Statut</th>
+        <th style="padding:10px 20px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dn in dns %}
+      <tr style="border-bottom:1px solid var(--border);transition:background .12s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+        <td style="padding:12px 20px;">
+          <a href="{% url 'sales:client_dn_detail' dn_id=dn.id %}" style="font-family:'Inter','Courier New',monospace;font-size:13px;font-weight:500;color:var(--accent);letter-spacing:.03em;">{{ dn.reference }}</a>
+        </td>
+        <td style="padding:12px 20px;">
+          <div style="font-size:13px;font-weight:500;color:var(--text-primary);">{{ dn.client.raison_sociale }}</div>
+          <div style="font-size:11px;color:var(--text-muted);">{{ dn.client.code }}</div>
+        </td>
+        <td style="padding:12px 20px;text-align:center;font-size:13px;color:var(--text-secondary);">{{ dn.delivery_date|date:"d/m/Y" }}</td>
+        <td style="padding:12px 20px;text-align:right;font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;color:var(--text-primary);">{{ dn.total_ht|floatformat:2 }} DA</td>
+        <td style="padding:12px 20px;text-align:center;">
+          {% if dn.status == 'validated' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(21,128,61,.08);color:#15803d;border:1px solid rgba(21,128,61,.2);">Validé</span>
+          {% elif dn.status == 'invoiced' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(29,78,216,.08);color:#1d4ed8;border:1px solid rgba(29,78,216,.2);">Facturé</span>
+          {% elif dn.status == 'delivered' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(15,118,110,.08);color:#0f766e;border:1px solid rgba(15,118,110,.2);">Livré</span>
+          {% elif dn.status == 'cancelled' %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(100,116,139,.08);color:#64748b;">Annulé</span>
+          {% else %}
+            <span style="font-size:11px;font-weight:500;padding:3px 10px;border-radius:12px;background:rgba(71,85,105,.08);color:#475569;">Brouillon</span>
+          {% endif %}
+        </td>
+        <td style="padding:12px 20px;text-align:center;">
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
+            <a href="{% url 'sales:client_dn_detail' dn_id=dn.id %}" data-bs-toggle="tooltip" title="Voir détail" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:var(--bg-raised);color:var(--text-secondary);border:1px solid var(--border);">
+              <i class="bx bx-show" style="font-size:14px;"></i>
+            </a>
+            <a href="{% url 'sales:client_dn_print' dn_id=dn.id %}" target="_blank" data-bs-toggle="tooltip" title="Imprimer" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:var(--bg-raised);color:var(--text-secondary);border:1px solid var(--border);">
+              <i class="bx bx-printer" style="font-size:14px;"></i>
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" style="padding:48px;text-align:center;">
+          <i class="bx bx-send" style="font-size:40px;color:var(--text-muted);display:block;margin-bottom:8px;"></i>
+          <div style="font-size:15px;font-weight:600;color:var(--text-secondary);font-family:'Plus Jakarta Sans',sans-serif;">Aucun bon de livraison trouvé</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Modifiez vos filtres ou créez un nouveau BL.</div>
+          <a href="{% url 'sales:client_dn_create' %}" class="btn-primary-app" style="display:inline-flex;margin-top:16px;">
+            <i class="bx bx-plus"></i> Créer un BL Client
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

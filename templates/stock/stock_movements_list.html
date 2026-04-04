@@ -1,0 +1,151 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Historique des Mouvements{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'stock:raw_materials_stock_list' %}">Stock</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Mouvements</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 22px; color: var(--text-primary); margin: 0; }
+.mv-type-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 99px;
+  font-size: 11.5px; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif;
+  white-space: nowrap;
+}
+.mv-receipt    { background:#dcfce7; color:#15803d; }
+.mv-consumption{ background:#fee2e2; color:#dc2626; }
+.mv-production { background:#dbeafe; color:#1d4ed8; }
+.mv-delivery   { background:#ffedd5; color:#c2410c; }
+.mv-adjustment { background:#f3e8ff; color:#7c3aed; }
+.mv-opening    { background:#f1f5f9; color:#475569; }
+.mv-return     { background:#fef9c3; color:#a16207; }
+.mv-loss       { background:#fee2e2; color:#dc2626; }
+.qty-positive  { color:#16a34a; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; }
+.qty-negative  { color:#dc2626; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title">Historique des Mouvements</h1>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Traçabilité complète de tous les flux de stock</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'stock:raw_materials_stock_list' %}" class="btn-secondary-app">
+      <i class="bx bx-package"></i> Stock MP
+    </a>
+    <a href="{% url 'stock:finished_products_stock_list' %}" class="btn-secondary-app">
+      <i class="bx bx-box"></i> Stock PF
+    </a>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" id="filterForm">
+<div class="filter-bar">
+  <select name="movement_type" class="form-control-app" onchange="document.getElementById('filterForm').submit()">
+    <option value="">Tous les types</option>
+    {% for val, label in movement_types %}
+    <option value="{{ val }}" {% if request.GET.movement_type == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="material_type" class="form-control-app" onchange="document.getElementById('filterForm').submit()">
+    <option value="">MP & PF</option>
+    <option value="raw_material" {% if request.GET.material_type == 'raw_material' %}selected{% endif %}>Matières premières</option>
+    <option value="finished_product" {% if request.GET.material_type == 'finished_product' %}selected{% endif %}>Produits finis</option>
+  </select>
+  <input type="date" name="date_from" value="{{ request.GET.date_from }}"
+         class="form-control-app" style="width:auto;" onchange="document.getElementById('filterForm').submit()">
+  <input type="date" name="date_to" value="{{ request.GET.date_to }}"
+         class="form-control-app" style="width:auto;" onchange="document.getElementById('filterForm').submit()">
+  {% if request.GET.movement_type or request.GET.material_type or request.GET.date_from or request.GET.date_to %}
+  <a href="{% url 'stock:stock_movements_list' %}" class="filter-reset">
+    <i class="bx bx-x"></i> Réinitialiser
+  </a>
+  {% endif %}
+</div>
+</form>
+
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">
+      <i class="bx bx-transfer-alt" style="color:var(--accent);margin-right:6px;"></i>
+      Mouvements de stock
+    </span>
+    <span style="font-size:12px;color:var(--text-muted);">{{ movements|length }} résultat{{ movements|length|pluralize }} (100 max)</span>
+  </div>
+  <div class="table-container" style="border:none;border-radius:0;">
+    {% if movements %}
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Article</th>
+          <th>Document source</th>
+          <th class="text-end">Quantité</th>
+          <th class="text-end">Prix unitaire</th>
+          <th>Observations</th>
+          <th>Créé par</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mv in movements %}
+        <tr>
+          <td style="white-space:nowrap;color:var(--text-secondary);font-size:13px;">{{ mv.movement_date|date:"d/m/Y" }}</td>
+          <td>
+            <span class="mv-type-badge mv-{{ mv.movement_type }}">
+              {{ mv.get_movement_type_display }}
+            </span>
+          </td>
+          <td>
+            {% if mv.raw_material %}
+              <div style="font-weight:500;">{{ mv.raw_material.designation }}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);">{{ mv.raw_material.reference }}</div>
+            {% elif mv.finished_product %}
+              <div style="font-weight:500;">{{ mv.finished_product.designation }}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);">{{ mv.finished_product.reference }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span style="font-size:12px;color:var(--text-muted);">{{ mv.get_source_document_type_display }}</span>
+            <div class="col-ref" style="font-size:12px;">#{{ mv.source_document_id }}</div>
+          </td>
+          <td class="text-end">
+            <span class="{% if mv.quantity >= 0 %}qty-positive{% else %}qty-negative{% endif %}">
+              {% if mv.quantity >= 0 %}+{% endif %}{{ mv.quantity|floatformat:3 }}
+            </span>
+          </td>
+          <td class="text-end" style="font-size:13px;color:var(--text-secondary);">
+            {% if mv.unit_price %}{{ mv.unit_price|floatformat:2 }} DA{% elif mv.unit_cost %}{{ mv.unit_cost|floatformat:2 }} DA{% else %}—{% endif %}
+          </td>
+          <td style="font-size:12.5px;color:var(--text-secondary);max-width:180px;">
+            <span class="text-truncate d-block" style="max-width:180px;" title="{{ mv.remarks }}">
+              {{ mv.remarks|default:"—"|truncatechars:60 }}
+            </span>
+          </td>
+          <td style="font-size:12.5px;color:var(--text-muted);">{{ mv.created_by.get_full_name|default:mv.created_by.username }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bx bx-transfer-alt"></i></div>
+      <div class="empty-title">Aucun mouvement trouvé</div>
+      <div class="empty-desc">Aucun mouvement de stock pour les critères sélectionnés.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

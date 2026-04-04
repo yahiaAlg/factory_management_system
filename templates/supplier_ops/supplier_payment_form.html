@@ -1,0 +1,210 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Paiement — {{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_invoices_list' %}">Factures Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_invoice_detail' invoice.id %}">{{ invoice.reference }}</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Paiement</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.balance-preview { background:var(--bg-raised); border:1px solid var(--border); border-radius:var(--radius-md); padding:18px 20px; }
+.balance-row { display:flex; justify-content:space-between; align-items:center; padding:7px 0; font-size:13.5px; border-bottom:1px solid var(--border); }
+.balance-row:last-child { border-bottom:none; padding-top:12px; margin-top:4px; }
+.balance-label { color:var(--text-secondary); }
+.balance-val { font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Enregistrer un paiement</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Facture {{ invoice.reference }} · {{ invoice.supplier.raison_sociale }}</p>
+  </div>
+  <a href="{% url 'supplier_ops:supplier_invoice_detail' invoice.id %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-7">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-credit-card ic-teal me-2" style="font-size:16px;"></i>Informations du paiement</span>
+      </div>
+      <div class="card-app-body">
+        {% if form.non_field_errors %}
+        <div class="alert-banner alert-banner-error mb-3">
+          {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+        </div>
+        {% endif %}
+        <form method="post" id="payment-form">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label-app">Date de paiement <span style="color:#dc2626;">*</span></label>
+              {{ form.payment_date }}
+              {% if form.payment_date.errors %}<div class="field-error">{{ form.payment_date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label-app">Mode de paiement <span style="color:#dc2626;">*</span></label>
+              {{ form.payment_method }}
+              {% if form.payment_method.errors %}<div class="field-error">{{ form.payment_method.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Montant (DA) <span style="color:#dc2626;">*</span></label>
+              {{ form.amount }}
+              {% if form.amount.errors %}<div class="field-error">{{ form.amount.errors.0 }}</div>{% endif %}
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                Solde dû maximum : <strong>{{ invoice.balance_due|floatformat:0 }} DA</strong>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Référence bancaire / N° chèque</label>
+              {{ form.bank_reference }}
+              {% if form.bank_reference.errors %}<div class="field-error">{{ form.bank_reference.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="d-flex justify-content-end gap-3 mt-4">
+            <a href="{% url 'supplier_ops:supplier_invoice_detail' invoice.id %}" class="btn-secondary-app">Annuler</a>
+            <button type="submit" class="btn-primary-app">
+              <i class="bx bx-check"></i> Enregistrer le paiement
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live balance preview -->
+  <div class="col-md-5">
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title">Aperçu du solde</span>
+      </div>
+      <div class="card-app-body">
+        <div class="balance-preview">
+          <div class="balance-row">
+            <span class="balance-label">Total TTC</span>
+            <span class="balance-val">{{ invoice.total_ttc|floatformat:0 }} DA</span>
+          </div>
+          <div class="balance-row">
+            <span class="balance-label">Déjà payé</span>
+            <span class="balance-val" style="color:#166534;">
+              {% with already_paid=invoice.total_ttc|add:invoice.balance_due|floatformat:0 %}
+              {% endwith %}
+              — {{ invoice.balance_due|floatformat:0 }} = {{ invoice.total_ttc|floatformat:0 }} DA
+            </span>
+          </div>
+          <div class="balance-row">
+            <span class="balance-label">Ce paiement</span>
+            <span class="balance-val" style="color:#0f766e;" id="preview-amount">0 DA</span>
+          </div>
+          <div class="balance-row" style="border-top:2px solid var(--border-strong);">
+            <span class="balance-label" style="font-weight:700;">Solde restant</span>
+            <span id="preview-balance" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:20px;color:#dc2626;">
+              {{ invoice.balance_due|floatformat:0 }} DA
+            </span>
+          </div>
+        </div>
+        <div id="preview-status-box" class="mt-3" style="display:none;text-align:center;"></div>
+      </div>
+    </div>
+
+    <!-- Invoice info -->
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Facture</span>
+      </div>
+      <div class="card-app-body">
+        <div style="font-size:13px;">
+          <div class="d-flex justify-content-between mb-2">
+            <span style="color:var(--text-muted);">Référence</span>
+            <span style="font-family:monospace;font-weight:500;">{{ invoice.reference }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span style="color:var(--text-muted);">Fournisseur</span>
+            <span style="font-weight:500;">{{ invoice.supplier.raison_sociale }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span style="color:var(--text-muted);">Échéance</span>
+            <span {% if invoice.is_overdue %}style="color:#dc2626;font-weight:600;"{% endif %}>{{ invoice.due_date|date:"d/m/Y" }}</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span style="color:var(--text-muted);">Statut</span>
+            <span>
+              {% if invoice.status == 'unpaid' %}<span class="badge-non-paye">Impayée</span>
+              {% elif invoice.status == 'partially_paid' %}<span class="badge-partiellement">Part. payée</span>
+              {% elif invoice.status == 'verified' %}<span class="badge-valide">Vérifiée</span>
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var balanceDue = {{ invoice.balance_due|floatformat:2 }};
+  var amountInput = document.getElementById('{{ form.amount.auto_id }}');
+  var previewAmount = document.getElementById('preview-amount');
+  var previewBalance = document.getElementById('preview-balance');
+  var previewStatus = document.getElementById('preview-status-box');
+
+  /* Apply class to form inputs */
+  document.querySelectorAll('#payment-form input, #payment-form select').forEach(function (el) {
+    el.classList.add('form-control-app');
+  });
+
+  function fmt(n) {
+    return n.toLocaleString('fr-DZ', { maximumFractionDigits: 0 }) + ' DA';
+  }
+
+  function updatePreview() {
+    var entered = parseFloat(amountInput.value) || 0;
+    var remaining = balanceDue - entered;
+
+    previewAmount.textContent = fmt(entered);
+
+    if (entered > balanceDue) {
+      previewBalance.style.color = '#dc2626';
+      previewBalance.textContent = 'Dépassement!';
+      previewStatus.style.display = 'block';
+      previewStatus.innerHTML = '<span style="background:#fee2e2;color:#991b1b;padding:6px 14px;border-radius:99px;font-size:13px;font-weight:600;"><i class="bx bx-error-circle" style="margin-right:4px;"></i>Montant supérieur au solde dû</span>';
+    } else if (remaining <= 0) {
+      previewBalance.style.color = '#166534';
+      previewBalance.textContent = '0 DA';
+      previewStatus.style.display = 'block';
+      previewStatus.innerHTML = '<span style="background:#dcfce7;color:#166534;padding:6px 14px;border-radius:99px;font-size:13px;font-weight:600;"><i class="bx bx-check-circle" style="margin-right:4px;"></i>Paiement intégral — facture soldée</span>';
+    } else {
+      previewBalance.style.color = '#dc2626';
+      previewBalance.textContent = fmt(remaining);
+      if (entered > 0) {
+        previewStatus.style.display = 'block';
+        previewStatus.innerHTML = '<span style="background:#fef9c3;color:#854d0e;padding:6px 14px;border-radius:99px;font-size:13px;font-weight:600;"><i class="bx bx-error" style="margin-right:4px;"></i>Paiement partiel — solde restant: ' + fmt(remaining) + '</span>';
+      } else {
+        previewStatus.style.display = 'none';
+      }
+    }
+  }
+
+  if (amountInput) {
+    amountInput.addEventListener('input', updatePreview);
+    updatePreview();
+  }
+})();
+</script>
+{% endblock %}

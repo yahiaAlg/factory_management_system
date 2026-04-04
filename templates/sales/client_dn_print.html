@@ -1,0 +1,131 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BL Client — {{ dn.reference }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; font-size: 10.5pt; color: #1e293b; margin: 0; padding: 0; background: #fff; }
+    @page { size: A4; margin: 18mm 14mm; }
+    @media print { .no-print { display:none; } body { font-size: 10.5pt; } }
+    .doc-wrapper { max-width: 780px; margin: 0 auto; padding: 20px 10px; }
+    .doc-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom: 20px; border-bottom: 2px solid #0f766e; margin-bottom: 20px; }
+    .company-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16pt; font-weight: 700; color: #0f172a; }
+    .company-info { font-size: 9pt; color: #475569; line-height: 1.6; margin-top: 4px; }
+    .doc-title-block { text-align: right; }
+    .doc-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18pt; font-weight: 700; color: #0f766e; }
+    .doc-ref { font-size: 11pt; font-weight: 500; color: #0f172a; font-family: 'Inter', monospace; letter-spacing: .03em; margin-top: 4px; }
+    .doc-date { font-size: 9pt; color: #64748b; margin-top: 2px; }
+    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .party-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; }
+    .party-label { font-size: 8.5pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; }
+    .party-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11pt; font-weight: 700; color: #0f172a; }
+    .party-detail { font-size: 9pt; color: #475569; line-height: 1.6; margin-top: 3px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    thead th { background: #f1f5f9; padding: 8px 10px; font-size: 9pt; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+    tbody td { padding: 9px 10px; font-size: 10pt; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .text-right { text-align: right; }
+    .product-ref { font-size: 8.5pt; color: #94a3b8; font-family: 'Inter', monospace; }
+    .totals-table { width: 260px; margin-left: auto; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; }
+    .totals-table td { padding: 7px 14px; font-size: 10pt; }
+    .totals-table .total-row td { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 12pt; color: #0f172a; background: #f1f5f9; border-top: 2px solid #e2e8f0; }
+    .footer { margin-top: 32px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 9pt; color: #94a3b8; }
+    .sig-block { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+    .sig-box { border-top: 1px solid #cbd5e1; padding-top: 8px; font-size: 9pt; color: #64748b; }
+    .btn-print { position: fixed; bottom: 24px; right: 24px; padding: 10px 20px; background: #0f766e; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  </style>
+</head>
+<body>
+<div class="doc-wrapper">
+  <div class="doc-header">
+    <div>
+      {% if company %}
+      <div class="company-name">{{ company.raison_sociale }}</div>
+      <div class="company-info">
+        {{ company.address }}<br>
+        {% if company.phone %}Tél: {{ company.phone }}{% endif %}{% if company.email %} — {{ company.email }}{% endif %}<br>
+        {% if company.nif %}NIF: {{ company.nif }}{% endif %}{% if company.nis %} — NIS: {{ company.nis }}{% endif %}{% if company.rc %} — RC: {{ company.rc }}{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="doc-title-block">
+      <div class="doc-title">BON DE LIVRAISON</div>
+      <div class="doc-ref">{{ dn.reference }}</div>
+      <div class="doc-date">Date : {{ dn.delivery_date|date:"d/m/Y" }}</div>
+    </div>
+  </div>
+
+  <div class="parties">
+    <div class="party-box">
+      <div class="party-label">Expéditeur</div>
+      {% if company %}
+      <div class="party-name">{{ company.raison_sociale }}</div>
+      <div class="party-detail">{{ company.address }}<br>{{ company.wilaya }}</div>
+      {% endif %}
+    </div>
+    <div class="party-box">
+      <div class="party-label">Destinataire</div>
+      <div class="party-name">{{ dn.client.raison_sociale }}</div>
+      <div class="party-detail">
+        {{ dn.client.address }}<br>
+        {% if dn.client.wilaya %}{{ dn.client.wilaya }}{% endif %}<br>
+        {% if dn.client.nif %}NIF: {{ dn.client.nif }}{% endif %}{% if dn.client.rc %} — RC: {{ dn.client.rc }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left;width:40%;">Désignation</th>
+        <th style="text-align:left;width:12%;">Réf.</th>
+        <th style="text-align:right;width:13%;">Qté</th>
+        <th style="text-align:left;width:8%;">Unité</th>
+        <th style="text-align:right;width:13%;">PU HT</th>
+        <th style="text-align:right;width:14%;">Montant HT</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.finished_product.designation }}</td>
+        <td class="product-ref">{{ line.finished_product.reference }}</td>
+        <td class="text-right">{{ line.quantity_delivered|floatformat:3 }}</td>
+        <td>{{ line.unit_of_measure.symbol }}</td>
+        <td class="text-right">{{ line.selling_unit_price_ht|floatformat:2 }}</td>
+        <td class="text-right">{{ line.line_amount|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals-table">
+    <tbody>
+      <tr><td>Total brut HT</td><td class="text-right">{{ dn.total_ht|floatformat:2 }} DA</td></tr>
+      {% if dn.discount_pct > 0 %}<tr><td>Remise ({{ dn.discount_pct|floatformat:1 }}%)</td><td class="text-right" style="color:#b45309;">— … DA</td></tr>{% endif %}
+      <tr class="total-row"><td>Total HT net</td><td class="text-right">{{ dn.net_amount|floatformat:2 }} DA</td></tr>
+    </tbody>
+  </table>
+
+  {% if dn.remarks %}
+  <div style="margin-top:20px;font-size:9.5pt;color:#475569;"><strong>Observations :</strong> {{ dn.remarks }}</div>
+  {% endif %}
+
+  <div class="sig-block">
+    <div class="sig-box">Signature expéditeur</div>
+    <div class="sig-box">Signature et cachet client</div>
+  </div>
+
+  <div class="footer">
+    <span>Document généré par UsineERP</span>
+    <span>{{ dn.reference }} — {{ dn.delivery_date|date:"d/m/Y" }}</span>
+  </div>
+</div>
+
+<button class="btn-print no-print" onclick="window.print()">
+  <i>🖨</i> Imprimer
+</button>
+</body>
+</html>

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Nouveau BL Client{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_dns_list' %}">BL Clients</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Nouveau</span>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+  <div class="section-eyebrow">COMMERCIAL</div>
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;">Nouveau Bon de Livraison Client</h1>
+</div>
+
+<form method="post" id="dnForm">
+  {% csrf_token %}
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:flex-start;">
+
+    <!-- Main form -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Header card -->
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+          <i class="bx bx-file" style="color:var(--accent);margin-right:6px;"></i> Informations générales
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="grid-column:1/-1;">
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Client <span style="color:#dc2626;">*</span></label>
+            {{ form.client }}
+            {% if form.client.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.client.errors.0 }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Date de livraison <span style="color:#dc2626;">*</span></label>
+            {{ form.delivery_date }}
+            {% if form.delivery_date.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.delivery_date.errors.0 }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Remise globale (%)</label>
+            {{ form.discount_pct }}
+            {% if form.discount_pct.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.discount_pct.errors.0 }}</div>{% endif %}
+          </div>
+          <div style="grid-column:1/-1;">
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Observations</label>
+            {{ form.remarks }}
+          </div>
+        </div>
+        {% if form.non_field_errors %}
+        <div style="margin-top:12px;padding:10px 14px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-sm);font-size:13px;color:#dc2626;">
+          {{ form.non_field_errors.0 }}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Lines card -->
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">
+            <i class="bx bx-list-ul" style="color:var(--accent);margin-right:6px;"></i> Lignes de livraison
+          </div>
+          <button type="button" id="addLine" style="font-size:12px;font-weight:500;color:var(--accent);background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:var(--radius-sm);padding:5px 12px;cursor:pointer;">
+            <i class="bx bx-plus"></i> Ajouter une ligne
+          </button>
+        </div>
+
+        {{ formset.management_form }}
+
+        <table style="width:100%;border-collapse:collapse;" id="linesTable">
+          <thead>
+            <tr style="background:var(--bg-raised);border-bottom:1px solid var(--border);">
+              <th style="padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;width:35%;">Produit fini</th>
+              <th style="padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;width:15%;">Quantité</th>
+              <th style="padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;width:15%;">Unité</th>
+              <th style="padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;width:20%;">Prix unitaire HT</th>
+              <th style="padding:8px 14px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;width:12%;">Montant HT</th>
+              <th style="padding:8px 8px;width:36px;"></th>
+            </tr>
+          </thead>
+          <tbody id="linesBody">
+            {% for line_form in formset %}
+            <tr class="line-row" style="border-bottom:1px solid var(--border);">
+              {% for hidden in line_form.hidden_fields %}{{ hidden }}{% endfor %}
+              <td style="padding:8px 14px;">{{ line_form.finished_product }}</td>
+              <td style="padding:8px 14px;">{{ line_form.quantity_delivered }}</td>
+              <td style="padding:8px 14px;">{{ line_form.unit_of_measure }}</td>
+              <td style="padding:8px 14px;">{{ line_form.selling_unit_price_ht }}</td>
+              <td style="padding:8px 14px;text-align:right;font-size:13px;font-weight:600;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;" class="line-total">—</td>
+              <td style="padding:8px 8px;">
+                {% if line_form.DELETE %}
+                <label style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;cursor:pointer;border-radius:var(--radius-sm);color:#dc2626;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);" data-bs-toggle="tooltip" title="Supprimer">
+                  {{ line_form.DELETE }}
+                  <i class="bx bx-trash" style="font-size:14px;"></i>
+                </label>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <!-- Empty line template (hidden) -->
+        <template id="lineTemplate">
+          <tr class="line-row" style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 14px;"></td>
+            <td style="padding:8px 14px;"></td>
+            <td style="padding:8px 14px;"></td>
+            <td style="padding:8px 14px;"></td>
+            <td style="padding:8px 14px;text-align:right;font-size:13px;font-weight:600;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;" class="line-total">—</td>
+            <td style="padding:8px 8px;"><button type="button" onclick="removeLine(this)" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);color:#dc2626;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);cursor:pointer;"><i class="bx bx-trash" style="font-size:14px;"></i></button></td>
+          </tr>
+        </template>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:calc(var(--topbar-h) + 20px);">
+      <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:16px;">Récapitulatif</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
+            <span>Sous-total HT</span>
+            <span id="subtotal" style="font-weight:500;">0,00 DA</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
+            <span>Remise</span>
+            <span id="discountAmt" style="font-weight:500;color:#b45309;">— 0,00 DA</span>
+          </div>
+          <div style="height:1px;background:var(--border);"></div>
+          <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">
+            <span>Total HT</span>
+            <span id="totalHT">0,00 DA</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button type="submit" class="btn-primary-app" style="width:100%;justify-content:center;padding:11px;">
+          <i class="bx bx-save"></i> Enregistrer le BL
+        </button>
+        <a href="{% url 'sales:client_dns_list' %}" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);background:var(--bg-surface);">
+          Annuler
+        </a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<style>
+  #dnForm select, #dnForm input[type=text], #dnForm input[type=date], #dnForm input[type=number], #dnForm textarea {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 10px;
+    font-size: 13px; color: var(--text-primary); width: 100%; background: var(--bg-surface);
+  }
+  #dnForm select:focus, #dnForm input:focus, #dnForm textarea:focus {
+    outline: none; border-color: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  input[type=checkbox] { display: none; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const totalForms = document.getElementById('id_clientdnline_set-TOTAL_FORMS');
+
+  function calcLine(row) {
+    const qty = parseFloat(row.querySelector('[name$="-quantity_delivered"]')?.value) || 0;
+    const price = parseFloat(row.querySelector('[name$="-selling_unit_price_ht"]')?.value) || 0;
+    const cell = row.querySelector('.line-total');
+    const amount = qty * price;
+    cell.textContent = amount > 0 ? amount.toFixed(2) + ' DA' : '—';
+    return amount;
+  }
+
+  function recalcAll() {
+    let subtotal = 0;
+    document.querySelectorAll('.line-row:not([style*="display: none"])').forEach(function(row) {
+      subtotal += calcLine(row);
+    });
+    const disc = parseFloat(document.querySelector('[name="discount_pct"]')?.value) || 0;
+    const discAmt = subtotal * disc / 100;
+    const total = subtotal - discAmt;
+    document.getElementById('subtotal').textContent = subtotal.toFixed(2) + ' DA';
+    document.getElementById('discountAmt').textContent = '— ' + discAmt.toFixed(2) + ' DA';
+    document.getElementById('totalHT').textContent = total.toFixed(2) + ' DA';
+  }
+
+  document.getElementById('linesBody').addEventListener('input', recalcAll);
+  document.querySelector('[name="discount_pct"]')?.addEventListener('input', recalcAll);
+
+  document.getElementById('addLine').addEventListener('click', function() {
+    const idx = parseInt(totalForms.value);
+    const prefix = 'clientdnline_set-' + idx;
+    const tbody = document.getElementById('linesBody');
+    const row = document.createElement('tr');
+    row.className = 'line-row';
+    row.style.borderBottom = '1px solid var(--border)';
+    row.innerHTML = `
+      <td style="padding:8px 14px;"><select name="${prefix}-finished_product" class="form-select form-select-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+        ${document.querySelector('[name="clientdnline_set-0-finished_product"]')?.innerHTML || '<option value="">---------</option>'}
+      </select></td>
+      <td style="padding:8px 14px;"><input type="number" name="${prefix}-quantity_delivered" step="0.001" min="0.001" class="form-control form-control-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;"></td>
+      <td style="padding:8px 14px;"><select name="${prefix}-unit_of_measure" class="form-select form-select-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;">
+        ${document.querySelector('[name="clientdnline_set-0-unit_of_measure"]')?.innerHTML || '<option value="">---------</option>'}
+      </select></td>
+      <td style="padding:8px 14px;"><input type="number" name="${prefix}-selling_unit_price_ht" step="0.01" min="0" class="form-control form-control-sm" style="border-color:var(--border);border-radius:var(--radius-sm);font-size:13px;"></td>
+      <td style="padding:8px 14px;text-align:right;font-size:13px;font-weight:600;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;" class="line-total">—</td>
+      <td style="padding:8px 8px;"><button type="button" onclick="this.closest('tr').remove();recalcAll();" style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);color:#dc2626;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);cursor:pointer;"><i class="bx bx-trash" style="font-size:14px;"></i></button></td>
+    `;
+    tbody.appendChild(row);
+    totalForms.value = idx + 1;
+    row.addEventListener('input', recalcAll);
+  });
+
+  window.removeLine = function(btn) { btn.closest('tr').remove(); recalcAll(); };
+
+  recalcAll();
+})();
+</script>
+{% endblock %}

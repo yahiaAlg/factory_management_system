@@ -1,0 +1,201 @@
+{% load static %}
+{% load factory_filters %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>BL Fournisseur — {{ dn.reference }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; font-size: 13px; color: #0f172a; background: #fff; padding: 32px 40px; }
+    h1, h2, h3, .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+    /* Header */
+    .doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f766e; padding-bottom: 20px; margin-bottom: 24px; }
+    .company-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; color: #0f766e; }
+    .company-meta { font-size: 11.5px; color: #475569; margin-top: 4px; line-height: 1.7; }
+    .doc-title-block { text-align: right; }
+    .doc-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 700; color: #0f172a; }
+    .doc-ref { font-size: 13px; color: #475569; margin-top: 4px; }
+    .doc-status { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; margin-top: 6px; }
+    .status-validated { background: #dcfce7; color: #166534; }
+    .status-pending   { background: #f1f5f9; color: #475569; }
+    .status-dispute   { background: #fee2e2; color: #991b1b; }
+
+    /* Party boxes */
+    .parties-row { display: flex; gap: 24px; margin-bottom: 24px; }
+    .party-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; }
+    .party-box-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 8px; }
+    .party-name { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .party-meta { font-size: 11.5px; color: #475569; line-height: 1.7; }
+
+    /* Meta grid */
+    .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: #f1f5f9; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px; }
+    .meta-item label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #94a3b8; display: block; margin-bottom: 2px; }
+    .meta-item .meta-val { font-size: 13px; font-weight: 500; color: #0f172a; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+    thead { background: #f1f5f9; }
+    th { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: #475569; padding: 9px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .table-wrap { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+    .ref-col { font-family: monospace; font-size: 12px; color: #475569; }
+    .num-col { text-align: right; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }
+
+    /* Total */
+    .total-section { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+    .total-box { border: 2px solid #0f766e; border-radius: 8px; padding: 14px 20px; min-width: 260px; }
+    .total-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+    .total-row.grand { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; color: #0f766e; border-top: 1px solid #e2e8f0; margin-top: 6px; padding-top: 8px; }
+
+    /* Footer */
+    .signatures { display: flex; gap: 40px; margin-top: 32px; }
+    .sig-box { flex: 1; border-top: 1px solid #cbd5e1; padding-top: 10px; text-align: center; font-size: 11.5px; color: #475569; }
+    .footer-note { text-align: center; margin-top: 28px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 14px; }
+
+    @media print {
+      body { padding: 16px 24px; }
+      .no-print { display: none !important; }
+      @page { margin: 12mm 15mm; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Print button (hidden on print) -->
+<div class="no-print" style="text-align:right;margin-bottom:20px;">
+  <button onclick="window.print()" style="background:#0f766e;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;cursor:pointer;font-size:13px;">
+    🖨 Imprimer
+  </button>
+  <a href="{% url 'supplier_ops:supplier_dn_detail' dn.id %}" style="margin-left:10px;color:#475569;font-size:13px;">← Retour</a>
+</div>
+
+<!-- Document header -->
+<div class="doc-header">
+  <div>
+    <div class="company-name">UsineERP</div>
+    <div class="company-meta">
+      Unité de production<br>
+      Algérie
+    </div>
+  </div>
+  <div class="doc-title-block">
+    <div class="doc-title">BON DE LIVRAISON FOURNISSEUR</div>
+    <div class="doc-ref" style="font-family:monospace;">{{ dn.reference }}</div>
+    <div>
+      {% if dn.status == 'validated' %}<span class="doc-status status-validated">Validé</span>
+      {% elif dn.status == 'pending' %}<span class="doc-status status-pending">En attente</span>
+      {% elif dn.status == 'in_dispute' %}<span class="doc-status status-dispute">En litige</span>
+      {% else %}<span class="doc-status status-pending">{{ dn.get_status_display }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Parties -->
+<div class="parties-row">
+  <div class="party-box">
+    <div class="party-box-title">Fournisseur</div>
+    <div class="party-name">{{ dn.supplier.raison_sociale }}</div>
+    <div class="party-meta">
+      {% if dn.supplier.forme_juridique %}{{ dn.supplier.forme_juridique }}<br>{% endif %}
+      {% if dn.supplier.nif %}NIF : {{ dn.supplier.nif }}<br>{% endif %}
+      {% if dn.supplier.nis %}NIS : {{ dn.supplier.nis }}<br>{% endif %}
+      {% if dn.supplier.rc %}RC : {{ dn.supplier.rc }}<br>{% endif %}
+      {% if dn.supplier.ai %}AI : {{ dn.supplier.ai }}<br>{% endif %}
+      {{ dn.supplier.address }}{% if dn.supplier.wilaya %}, {{ dn.supplier.wilaya }}{% endif %}<br>
+      {% if dn.supplier.phone %}Tél : {{ dn.supplier.phone }}{% endif %}
+    </div>
+  </div>
+  <div class="party-box">
+    <div class="party-box-title">Réf. fournisseur</div>
+    <div class="party-name" style="font-family:monospace;">{{ dn.external_reference }}</div>
+    {% if dn.remarks %}
+    <div class="party-meta" style="margin-top:8px;">
+      <strong>Observations :</strong><br>{{ dn.remarks }}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Meta -->
+<div class="meta-grid">
+  <div class="meta-item">
+    <label>Référence BL</label>
+    <div class="meta-val" style="font-family:monospace;">{{ dn.reference }}</div>
+  </div>
+  <div class="meta-item">
+    <label>Date de livraison</label>
+    <div class="meta-val">{{ dn.delivery_date|date:"d/m/Y" }}</div>
+  </div>
+  <div class="meta-item">
+    <label>Créé par</label>
+    <div class="meta-val">{{ dn.created_by.get_full_name|default:dn.created_by.username }}</div>
+  </div>
+  <div class="meta-item">
+    <label>Validé par</label>
+    <div class="meta-val">{% if dn.validated_by %}{{ dn.validated_by.get_full_name|default:dn.validated_by.username }}{% else %}—{% endif %}</div>
+  </div>
+</div>
+
+<!-- Lines table -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Réf. MP</th>
+        <th>Désignation</th>
+        <th style="text-align:right;">Quantité reçue</th>
+        <th>Unité</th>
+        <th style="text-align:right;">Prix unitaire (DA)</th>
+        <th style="text-align:right;">Montant HT (DA)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td style="color:#94a3b8;font-size:11.5px;">{{ forloop.counter }}</td>
+        <td class="ref-col">{{ line.raw_material.reference }}</td>
+        <td>{{ line.raw_material.designation }}</td>
+        <td class="num-col">{{ line.quantity_received|floatformat:3 }}</td>
+        <td style="color:#475569;">{{ line.unit_of_measure.symbol }}</td>
+        <td class="num-col">{{ line.agreed_unit_price|floatformat:2 }}</td>
+        <td class="num-col">{{ line.line_amount|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Total -->
+<div class="total-section">
+  <div class="total-box">
+    <div class="total-row">
+      <span>Nombre d'articles</span>
+      <span>{{ lines|length }}</span>
+    </div>
+    <div class="total-row grand">
+      <span>Total HT</span>
+      <span>{{ dn.total_amount_ht|floatformat:2 }} DA</span>
+    </div>
+  </div>
+</div>
+
+<!-- Signatures -->
+<div class="signatures">
+  <div class="sig-box">Responsable Réception<br><br><br><br>Signature & cachet</div>
+  <div class="sig-box">Représentant Fournisseur<br><br><br><br>Signature & cachet</div>
+  <div class="sig-box">Approbation Manager<br><br><br><br>Signature & cachet</div>
+</div>
+
+<div class="footer-note">
+  Document généré le {% now "d/m/Y à H:i" %} — UsineERP · Usage interne
+</div>
+
+</body>
+</html>

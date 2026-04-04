@@ -1,0 +1,364 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'clients:clients_list' %}">Clients</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{% if client %}Modifier {{ client.code }}{% else %}Nouveau client{% endif %}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .form-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 0 0 10px 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .field-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    display: block;
+  }
+  .field-label .req { color: #dc2626; }
+
+  .field-hint {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .form-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-end;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+
+  .non-field-errors {
+    background: #fef9c3;
+    border: 1px solid #fde047;
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #a16207;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>
+    <i class="bx bx-{% if client %}edit{% else %}user-plus{% endif %}" style="color:var(--accent);margin-right:8px;"></i>
+    {{ title }}
+  </h1>
+  {% if client %}
+  <a href="{% url 'clients:client_detail' client.id %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour au détail
+  </a>
+  {% else %}
+  <a href="{% url 'clients:clients_list' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour à la liste
+  </a>
+  {% endif %}
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  <!-- Non-field errors -->
+  {% if form.non_field_errors %}
+  <div class="non-field-errors">
+    <i class="bx bx-error" style="font-size:18px; flex-shrink:0; margin-top:1px;"></i>
+    <div>{% for err in form.non_field_errors %}{{ err }}{% endfor %}</div>
+  </div>
+  {% endif %}
+
+  <!-- ===== IDENTIFICATION ===== -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-id-card" style="margin-right:6px;color:var(--accent);"></i>Identification</span>
+    </div>
+    <div class="card-app-body">
+      <div class="row g-3">
+        <!-- Code -->
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.code.id_for_label }}">
+            Code client <span class="req">*</span>
+          </label>
+          <input type="text" name="{{ form.code.html_name }}"
+                 id="{{ form.code.id_for_label }}"
+                 class="form-control-app {% if form.code.errors %}is-invalid{% endif %}"
+                 value="{{ form.code.value|default:'' }}"
+                 maxlength="20" required>
+          {% if form.code.errors %}
+          <div class="invalid-feedback d-block" style="font-size:12px;color:#dc2626;margin-top:4px;">{{ form.code.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Raison sociale -->
+        <div class="col-md-6">
+          <label class="field-label" for="{{ form.raison_sociale.id_for_label }}">
+            Raison sociale <span class="req">*</span>
+          </label>
+          <input type="text" name="{{ form.raison_sociale.html_name }}"
+                 id="{{ form.raison_sociale.id_for_label }}"
+                 class="form-control-app {% if form.raison_sociale.errors %}is-invalid{% endif %}"
+                 value="{{ form.raison_sociale.value|default:'' }}"
+                 maxlength="200" required>
+          {% if form.raison_sociale.errors %}
+          <div class="invalid-feedback d-block" style="font-size:12px;color:#dc2626;margin-top:4px;">{{ form.raison_sociale.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Forme juridique -->
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.forme_juridique.id_for_label }}">Forme juridique</label>
+          <input type="text" name="{{ form.forme_juridique.html_name }}"
+                 id="{{ form.forme_juridique.id_for_label }}"
+                 class="form-control-app"
+                 value="{{ form.forme_juridique.value|default:'' }}"
+                 maxlength="100"
+                 placeholder="SARL, SPA, EURL…">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== IDENTIFIANTS FISCAUX ===== -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-receipt" style="margin-right:6px;color:var(--accent);"></i>Identifiants fiscaux</span>
+    </div>
+    <div class="card-app-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.nif.id_for_label }}">NIF</label>
+          <input type="text" name="{{ form.nif.html_name }}" id="{{ form.nif.id_for_label }}"
+                 class="form-control-app" value="{{ form.nif.value|default:'' }}" maxlength="20">
+        </div>
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.nis.id_for_label }}">NIS</label>
+          <input type="text" name="{{ form.nis.html_name }}" id="{{ form.nis.id_for_label }}"
+                 class="form-control-app" value="{{ form.nis.value|default:'' }}" maxlength="20">
+        </div>
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.rc.id_for_label }}">RC</label>
+          <input type="text" name="{{ form.rc.html_name }}" id="{{ form.rc.id_for_label }}"
+                 class="form-control-app" value="{{ form.rc.value|default:'' }}" maxlength="20">
+        </div>
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.ai.id_for_label }}">AI (Article d'imposition)</label>
+          <input type="text" name="{{ form.ai.html_name }}" id="{{ form.ai.id_for_label }}"
+                 class="form-control-app" value="{{ form.ai.value|default:'' }}" maxlength="20">
+        </div>
+      </div>
+      <p class="field-hint mt-2" style="margin-bottom:0;">
+        <i class="bx bx-info-circle"></i>
+        Au moins un identifiant fiscal est recommandé pour les clients professionnels.
+      </p>
+    </div>
+  </div>
+
+  <!-- ===== COORDONNÉES ===== -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-map" style="margin-right:6px;color:var(--accent);"></i>Coordonnées</span>
+    </div>
+    <div class="card-app-body">
+      <div class="row g-3">
+        <!-- Adresse -->
+        <div class="col-md-8">
+          <label class="field-label" for="{{ form.address.id_for_label }}">Adresse <span class="req">*</span></label>
+          <textarea name="{{ form.address.html_name }}" id="{{ form.address.id_for_label }}"
+                    class="form-control-app {% if form.address.errors %}is-invalid{% endif %}"
+                    rows="3">{{ form.address.value|default:'' }}</textarea>
+          {% if form.address.errors %}
+          <div class="invalid-feedback d-block" style="font-size:12px;color:#dc2626;margin-top:4px;">{{ form.address.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Wilaya -->
+        <div class="col-md-4">
+          <label class="field-label" for="{{ form.wilaya.id_for_label }}">Wilaya</label>
+          <input type="text" name="{{ form.wilaya.html_name }}" id="{{ form.wilaya.id_for_label }}"
+                 class="form-control-app" value="{{ form.wilaya.value|default:'' }}" maxlength="100">
+        </div>
+
+        <!-- Téléphone -->
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.phone.id_for_label }}">Téléphone</label>
+          <input type="text" name="{{ form.phone.html_name }}" id="{{ form.phone.id_for_label }}"
+                 class="form-control-app" value="{{ form.phone.value|default:'' }}" maxlength="20">
+        </div>
+
+        <!-- Fax -->
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.fax.id_for_label }}">Fax</label>
+          <input type="text" name="{{ form.fax.html_name }}" id="{{ form.fax.id_for_label }}"
+                 class="form-control-app" value="{{ form.fax.value|default:'' }}" maxlength="20">
+        </div>
+
+        <!-- Email -->
+        <div class="col-md-6">
+          <label class="field-label" for="{{ form.email.id_for_label }}">Email</label>
+          <input type="email" name="{{ form.email.html_name }}" id="{{ form.email.id_for_label }}"
+                 class="form-control-app {% if form.email.errors %}is-invalid{% endif %}"
+                 value="{{ form.email.value|default:'' }}">
+          {% if form.email.errors %}
+          <div class="invalid-feedback d-block" style="font-size:12px;color:#dc2626;margin-top:4px;">{{ form.email.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONTACT ===== -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-user" style="margin-right:6px;color:var(--accent);"></i>Personne de contact</span>
+    </div>
+    <div class="card-app-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="field-label" for="{{ form.contact_person.id_for_label }}">Nom du contact</label>
+          <input type="text" name="{{ form.contact_person.html_name }}" id="{{ form.contact_person.id_for_label }}"
+                 class="form-control-app" value="{{ form.contact_person.value|default:'' }}" maxlength="200">
+        </div>
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.contact_phone.id_for_label }}">Téléphone contact</label>
+          <input type="text" name="{{ form.contact_phone.html_name }}" id="{{ form.contact_phone.id_for_label }}"
+                 class="form-control-app" value="{{ form.contact_phone.value|default:'' }}" maxlength="20">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONDITIONS COMMERCIALES ===== -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-credit-card" style="margin-right:6px;color:var(--accent);"></i>Conditions commerciales</span>
+    </div>
+    <div class="card-app-body">
+      <div class="row g-3">
+        <!-- Délai paiement -->
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.payment_terms.id_for_label }}">
+            Délai de paiement (jours) <span class="req">*</span>
+          </label>
+          <input type="number" name="{{ form.payment_terms.html_name }}" id="{{ form.payment_terms.id_for_label }}"
+                 class="form-control-app {% if form.payment_terms.errors %}is-invalid{% endif %}"
+                 value="{{ form.payment_terms.value|default:30 }}" min="0">
+          {% if form.payment_terms.errors %}
+          <div class="invalid-feedback d-block" style="font-size:12px;color:#dc2626;margin-top:4px;">{{ form.payment_terms.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Remise max -->
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.max_discount_pct.id_for_label }}">Remise maximale (%)</label>
+          <input type="number" name="{{ form.max_discount_pct.html_name }}" id="{{ form.max_discount_pct.id_for_label }}"
+                 class="form-control-app" value="{{ form.max_discount_pct.value|default:'0.00' }}"
+                 step="0.01" min="0" max="100">
+        </div>
+
+        <!-- Statut crédit -->
+        <div class="col-md-3">
+          <label class="field-label" for="{{ form.credit_status.id_for_label }}">Statut crédit</label>
+          <select name="{{ form.credit_status.html_name }}" id="{{ form.credit_status.id_for_label }}"
+                  class="form-control-app">
+            <option value="active"    {% if form.credit_status.value == 'active'    %}selected{% endif %}>Actif</option>
+            <option value="suspended" {% if form.credit_status.value == 'suspended' %}selected{% endif %}>Suspendu</option>
+            <option value="blocked"   {% if form.credit_status.value == 'blocked'   %}selected{% endif %}>Bloqué</option>
+          </select>
+        </div>
+
+        <!-- Actif -->
+        <div class="col-md-3 d-flex align-items-end">
+          <div class="form-check" style="margin-bottom:6px;">
+            <input class="form-check-input" type="checkbox"
+                   name="{{ form.is_active.html_name }}"
+                   id="{{ form.is_active.id_for_label }}"
+                   {% if form.is_active.value %}checked{% endif %}>
+            <label class="form-check-label" for="{{ form.is_active.id_for_label }}"
+                   style="font-family:'Inter',sans-serif;font-size:13px;color:var(--text-secondary);">
+              Client actif
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== NOTES ===== -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-note" style="margin-right:6px;color:var(--accent);"></i>Notes internes</span>
+    </div>
+    <div class="card-app-body">
+      <textarea name="{{ form.notes.html_name }}" id="{{ form.notes.id_for_label }}"
+                class="form-control-app" rows="3"
+                placeholder="Remarques, conditions spéciales, historique…">{{ form.notes.value|default:'' }}</textarea>
+    </div>
+  </div>
+
+  <!-- ===== FORM ACTIONS ===== -->
+  <div class="form-actions">
+    {% if client %}
+    <a href="{% url 'clients:client_detail' client.id %}" class="btn-secondary-app">Annuler</a>
+    {% else %}
+    <a href="{% url 'clients:clients_list' %}" class="btn-secondary-app">Annuler</a>
+    {% endif %}
+    <button type="submit" class="btn-primary-app">
+      <i class="bx bx-save"></i>
+      {% if client %}Enregistrer les modifications{% else %}Créer le client{% endif %}
+    </button>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* Auto-uppercase fiscal fields */
+  ['id_nif','id_nis','id_rc','id_ai','id_code'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener('input', function(){ this.value = this.value.toUpperCase(); });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,535 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}{{ supplier.code }} — Fournisseur{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'suppliers:suppliers_list' %}">Fournisseurs</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ supplier.code }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .supplier-hero {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  .supplier-hero-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-md);
+    background: var(--accent-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--accent);
+    flex-shrink: 0;
+    border: 2px solid var(--accent-glow);
+  }
+  .supplier-hero-body { flex: 1; min-width: 0; }
+  .supplier-hero-name {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+  .supplier-hero-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .hero-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .info-row {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .info-row:nth-last-child(-n+2) { border-bottom: none; }
+  .info-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 3px;
+  }
+  .info-value {
+    font-size: 13.5px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+  }
+  .info-value.mono {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+
+  .fiscal-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .fiscal-item {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+  }
+  .fiscal-item .fi-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .fiscal-item .fi-value {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .fiscal-item .fi-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .stat-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+  }
+  .stat-card .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .stat-card .stat-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+  .stat-card .stat-sub {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+  .stat-card.is-outstanding .stat-value { color: #dc2626; }
+
+  .danger-zone {
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    background: #fff8f8;
+  }
+  .danger-zone-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #dc2626;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .danger-zone-desc {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero header -->
+<div class="supplier-hero">
+  <div class="supplier-hero-avatar">{{ supplier.raison_sociale|slice:":2"|upper }}</div>
+  <div class="supplier-hero-body">
+    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+      <div>
+        <div class="supplier-hero-name">{{ supplier.raison_sociale }}</div>
+        <div class="supplier-hero-sub">
+          <span class="col-ref" style="font-size:13px;">{{ supplier.code }}</span>
+          {% if supplier.forme_juridique %}
+          <span class="hero-meta-item"><i class="bx bx-buildings"></i> {{ supplier.forme_juridique }}</span>
+          {% endif %}
+          {% if supplier.wilaya %}
+          <span class="hero-meta-item"><i class="bx bx-map-pin"></i> {{ supplier.wilaya }}</span>
+          {% endif %}
+          <span class="hero-meta-item">
+            <i class="bx bx-money"></i> {{ supplier.currency }}
+          </span>
+          <span class="hero-meta-item">
+            <i class="bx bx-time"></i> {{ supplier.get_payment_terms_display_verbose }}
+          </span>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        {% if supplier.is_active %}
+          <span class="badge-valide"><i class="bx bx-check-circle"></i> Actif</span>
+        {% else %}
+          <span class="badge-annule"><i class="bx bx-block"></i> Inactif</span>
+        {% endif %}
+        {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'accountant' %}
+        <a href="{% url 'suppliers:supplier_edit' supplier.id %}" class="btn-secondary-app">
+          <i class="bx bx-edit"></i> Modifier
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Financial stats -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="stat-card {% if outstanding_balance > 0 %}is-outstanding{% endif %}">
+      <div class="stat-label"><i class="bx bx-wallet me-1"></i>Solde impayé</div>
+      <div class="stat-value">{{ outstanding_balance|floatformat:0 }} DA</div>
+      <div class="stat-sub">Factures non soldées</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-label"><i class="bx bx-trending-up me-1"></i>Achats {{ current_year|default:"cette année" }}</div>
+      <div class="stat-value">{{ total_purchases_current_year|floatformat:0 }} DA</div>
+      <div class="stat-sub">Total factures TTC</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="stat-card">
+      <div class="stat-label"><i class="bx bx-history me-1"></i>Achats année précédente</div>
+      <div class="stat-value">{{ total_purchases_previous_year|floatformat:0 }} DA</div>
+      <div class="stat-sub">Total factures TTC</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- LEFT -->
+  <div class="col-lg-7">
+
+    <!-- Identifiants fiscaux -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-id-card me-2" style="color:var(--accent);"></i>Identifiants fiscaux</span>
+      </div>
+      <div class="card-app-body">
+        <div class="fiscal-grid">
+          <div class="fiscal-item">
+            <div class="fi-label">NIF</div>
+            {% if supplier.nif %}<div class="fi-value">{{ supplier.nif }}</div>
+            {% else %}<div class="fi-empty">Non renseigné</div>{% endif %}
+          </div>
+          <div class="fiscal-item">
+            <div class="fi-label">NIS</div>
+            {% if supplier.nis %}<div class="fi-value">{{ supplier.nis }}</div>
+            {% else %}<div class="fi-empty">Non renseigné</div>{% endif %}
+          </div>
+          <div class="fiscal-item">
+            <div class="fi-label">RC</div>
+            {% if supplier.rc %}<div class="fi-value">{{ supplier.rc }}</div>
+            {% else %}<div class="fi-empty">Non renseigné</div>{% endif %}
+          </div>
+          <div class="fiscal-item">
+            <div class="fi-label">AI</div>
+            {% if supplier.ai %}<div class="fi-value">{{ supplier.ai }}</div>
+            {% else %}<div class="fi-empty">Non renseigné</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coordonnées -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-map me-2" style="color:var(--accent);"></i>Coordonnées</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="info-grid px-4 py-2">
+          <div class="info-row pe-3">
+            <div class="info-label">Adresse</div>
+            <div class="info-value" style="white-space:pre-line;">{{ supplier.address|default:"—" }}</div>
+          </div>
+          <div class="info-row ps-3">
+            <div class="info-label">Wilaya</div>
+            <div class="info-value">{{ supplier.wilaya|default:"—" }}</div>
+          </div>
+          <div class="info-row pe-3">
+            <div class="info-label">Téléphone</div>
+            <div class="info-value">{{ supplier.phone|default:"—" }}</div>
+          </div>
+          <div class="info-row ps-3">
+            <div class="info-label">Fax</div>
+            <div class="info-value">{{ supplier.fax|default:"—" }}</div>
+          </div>
+          <div class="info-row pe-3">
+            <div class="info-label">Email</div>
+            <div class="info-value">
+              {% if supplier.email %}
+              <a href="mailto:{{ supplier.email }}" style="color:var(--accent);">{{ supplier.email }}</a>
+              {% else %}—{% endif %}
+            </div>
+          </div>
+          <div class="info-row ps-3">
+            <div class="info-label">Contact</div>
+            <div class="info-value">
+              {% if supplier.contact_person %}{{ supplier.contact_person }}
+                {% if supplier.contact_phone %}<div style="font-size:12px; color:var(--text-muted);">{{ supplier.contact_phone }}</div>{% endif %}
+              {% else %}—{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Derniers BL Fournisseurs -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-package me-2" style="color:var(--accent);"></i>Dernières livraisons</span>
+        <a href="{% url 'supplier_ops:supplier_dns_list' %}?supplier={{ supplier.id }}" class="btn-secondary-app" style="padding:5px 12px; font-size:12px;">
+          Voir tout <i class="bx bx-chevron-right"></i>
+        </a>
+      </div>
+      <div class="card-app-body p-0">
+        {% if recent_deliveries %}
+        <div class="table-container" style="border:none; border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>RÉFÉRENCE</th>
+                <th>DATE</th>
+                <th>STATUT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dn in recent_deliveries %}
+              <tr>
+                <td>
+                  <a href="{% url 'supplier_ops:supplier_dn_detail' dn.id %}" class="col-ref">
+                    {{ dn.reference }}
+                  </a>
+                </td>
+                <td>{{ dn.delivery_date|date:"d/m/Y" }}</td>
+                <td>
+                  {% if dn.status == 'validated' %}<span class="badge-valide">Validé</span>
+                  {% elif dn.status == 'pending' %}<span class="badge-en-attente">En attente</span>
+                  {% elif dn.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+                  {% elif dn.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+                  {% else %}<span class="badge-en-attente">{{ dn.status }}</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:32px 20px;">
+          <i class="bx bx-package" style="font-size:36px; color:var(--text-muted);"></i>
+          <p class="mt-2 mb-0" style="font-size:13px; color:var(--text-muted);">Aucune livraison enregistrée</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Dernières factures -->
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-receipt me-2" style="color:var(--accent);"></i>Dernières factures</span>
+        <a href="{% url 'supplier_ops:supplier_invoices_list' %}?supplier={{ supplier.id }}" class="btn-secondary-app" style="padding:5px 12px; font-size:12px;">
+          Voir tout <i class="bx bx-chevron-right"></i>
+        </a>
+      </div>
+      <div class="card-app-body p-0">
+        {% if recent_invoices %}
+        <div class="table-container" style="border:none; border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr>
+                <th>RÉFÉRENCE</th>
+                <th>DATE</th>
+                <th>MONTANT TTC</th>
+                <th>STATUT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for inv in recent_invoices %}
+              <tr>
+                <td>
+                  <a href="{% url 'supplier_ops:supplier_invoice_detail' inv.id %}" class="col-ref">
+                    {{ inv.reference }}
+                  </a>
+                </td>
+                <td>{{ inv.invoice_date|date:"d/m/Y" }}</td>
+                <td class="col-amount">{{ inv.total_ttc|floatformat:0 }} DA</td>
+                <td>
+                  {% if inv.status == 'paid' %}<span class="badge-paye">Payé</span>
+                  {% elif inv.status == 'partially_paid' %}<span class="badge-partiellement">Part. payé</span>
+                  {% elif inv.status == 'unpaid' %}<span class="badge-non-paye">Non payé</span>
+                  {% elif inv.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+                  {% elif inv.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+                  {% else %}<span class="badge-en-attente">{{ inv.status }}</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:32px 20px;">
+          <i class="bx bx-receipt" style="font-size:36px; color:var(--text-muted);"></i>
+          <p class="mt-2 mb-0" style="font-size:13px; color:var(--text-muted);">Aucune facture enregistrée</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT -->
+  <div class="col-lg-5">
+
+    <!-- Conditions commerciales -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-spreadsheet me-2" style="color:var(--accent);"></i>Conditions commerciales</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="info-grid px-4 py-2">
+          <div class="info-row pe-3">
+            <div class="info-label">Devise</div>
+            <div class="info-value">
+              <span style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:14px;">{{ supplier.currency }}</span>
+            </div>
+          </div>
+          <div class="info-row ps-3">
+            <div class="info-label">Délai de paiement</div>
+            <div class="info-value">{{ supplier.get_payment_terms_display_verbose }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Informations bancaires -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-credit-card me-2" style="color:var(--accent);"></i>Coordonnées bancaires</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="info-grid px-4 py-2">
+          <div class="info-row pe-3" style="grid-column: span 2;">
+            <div class="info-label">Banque</div>
+            <div class="info-value">{{ supplier.bank_name|default:"—" }}</div>
+          </div>
+          <div class="info-row pe-3">
+            <div class="info-label">Compte</div>
+            <div class="info-value mono">{{ supplier.bank_account|default:"—" }}</div>
+          </div>
+          <div class="info-row ps-3">
+            <div class="info-label">RIB</div>
+            <div class="info-value mono">{{ supplier.rib|default:"—" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes internes -->
+    {% if supplier.notes %}
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-note me-2" style="color:var(--accent);"></i>Notes internes</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:13.5px; color:var(--text-primary); white-space:pre-line; margin:0;">{{ supplier.notes }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Métadonnées -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-info-circle me-2" style="color:var(--accent);"></i>Informations système</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="info-grid px-4 py-2">
+          <div class="info-row pe-3">
+            <div class="info-label">Créé par</div>
+            <div class="info-value">{{ supplier.created_by.get_full_name|default:supplier.created_by.username }}</div>
+          </div>
+          <div class="info-row ps-3">
+            <div class="info-label">Date de création</div>
+            <div class="info-value">{{ supplier.created_at|date:"d/m/Y" }}</div>
+          </div>
+          <div class="info-row pe-3" style="border-bottom:none;">
+            <div class="info-label">Dernière modification</div>
+            <div class="info-value">{{ supplier.updated_at|date:"d/m/Y" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger zone (manager only) -->
+    {% if request.user.userprofile.role == 'manager' %}
+    <div class="danger-zone">
+      <div class="danger-zone-title"><i class="bx bx-error-circle"></i> Zone de danger</div>
+      <div class="danger-zone-desc">
+        {% if supplier.is_active %}
+          Désactiver ce fournisseur l'exclura des listes de sélection et des nouveaux documents.
+        {% else %}
+          Ce fournisseur est actuellement inactif. Vous pouvez le réactiver.
+        {% endif %}
+      </div>
+      <form method="post" action="{% url 'suppliers:supplier_toggle_active' supplier.id %}">
+        {% csrf_token %}
+        <button type="submit"
+                class="{% if supplier.is_active %}btn-danger-app{% else %}btn-validate{% endif %}"
+                onclick="return confirm('{% if supplier.is_active %}Désactiver le fournisseur {{ supplier.code }} ?{% else %}Réactiver le fournisseur {{ supplier.code }} ?{% endif %}')">
+          {% if supplier.is_active %}
+            <i class="bx bx-block"></i> Désactiver le fournisseur
+          {% else %}
+            <i class="bx bx-check-circle"></i> Réactiver le fournisseur
+          {% endif %}
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,304 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Tableau de bord dépenses{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'expenses:expenses_list' %}">Dépenses</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Tableau de bord</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .metric-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .metric-card.teal::before  { background: var(--accent); }
+  .metric-card.blue::before  { background: #3b82f6; }
+  .metric-card.green::before { background: #16a34a; }
+  .metric-card.amber::before { background: #d97706; }
+  .metric-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    font-family: 'Inter', sans-serif;
+  }
+  .metric-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .metric-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+  }
+  .chart-wrap {
+    position: relative;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .overdue-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+  .overdue-row:last-child { border-bottom: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1" style="font-size:22px; font-weight:700;">Tableau de bord dépenses</h1>
+    <p class="mb-0" style="color:var(--text-muted); font-size:13px;">Mois en cours — vue globale</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'expenses:expenses_report' %}" class="btn-secondary-app">
+      <i class="bx bx-bar-chart-alt-2"></i> Rapport complet
+    </a>
+    {% if request.user.userprofile.role in 'manager,accountant' %}
+    <a href="{% url 'expenses:expense_create' %}" class="btn-primary-app">
+      <i class="bx bx-plus"></i> Nouvelle dépense
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Metrics -->
+<div class="metrics-grid">
+  <div class="metric-card teal">
+    <div class="metric-label">Enregistré ce mois</div>
+    <div class="metric-value">{{ monthly_recorded|da_format }}</div>
+    <div class="metric-sub">Toutes dépenses actives</div>
+  </div>
+  <div class="metric-card green">
+    <div class="metric-label">Payé ce mois</div>
+    <div class="metric-value">{{ monthly_paid|da_format }}</div>
+    <div class="metric-sub">Statut : payée</div>
+  </div>
+  <div class="metric-card amber">
+    <div class="metric-label">En attente validation</div>
+    <div class="metric-value">{{ pending_amount|da_format }}</div>
+    <div class="metric-sub">{{ pending_count }} dépense{{ pending_count|pluralize }}</div>
+  </div>
+  <div class="metric-card blue">
+    <div class="metric-label">En retard de validation</div>
+    <div class="metric-value">{{ overdue_validations.count }}</div>
+    <div class="metric-sub">&gt; 7 jours en statut « Enregistrée »</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Left: chart + breakdown -->
+  <div class="col-lg-5">
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Répartition par catégorie</span>
+      </div>
+      <div class="card-app-body">
+        {% if category_breakdown %}
+        <div class="chart-wrap">
+          <canvas id="categoryChart"></canvas>
+        </div>
+        <div style="margin-top:16px;">
+          {% for label, amount in category_breakdown.items %}
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:7px 0; border-bottom:1px solid var(--border);">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="legend-dot-{{ forloop.counter }}" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--accent);"></span>
+              <span style="font-size:13px; color:var(--text-secondary);">{{ label }}</span>
+            </div>
+            <span style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:13px;">{{ amount|da_format }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center; padding:40px 0; color:var(--text-muted);">
+          <i class="bx bx-pie-chart-alt" style="font-size:36px; opacity:.3; display:block; margin-bottom:10px;"></i>
+          Aucune dépense validée ce mois
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: recent + overdue -->
+  <div class="col-lg-7">
+
+    {% if overdue_validations %}
+    <div class="card-app mb-4" style="border-color:#fecaca;">
+      <div class="card-app-header" style="background:#fef2f2; border-bottom-color:#fecaca;">
+        <span class="card-app-title" style="color:#dc2626;">
+          <i class="bx bx-error-circle"></i> Validations en retard
+        </span>
+        <a href="{% url 'expenses:expenses_list' %}?pending_validation=true" class="btn-secondary-app btn-sm" style="font-size:11px;">
+          Voir tout
+        </a>
+      </div>
+      <div class="card-app-body">
+        {% for exp in overdue_validations|slice:":5" %}
+        <div class="overdue-row">
+          <div style="flex:1; min-width:0;">
+            <a href="{% url 'expenses:expense_detail' expense_id=exp.id %}"
+               style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:13px; color:var(--accent); display:block;">
+              {{ exp.reference }}
+            </a>
+            <span style="font-size:12px; color:var(--text-muted);">
+              {{ exp.expense_date|date:"d/m/Y" }} — {{ exp.beneficiary }}
+            </span>
+          </div>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:13px; white-space:nowrap;">
+            {{ exp.amount|da_format }}
+          </span>
+          <span class="badge-en-retard">En retard</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Dépenses récentes</span>
+        <a href="{% url 'expenses:expenses_list' %}" class="btn-secondary-app btn-sm" style="font-size:11px;">
+          Voir tout
+        </a>
+      </div>
+      <div class="card-app-body p-0">
+        {% if recent_expenses %}
+        <div class="table-container" style="border:none; border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead>
+              <tr class="bg-raised">
+                <th>Référence</th>
+                <th>Date</th>
+                <th>Description</th>
+                <th class="text-end">Montant</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for exp in recent_expenses %}
+              <tr>
+                <td>
+                  <a href="{% url 'expenses:expense_detail' expense_id=exp.id %}"
+                     style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:12px; color:var(--accent);">
+                    {{ exp.reference }}
+                  </a>
+                </td>
+                <td style="font-size:12px; color:var(--text-muted);">{{ exp.expense_date|date:"d/m/Y" }}</td>
+                <td style="font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                  {{ exp.description }}
+                </td>
+                <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:12px; white-space:nowrap;">
+                  {{ exp.amount|da_format }}
+                </td>
+                <td>
+                  {% if exp.status == 'recorded' %}<span class="badge-en-attente">Enregistrée</span>
+                  {% elif exp.status == 'validated' %}<span class="badge-valide">Validée</span>
+                  {% elif exp.status == 'paid' %}<span class="badge-paye">Payée</span>
+                  {% elif exp.status == 'rejected' %}<span class="badge-annule">Rejetée</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div style="padding:32px; text-align:center; color:var(--text-muted);">Aucune dépense récente.</div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  {% if category_breakdown %}
+  const labels = [{% for label, _ in category_breakdown.items %}"{{ label }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+  const values = [{% for _, amount in category_breakdown.items %}{{ amount }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+  const palette = [
+    '#0f766e','#14b8a6','#3b82f6','#8b5cf6',
+    '#f59e0b','#ef4444','#10b981','#6366f1',
+    '#f97316','#06b6d4'
+  ];
+
+  // Colour the legend dots
+  labels.forEach(function (_, i) {
+    const dot = document.getElementById('legend-dot-' + (i + 1));
+    if (dot) dot.style.background = palette[i % palette.length];
+  });
+
+  const ctx = document.getElementById('categoryChart');
+  if (ctx) {
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: values,
+          backgroundColor: palette.slice(0, values.length),
+          borderWidth: 2,
+          borderColor: '#ffffff',
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return ' ' + ctx.label + ' : ' + parseInt(ctx.raw).toLocaleString('fr-DZ') + ' DA';
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  {% endif %}
+})();
+</script>
+{% endblock %}

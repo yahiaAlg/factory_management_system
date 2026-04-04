@@ -1,0 +1,300 @@
+{% extends "reporting/base_report.html" %}
+
+{% block topbar_actions %}
+  {% if report_data %}
+  <a href="{% url 'reporting:export_report_csv' 'financial_result' %}?date_from={{ date_from }}&date_to={{ date_to }}"
+     class="btn-outline-sm ms-3">
+    <i class="bi bi-download"></i> Exporter CSV
+  </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- Filter -->
+<div class="filter-panel">
+  <div class="filter-panel-title"><i class="bi bi-funnel me-1"></i>Paramètres de la période</div>
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-sm-4">
+      <label class="form-label" style="font-size:12px;font-weight:600">Date de début</label>
+      {{ form.date_from }}
+    </div>
+    <div class="col-sm-4">
+      <label class="form-label" style="font-size:12px;font-weight:600">Date de fin</label>
+      {{ form.date_to }}
+    </div>
+    <div class="col-sm-4 d-flex gap-2">
+      <button type="submit" class="btn-primary-sm w-100 justify-content-center">
+        <i class="bi bi-arrow-clockwise"></i> Actualiser
+      </button>
+    </div>
+    {% if form.errors %}
+      <div class="col-12">
+        <div class="alert alert-danger py-2 mb-0" style="font-size:13px">{{ form.errors }}</div>
+      </div>
+    {% endif %}
+  </form>
+</div>
+
+{% if report_data %}
+{% with d=report_data %}
+
+<!-- KPI Row -->
+<div class="row g-3 section-gap">
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Revenus facturés</span>
+      <span class="kpi-value mono">{{ d.invoiced_revenue|floatformat:0 }}</span>
+      <span class="kpi-sub">DZD</span>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Revenus encaissés</span>
+      <span class="kpi-value mono">{{ d.collected_revenue|floatformat:0 }}</span>
+      <span class="kpi-sub">
+        Taux recouvrement :
+        <strong class="{% if d.collection_rate >= 80 %}text-pos{% else %}text-neg{% endif %}">
+          {{ d.collection_rate|floatformat:1 }}%
+        </strong>
+      </span>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Résultat théorique</span>
+      <span class="kpi-value mono {% if d.theoretical_result >= 0 %}text-pos{% else %}text-neg{% endif %}">
+        {{ d.theoretical_result|floatformat:0 }}
+      </span>
+      <span class="kpi-sub">DZD — engagé</span>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Résultat trésorerie</span>
+      <span class="kpi-value mono {% if d.actual_cash_result >= 0 %}text-pos{% else %}text-neg{% endif %}">
+        {{ d.actual_cash_result|floatformat:0 }}
+      </span>
+      <span class="kpi-sub">DZD — encaissé/décaissé</span>
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 section-gap">
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-card-title">Revenus vs Charges — Vue comparée</div>
+      <canvas id="financialBarChart" height="240"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="chart-card">
+      <div class="chart-card-title">Structure des charges</div>
+      <canvas id="chargesStructureDonut" height="240"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Rates -->
+<div class="row g-3 section-gap">
+  <div class="col-md-6">
+    <div class="chart-card">
+      <div class="chart-card-title">Taux de recouvrement clients</div>
+      <canvas id="collectionGauge" height="160"></canvas>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="chart-card">
+      <div class="chart-card-title">Taux de règlement fournisseurs</div>
+      <canvas id="settlementGauge" height="160"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Detail table -->
+<div class="table-card">
+  <div class="table-card-header">
+    <h6><i class="bi bi-table me-2"></i>Détail des indicateurs financiers</h6>
+  </div>
+  <div class="p-3">
+    <table class="table table-hover mb-0" id="financialDetailTable">
+      <thead>
+        <tr>
+          <th>Indicateur</th>
+          <th class="text-end">Engagé / Théorique (DZD)</th>
+          <th class="text-end">Réel / Trésorerie (DZD)</th>
+          <th class="text-end">Écart (DZD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="table-light fw-semibold">
+          <td>Revenus</td>
+          <td class="text-end mono">{{ d.invoiced_revenue|floatformat:2 }}</td>
+          <td class="text-end mono">{{ d.collected_revenue|floatformat:2 }}</td>
+          <td class="text-end mono {% if d.collected_revenue >= d.invoiced_revenue %}text-pos{% else %}text-neg{% endif %}">
+            {{ d.collected_revenue|floatformat:2 }}
+          </td>
+        </tr>
+        <tr>
+          <td class="ps-4">→ Charges fournisseurs</td>
+          <td class="text-end mono">{{ d.committed_supplier_charges|floatformat:2 }}</td>
+          <td class="text-end mono">{{ d.paid_supplier_charges|floatformat:2 }}</td>
+          <td class="text-end mono">—</td>
+        </tr>
+        <tr>
+          <td class="ps-4">→ Dépenses opérationnelles</td>
+          <td class="text-end mono">{{ d.committed_operational_expenses|floatformat:2 }}</td>
+          <td class="text-end mono">{{ d.paid_operational_expenses|floatformat:2 }}</td>
+          <td class="text-end mono">—</td>
+        </tr>
+        <tr class="table-light fw-semibold">
+          <td>Total charges</td>
+          <td class="text-end mono text-neg">{{ d.total_committed_charges|floatformat:2 }}</td>
+          <td class="text-end mono text-neg">{{ d.total_paid_charges|floatformat:2 }}</td>
+          <td class="text-end mono">—</td>
+        </tr>
+        <tr class="fw-bold">
+          <td>Résultat net</td>
+          <td class="text-end mono {% if d.theoretical_result >= 0 %}text-pos{% else %}text-neg{% endif %}">
+            {{ d.theoretical_result|floatformat:2 }}
+          </td>
+          <td class="text-end mono {% if d.actual_cash_result >= 0 %}text-pos{% else %}text-neg{% endif %}">
+            {{ d.actual_cash_result|floatformat:2 }}
+          </td>
+          <td class="text-end mono">{{ d.cash_gap|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <td>Taux de recouvrement</td>
+          <td class="text-end" colspan="2">
+            <div class="progress" style="height:8px;border-radius:4px">
+              <div class="progress-bar {% if d.collection_rate >= 80 %}bg-success{% else %}bg-warning{% endif %}"
+                   style="width:{{ d.collection_rate|floatformat:0 }}%"></div>
+            </div>
+            <small class="text-muted">{{ d.collection_rate|floatformat:1 }}%</small>
+          </td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>Taux de règlement</td>
+          <td class="text-end" colspan="2">
+            <div class="progress" style="height:8px;border-radius:4px">
+              <div class="progress-bar {% if d.settlement_rate >= 80 %}bg-info{% else %}bg-warning{% endif %}"
+                   style="width:{{ d.settlement_rate|floatformat:0 }}%"></div>
+            </div>
+            <small class="text-muted">{{ d.settlement_rate|floatformat:1 }}%</small>
+          </td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endwith %}
+{% else %}
+<div class="chart-card text-center py-5">
+  <i class="bi bi-bar-chart-line" style="font-size:2.5rem;color:var(--border)"></i>
+  <p class="mt-3 text-muted">Sélectionnez une période pour générer le rapport.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{% if report_data %}
+<script>
+const D = {
+  invoiced:   {{ report_data.invoiced_revenue|floatformat:2 }},
+  collected:  {{ report_data.collected_revenue|floatformat:2 }},
+  suppComm:   {{ report_data.committed_supplier_charges|floatformat:2 }},
+  suppPaid:   {{ report_data.paid_supplier_charges|floatformat:2 }},
+  opComm:     {{ report_data.committed_operational_expenses|floatformat:2 }},
+  opPaid:     {{ report_data.paid_operational_expenses|floatformat:2 }},
+  collRate:   {{ report_data.collection_rate|floatformat:2 }},
+  settlRate:  {{ report_data.settlement_rate|floatformat:2 }},
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Bar chart
+  new Chart(document.getElementById('financialBarChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Revenus', 'Ch. fournisseurs', 'Dép. opérat.'],
+      datasets: [
+        {
+          label: 'Engagé / Facturé',
+          data: [D.invoiced, D.suppComm, D.opComm],
+          backgroundColor: 'rgba(26,86,219,.15)',
+          borderColor: '#1a56db', borderWidth: 2, borderRadius: 6
+        },
+        {
+          label: 'Réel / Encaissé',
+          data: [D.collected, D.suppPaid, D.opPaid],
+          backgroundColor: 'rgba(13,148,136,.15)',
+          borderColor: '#0d9488', borderWidth: 2, borderRadius: 6
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => (v/1000000).toFixed(1)+'M' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // Donut
+  new Chart(document.getElementById('chargesStructureDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Ch. fournisseurs (eng.)', 'Dép. opérat. (eng.)'],
+      datasets: [{ data:[D.suppComm, D.opComm], backgroundColor:['#1a56db','#d97706'], borderWidth:0, hoverOffset:4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  // Gauge helper
+  function makeGauge(id, val, color) {
+    new Chart(document.getElementById(id), {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [val, 100-val],
+          backgroundColor: [color, '#f3f4f6'],
+          borderWidth: 0, hoverOffset: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        circumference: 180, rotation: -90, cutout: '75%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false }
+        }
+      },
+      plugins: [{
+        id: 'gaugeText',
+        afterDraw(chart) {
+          const { ctx, chartArea: { left, right, top, bottom } } = chart;
+          const cx = (left+right)/2, cy = bottom;
+          ctx.save();
+          ctx.font = "bold 22px 'DM Sans'";
+          ctx.fillStyle = '#0d1117';
+          ctx.textAlign = 'center';
+          ctx.fillText(val.toFixed(1)+'%', cx, cy-10);
+          ctx.restore();
+        }
+      }]
+    });
+  }
+
+  makeGauge('collectionGauge', parseFloat(D.collRate), D.collRate >= 80 ? '#0d9488' : '#d97706');
+  makeGauge('settlementGauge', parseFloat(D.settlRate), D.settlRate >= 80 ? '#1a56db' : '#d97706');
+});
+</script>
+{% endif %}
+{% endblock %}

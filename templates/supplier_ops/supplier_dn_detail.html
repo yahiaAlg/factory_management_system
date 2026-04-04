@@ -1,0 +1,282 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ dn.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_dns_list' %}">BL Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>{{ dn.reference }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.meta-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+.meta-item label { font-size:11px; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; display:block; margin-bottom:4px; }
+.meta-item .meta-val { font-size:14px; color:var(--text-primary); font-weight:500; }
+.ref-cell { font-family:monospace; font-size:12.5px; color:var(--text-secondary); }
+.amount-cell { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; text-align:right; }
+.total-bar { display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:14px 20px; background:var(--bg-raised); border-top:1px solid var(--border); border-radius:0 0 var(--radius-md) var(--radius-md); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">{{ dn.reference }}</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Bon de Livraison Fournisseur · {{ dn.delivery_date|date:"d F Y" }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'supplier_ops:supplier_dn_print' dn.id %}" class="btn-secondary-app" target="_blank">
+      <i class="bx bx-printer"></i> Imprimer
+    </a>
+    {% if can_validate %}
+    <form method="post" action="{% url 'supplier_ops:supplier_dn_validate' dn.id %}" id="validate-form">
+      {% csrf_token %}
+      <button type="button" class="btn-validate" id="validate-btn">
+        <i class="bx bx-check-double"></i> Valider le BL
+      </button>
+    </form>
+    {% endif %}
+    <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour
+    </a>
+  </div>
+</div>
+
+<!-- Status banner for pending -->
+{% if dn.status == 'pending' and can_validate %}
+<div class="alert-banner alert-banner-warning mb-4" style="display:flex;align-items:center;gap:10px;">
+  <i class="bx bx-info-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <span>Ce BL est <strong>en attente de validation</strong>. Assurez-vous qu'un justificatif signé (SD-DNF) est joint avant de valider.</span>
+</div>
+{% endif %}
+
+{% if dn.status == 'in_dispute' %}
+<div class="alert-banner alert-banner-error mb-4" style="display:flex;align-items:center;gap:10px;">
+  <i class="bx bx-error-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <span>Ce BL est <strong>en litige</strong>. Une action manager est requise.</span>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <!-- Left: info + lines -->
+  <div class="col-lg-8">
+
+    <!-- Infos générales -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Informations générales</span>
+        <div>
+          {% if dn.status == 'draft' %}<span class="badge-en-attente">Brouillon</span>
+          {% elif dn.status == 'pending' %}<span class="badge-en-attente">En attente</span>
+          {% elif dn.status == 'validated' %}<span class="badge-valide">Validé</span>
+          {% elif dn.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+          {% elif dn.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-app-body">
+        <div class="meta-grid">
+          <div class="meta-item">
+            <label>Référence BL</label>
+            <div class="meta-val" style="font-family:monospace;">{{ dn.reference }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Réf. Fournisseur</label>
+            <div class="meta-val">{{ dn.external_reference }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Fournisseur</label>
+            <div class="meta-val">{{ dn.supplier.raison_sociale }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Date de livraison</label>
+            <div class="meta-val">{{ dn.delivery_date|date:"d/m/Y" }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Créé par</label>
+            <div class="meta-val">{{ dn.created_by.get_full_name|default:dn.created_by.username }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Créé le</label>
+            <div class="meta-val">{{ dn.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% if dn.validated_by %}
+          <div class="meta-item">
+            <label>Validé par</label>
+            <div class="meta-val">{{ dn.validated_by.get_full_name|default:dn.validated_by.username }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Validé le</label>
+            <div class="meta-val">{{ dn.validated_at|date:"d/m/Y H:i" }}</div>
+          </div>
+          {% endif %}
+          {% if dn.linked_invoice %}
+          <div class="meta-item">
+            <label>Facture liée</label>
+            <div class="meta-val">
+              <a href="{% url 'supplier_ops:supplier_invoice_detail' dn.linked_invoice.id %}" style="color:var(--accent);">
+                {{ dn.linked_invoice.reference }}
+              </a>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% if dn.remarks %}
+        <div class="mt-3 p-3" style="background:var(--bg-raised);border-radius:var(--radius-sm);border:1px solid var(--border);">
+          <label style="font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Observations</label>
+          <div style="margin-top:4px;font-size:13.5px;">{{ dn.remarks }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Lignes -->
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Lignes de livraison</span>
+        <span style="font-size:12px;color:var(--text-muted);">{{ lines|length }} article{{ lines|length|pluralize }}</span>
+      </div>
+      <div class="card-app-body p-0">
+        {% if lines %}
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Réf.</th>
+                <th>Matière première</th>
+                <th style="text-align:right;">Qté reçue</th>
+                <th>Unité</th>
+                <th style="text-align:right;">PU convenu (DA)</th>
+                <th style="text-align:right;">Montant HT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in lines %}
+              <tr>
+                <td><span class="ref-cell">{{ line.raw_material.reference }}</span></td>
+                <td>{{ line.raw_material.designation }}</td>
+                <td style="text-align:right;font-weight:500;">{{ line.quantity_received|floatformat:3 }}</td>
+                <td style="color:var(--text-muted);font-size:12.5px;">{{ line.unit_of_measure.symbol }}</td>
+                <td class="amount-cell">{{ line.agreed_unit_price|floatformat:2 }}</td>
+                <td class="amount-cell">{{ line.line_amount|floatformat:0 }} DA</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="total-bar">
+          <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">Total HT :</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:20px;font-weight:700;color:var(--accent);">
+            {{ dn.total_amount_ht|floatformat:0 }} DA
+          </span>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:40px;">
+          <div class="empty-state-title">Aucune ligne</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right: sidebar summary -->
+  <div class="col-lg-4">
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title">Récapitulatif</span>
+      </div>
+      <div class="card-app-body">
+        <div class="fin-summary-grid">
+          <div class="fin-row">
+            <span class="fin-label">Total HT</span>
+            <span class="fin-value">{{ dn.total_amount_ht|floatformat:0 }} DA</span>
+          </div>
+          <div class="fin-row">
+            <span class="fin-label">Nombre d'articles</span>
+            <span class="fin-value">{{ lines|length }}</span>
+          </div>
+          <div class="fin-row">
+            <span class="fin-label">Statut</span>
+            <span class="fin-value">
+              {% if dn.status == 'validated' %}<span class="badge-valide">Validé</span>
+              {% elif dn.status == 'pending' %}<span class="badge-en-attente">En attente</span>
+              {% elif dn.status == 'draft' %}<span class="badge-en-attente">Brouillon</span>
+              {% elif dn.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+              {% elif dn.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+              {% endif %}
+            </span>
+          </div>
+          {% if dn.linked_invoice %}
+          <div class="fin-row">
+            <span class="fin-label">Facture liée</span>
+            <span class="fin-value" style="font-family:monospace;font-size:12px;">{{ dn.linked_invoice.reference }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Fournisseur info -->
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Fournisseur</span>
+      </div>
+      <div class="card-app-body">
+        <div style="font-weight:600;margin-bottom:6px;">{{ dn.supplier.raison_sociale }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">{{ dn.supplier.code }}</div>
+        {% if dn.supplier.nif %}<div style="font-size:12px;color:var(--text-secondary);">NIF: {{ dn.supplier.nif }}</div>{% endif %}
+        {% if dn.supplier.phone %}<div style="font-size:12px;color:var(--text-secondary);">Tél: {{ dn.supplier.phone }}</div>{% endif %}
+        {% if dn.supplier.address %}<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;">{{ dn.supplier.address }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation modal for validation -->
+<div class="modal fade" id="validateModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--radius-lg);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);padding:20px 24px 16px;">
+        <h5 class="modal-title" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;">Confirmer la validation</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="padding:20px 24px;">
+        <p style="color:var(--text-secondary);margin:0;">
+          Vous êtes sur le point de valider le BL <strong>{{ dn.reference }}</strong>.
+          Cette action créera des mouvements de stock (entrée RM) et est <strong>irréversible</strong>.
+        </p>
+        <div class="mt-3 p-3" style="background:var(--bg-raised);border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;">
+          <strong>Prérequis :</strong> le justificatif signé (SD-DNF) doit être joint au dossier.
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:16px 24px;gap:10px;">
+        <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn-validate" id="confirm-validate-btn">
+          <i class="bx bx-check-double"></i> Confirmer la validation
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var validateBtn = document.getElementById('validate-btn');
+  if (!validateBtn) return;
+  var modal = new bootstrap.Modal(document.getElementById('validateModal'));
+  validateBtn.addEventListener('click', function () { modal.show(); });
+  document.getElementById('confirm-validate-btn').addEventListener('click', function () {
+    document.getElementById('validate-form').submit();
+  });
+})();
+</script>
+{% endblock %}

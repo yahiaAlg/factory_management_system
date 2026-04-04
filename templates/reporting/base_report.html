@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ title|default:"Reporting" }}{% endblock %} — ERP Reporting</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&family=DM+Mono&display=swap" rel="stylesheet">
+  <!-- DataTables -->
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --ink:       #0d1117;
+      --ink-soft:  #3a4250;
+      --ink-muted: #6b7280;
+      --canvas:    #f5f6f8;
+      --card:      #ffffff;
+      --border:    #e4e7ec;
+      --accent:    #1a56db;
+      --accent-lt: #ebf0ff;
+      --success:   #0d9488;
+      --danger:    #dc2626;
+      --warning:   #d97706;
+      --sidebar-w: 260px;
+
+      /* Chart palette */
+      --c1: #1a56db; --c2: #0d9488; --c3: #d97706;
+      --c4: #7c3aed; --c5: #dc2626; --c6: #059669;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--canvas);
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Sidebar ───────────────────────────────── */
+    #sidebar {
+      position: fixed; inset: 0 auto 0 0;
+      width: var(--sidebar-w);
+      background: var(--ink);
+      display: flex; flex-direction: column;
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .sidebar-brand {
+      padding: 1.5rem 1.25rem 1rem;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .sidebar-brand .brand-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.15rem;
+      color: #fff;
+      letter-spacing: -.01em;
+      display: block;
+    }
+    .sidebar-brand .brand-sub {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: rgba(255,255,255,.4);
+    }
+
+    .nav-section {
+      padding: .75rem 1rem .25rem;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      color: rgba(255,255,255,.3);
+      font-weight: 600;
+    }
+
+    .sidebar-nav a {
+      display: flex; align-items: center; gap: .65rem;
+      padding: .55rem 1.25rem;
+      color: rgba(255,255,255,.62);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 500;
+      border-radius: 0;
+      transition: all .15s;
+    }
+    .sidebar-nav a:hover {
+      color: #fff;
+      background: rgba(255,255,255,.06);
+    }
+    .sidebar-nav a.active {
+      color: #fff;
+      background: rgba(26,86,219,.35);
+      border-left: 3px solid var(--accent);
+    }
+    .sidebar-nav a .bi { font-size: 15px; flex-shrink: 0; }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid rgba(255,255,255,.08);
+      font-size: 12px;
+      color: rgba(255,255,255,.3);
+    }
+
+    /* ── Main content ──────────────────────────── */
+    #main {
+      margin-left: var(--sidebar-w);
+      min-height: 100vh;
+    }
+
+    .topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: .9rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .topbar-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.25rem;
+      color: var(--ink);
+      letter-spacing: -.02em;
+    }
+    .topbar-meta {
+      font-size: 12px;
+      color: var(--ink-muted);
+    }
+
+    .page-body { padding: 1.75rem 2rem; }
+
+    /* ── KPI Cards ─────────────────────────────── */
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      display: flex; flex-direction: column; gap: .25rem;
+    }
+    .kpi-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--ink-muted);
+      font-weight: 600;
+    }
+    .kpi-value {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.75rem;
+      letter-spacing: -.03em;
+      color: var(--ink);
+      line-height: 1.1;
+    }
+    .kpi-sub { font-size: 12px; color: var(--ink-muted); }
+    .kpi-badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 20px;
+    }
+    .kpi-badge.pos { background: #d1fae5; color: #065f46; }
+    .kpi-badge.neg { background: #fee2e2; color: #991b1b; }
+    .kpi-badge.neu { background: #f3f4f6; color: var(--ink-muted); }
+
+    /* ── Chart card ────────────────────────────── */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+    }
+    .chart-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 1rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* ── Filter Panel ──────────────────────────── */
+    .filter-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .filter-panel-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--ink-muted);
+      margin-bottom: 1rem;
+    }
+
+    /* ── Tables ────────────────────────────────── */
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .table-card-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .table-card-header h6 {
+      font-size: 13px; font-weight: 600; margin: 0;
+    }
+
+    table.dataTable thead th {
+      background: var(--canvas) !important;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--ink-muted);
+      font-weight: 600;
+      border-bottom: 2px solid var(--border) !important;
+    }
+    table.dataTable tbody tr:hover { background: #f9fafb !important; }
+    table.dataTable tbody td { font-size: 13px; color: var(--ink); }
+
+    .dataTables_wrapper .dataTables_filter input {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+    }
+    .dataTables_wrapper .dataTables_length select {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .dataTables_wrapper .dataTables_info { font-size: 12px; color: var(--ink-muted); }
+
+    /* ── Badges / Status ───────────────────────── */
+    .badge-status {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-status.available   { background: #d1fae5; color: #065f46; }
+    .badge-status.running_low { background: #fef3c7; color: #92400e; }
+    .badge-status.stockout    { background: #fee2e2; color: #991b1b; }
+    .badge-status.on_order    { background: #dbeafe; color: #1e40af; }
+    .badge-status.normal      { background: #d1fae5; color: #065f46; }
+    .badge-status.warning     { background: #fef3c7; color: #92400e; }
+    .badge-status.critical    { background: #fee2e2; color: #991b1b; }
+
+    /* ── Aging heat cells ──────────────────────── */
+    .heat-0  { background: #f0fdf4; color: #166534; }
+    .heat-1  { background: #fefce8; color: #713f12; }
+    .heat-2  { background: #fff7ed; color: #9a3412; }
+    .heat-3  { background: #fef2f2; color: #7f1d1d; }
+    .heat-4  { background: #7f1d1d; color: #fff; font-weight: 700; }
+
+    /* ── Utility ───────────────────────────────── */
+    .mono { font-family: 'DM Mono', monospace; }
+    .text-pos { color: var(--success) !important; font-weight: 600; }
+    .text-neg { color: var(--danger) !important; font-weight: 600; }
+    .section-gap { margin-bottom: 1.5rem; }
+    .btn-primary-sm {
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 6px;
+      padding: 6px 16px; font-size: 13px; font-weight: 500;
+      cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
+      text-decoration: none;
+    }
+    .btn-primary-sm:hover { background: #1648c0; color: #fff; }
+    .btn-outline-sm {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--ink-soft);
+      border-radius: 6px;
+      padding: 6px 16px; font-size: 13px; font-weight: 500;
+      cursor: pointer; display: inline-flex; align-items: center; gap: .4rem;
+      text-decoration: none;
+    }
+    .btn-outline-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Divider ───────────────────────────────── */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+
+    /* ── Responsive ─────────────────────────────── */
+    @media (max-width: 768px) {
+      #sidebar { transform: translateX(-100%); transition: transform .3s; }
+      #sidebar.open { transform: translateX(0); }
+      #main { margin-left: 0; }
+    }
+  </style>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══════════════════════════════════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-title"><i class="bi bi-bar-chart-fill me-2" style="color:var(--accent)"></i>Reporting</span>
+    <span class="brand-sub">Tableau de bord analytique</span>
+  </div>
+
+  <ul class="sidebar-nav list-unstyled mt-2">
+    <li class="nav-section">Tableau de bord</li>
+    <li>
+      <a href="{% url 'reporting:reporting_dashboard' %}"
+         class="{% if request.resolver_match.url_name == 'reporting_dashboard' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i> Vue d'ensemble
+      </a>
+    </li>
+
+    <li class="nav-section mt-2">Rapports financiers</li>
+    <li>
+      <a href="{% url 'reporting:financial_result_report' %}"
+         class="{% if request.resolver_match.url_name == 'financial_result_report' %}active{% endif %}">
+        <i class="bi bi-graph-up-arrow"></i> Résultat financier
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'reporting:receivables_aging_report' %}"
+         class="{% if request.resolver_match.url_name == 'receivables_aging_report' %}active{% endif %}">
+        <i class="bi bi-people"></i> Échéancier clients
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'reporting:payables_aging_report' %}"
+         class="{% if request.resolver_match.url_name == 'payables_aging_report' %}active{% endif %}">
+        <i class="bi bi-building"></i> Échéancier fournisseurs
+      </a>
+    </li>
+
+    <li class="nav-section mt-2">Rapports opérationnels</li>
+    <li>
+      <a href="{% url 'reporting:production_yield_report' %}"
+         class="{% if request.resolver_match.url_name == 'production_yield_report' %}active{% endif %}">
+        <i class="bi bi-gear-wide-connected"></i> Rendements production
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'reporting:expense_breakdown_report' %}"
+         class="{% if request.resolver_match.url_name == 'expense_breakdown_report' %}active{% endif %}">
+        <i class="bi bi-receipt"></i> Répartition dépenses
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'reporting:stock_valuation_report' %}"
+         class="{% if request.resolver_match.url_name == 'stock_valuation_report' %}active{% endif %}">
+        <i class="bi bi-boxes"></i> Valorisation stocks
+      </a>
+    </li>
+  </ul>
+
+  <div class="sidebar-footer">
+    <i class="bi bi-person-circle me-1"></i>{{ request.user.get_full_name|default:request.user.username }}
+    {% if request.user.userprofile %}
+    <span class="d-block" style="color:rgba(255,255,255,.2)">{{ request.user.userprofile.get_role_display }}</span>
+    {% endif %}
+  </div>
+</nav>
+
+<!-- ═══ MAIN ═══════════════════════════════════════════════════ -->
+<div id="main">
+  <header class="topbar">
+    <div class="d-flex align-items-center gap-3">
+      <button class="btn btn-sm d-md-none" id="sidebarToggle">
+        <i class="bi bi-list fs-5"></i>
+      </button>
+      <span class="topbar-title">{% block topbar_title %}{{ title }}{% endblock %}</span>
+    </div>
+    <div class="topbar-meta">
+      <i class="bi bi-calendar3 me-1"></i>{% now "d F Y" %}
+      {% block topbar_actions %}{% endblock %}
+    </div>
+  </header>
+
+  <div class="page-body">
+    {% if messages %}
+      {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags }} alert-dismissible fade show mb-3" role="alert">
+          {{ msg }} <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </div>
+</div>
+
+<!-- ── Scripts ──────────────────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.print.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+<script>
+  // Sidebar mobile toggle
+  document.getElementById('sidebarToggle')?.addEventListener('click', () =>
+    document.getElementById('sidebar').classList.toggle('open')
+  );
+
+  // Chart.js global defaults
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  Chart.defaults.font.size   = 12;
+  Chart.defaults.color       = '#6b7280';
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.padding = 16;
+
+  // DataTables default language (French)
+  const DT_LANG_FR = {
+    decimal: ",", thousands: " ",
+    lengthMenu: "Afficher _MENU_ lignes",
+    zeroRecords: "Aucun résultat trouvé",
+    info: "_START_ à _END_ sur _TOTAL_ enregistrements",
+    infoEmpty: "0 enregistrement",
+    infoFiltered: "(filtré sur _MAX_ total)",
+    search: "Rechercher :",
+    paginate: { first:"«", last:"»", next:"›", previous:"‹" },
+    buttons: { copy:"Copier", csv:"CSV", excel:"Excel", print:"Imprimer" }
+  };
+
+  function fmtMoney(n) {
+    return parseFloat(n).toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DZD';
+  }
+  function fmtPct(n) {
+    return parseFloat(n).toFixed(1) + ' %';
+  }
+</script>
+
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

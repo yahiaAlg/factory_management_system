@@ -1,0 +1,132 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Ajustements de Stock{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Ajustements de Stock</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text-primary);margin:0;">
+      Ajustements de Stock
+    </h1>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Corrections d'inventaire, pertes et retours</div>
+  </div>
+  {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'stock_prod' %}
+  <a href="{% url 'stock:stock_adjustment_create' %}" class="btn-primary-app">
+    <i class="bx bx-plus"></i> Nouvel ajustement
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filter bar -->
+<form method="get" id="filterForm">
+<div class="filter-bar">
+  <select name="adjustment_type" class="form-control-app" onchange="document.getElementById('filterForm').submit()">
+    <option value="">Tous les types</option>
+    {% for val, label in adjustment_types %}
+    <option value="{{ val }}" {% if request.GET.adjustment_type == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="approval_status" class="form-control-app" onchange="document.getElementById('filterForm').submit()">
+    <option value="">Tous statuts</option>
+    <option value="pending" {% if request.GET.approval_status == 'pending' %}selected{% endif %}>En attente d'approbation</option>
+    <option value="approved" {% if request.GET.approval_status == 'approved' %}selected{% endif %}>Approuvés</option>
+  </select>
+  {% if request.GET.adjustment_type or request.GET.approval_status %}
+  <a href="{% url 'stock:stock_adjustments_list' %}" class="filter-reset">
+    <i class="bx bx-x"></i> Réinitialiser
+  </a>
+  {% endif %}
+</div>
+</form>
+
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">
+      <i class="bx bx-edit-alt" style="color:var(--accent);margin-right:6px;"></i>
+      Ajustements
+    </span>
+    <span style="font-size:12px;color:var(--text-muted);">{{ adjustments|length }} résultat{{ adjustments|length|pluralize }}</span>
+  </div>
+  <div class="table-container" style="border:none;border-radius:0;">
+    {% if adjustments %}
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Référence</th>
+          <th>Type</th>
+          <th>Date</th>
+          <th>Motif</th>
+          <th>Lignes</th>
+          <th>Statut</th>
+          <th>Approuvé par</th>
+          <th>Créé par</th>
+          <th class="text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for adj in adjustments %}
+        <tr>
+          <td><span class="col-ref">{{ adj.reference }}</span></td>
+          <td>
+            <span style="font-size:13px;font-weight:500;">{{ adj.get_adjustment_type_display }}</span>
+          </td>
+          <td style="white-space:nowrap;font-size:13px;color:var(--text-secondary);">{{ adj.adjustment_date|date:"d/m/Y" }}</td>
+          <td style="max-width:220px;font-size:13px;color:var(--text-secondary);">
+            <span class="text-truncate d-block" style="max-width:220px;" title="{{ adj.reason }}">
+              {{ adj.reason|truncatechars:60 }}
+            </span>
+          </td>
+          <td style="text-align:center;">
+            <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">
+              {{ adj.lines.count }}
+            </span>
+          </td>
+          <td>
+            {% if adj.approved_by %}
+              <span class="badge-valide"><i class="bx bx-check"></i> Approuvé</span>
+            {% else %}
+              <span class="badge-en-attente"><i class="bx bx-time"></i> En attente</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12.5px;color:var(--text-secondary);">
+            {% if adj.approved_by %}
+              {{ adj.approved_by.get_full_name|default:adj.approved_by.username }}
+              <div style="font-size:11px;color:var(--text-muted);">{{ adj.approved_at|date:"d/m/Y" }}</div>
+            {% else %}—{% endif %}
+          </td>
+          <td style="font-size:12.5px;color:var(--text-muted);">{{ adj.created_by.get_full_name|default:adj.created_by.username }}</td>
+          <td class="text-center">
+            <a href="{% url 'stock:stock_adjustment_detail' adjustment_id=adj.id %}"
+               class="btn-icon" data-bs-toggle="tooltip" title="Voir détail">
+              <i class="bx bx-show"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bx bx-edit-alt"></i></div>
+      <div class="empty-title">Aucun ajustement trouvé</div>
+      <div class="empty-desc">Les ajustements de stock apparaîtront ici après création.</div>
+      {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'stock_prod' %}
+      <div class="mt-3">
+        <a href="{% url 'stock:stock_adjustment_create' %}" class="btn-primary-app">
+          <i class="bx bx-plus"></i> Créer le premier ajustement
+        </a>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

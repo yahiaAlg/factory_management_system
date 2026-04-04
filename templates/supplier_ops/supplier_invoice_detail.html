@@ -1,0 +1,372 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_invoices_list' %}">Factures Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>{{ invoice.reference }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.meta-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:16px; }
+.meta-item label { font-size:11px; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; display:block; margin-bottom:4px; }
+.meta-item .meta-val { font-size:14px; color:var(--text-primary); font-weight:500; }
+.ref-cell { font-family:monospace; font-size:12.5px; color:var(--text-secondary); }
+.amount-cell { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; text-align:right; }
+.total-bar { display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:14px 20px; background:var(--bg-raised); border-top:1px solid var(--border); }
+.fin-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
+.fin-row:last-child { border-bottom:none; }
+.fin-label { color:var(--text-secondary); }
+.fin-value { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; }
+.fin-total { font-size:17px; color:var(--accent); }
+.payment-row { padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.payment-row:last-child { border-bottom:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">{{ invoice.reference }}</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Facture Fournisseur · {{ invoice.invoice_date|date:"d F Y" }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'supplier_ops:supplier_invoice_print' invoice.id %}" class="btn-secondary-app" target="_blank">
+      <i class="bx bx-printer"></i> Imprimer
+    </a>
+    {% if can_pay %}
+    <a href="{% url 'supplier_ops:supplier_payment_create' invoice.id %}" class="btn-primary-app">
+      <i class="bx bx-credit-card"></i> Enregistrer paiement
+    </a>
+    {% endif %}
+    <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour
+    </a>
+  </div>
+</div>
+
+<!-- Overdue / dispute banners -->
+{% if invoice.status == 'in_dispute' %}
+<div class="alert-banner alert-banner-error mb-4" style="display:flex;align-items:center;gap:10px;">
+  <i class="bx bx-error-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <span><strong>Facture en litige.</strong> Aucun paiement ne peut être enregistré tant que le litige n'est pas résolu par le Manager.</span>
+</div>
+{% endif %}
+{% if invoice.is_overdue %}
+<div class="alert-banner alert-banner-error mb-4" style="display:flex;align-items:center;gap:10px;">
+  <i class="bx bx-error" style="font-size:18px;flex-shrink:0;"></i>
+  <span><strong>Facture en retard.</strong> Échéance dépassée au {{ invoice.due_date|date:"d/m/Y" }} — solde dû : {{ invoice.balance_due|floatformat:0 }} DA</span>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <!-- Main column -->
+  <div class="col-lg-8">
+
+    <!-- Infos -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Informations générales</span>
+        <div>
+          {% if invoice.status == 'entered' %}<span class="badge-en-attente">Saisie</span>
+          {% elif invoice.status == 'under_reconciliation' %}<span class="badge-en-attente">Rapprochement</span>
+          {% elif invoice.status == 'verified' %}<span class="badge-valide">Vérifiée</span>
+          {% elif invoice.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+          {% elif invoice.status == 'unpaid' %}<span class="badge-non-paye">Impayée</span>
+          {% elif invoice.status == 'partially_paid' %}<span class="badge-partiellement">Part. payée</span>
+          {% elif invoice.status == 'paid' %}<span class="badge-paye">Payée</span>
+          {% elif invoice.status == 'cancelled' %}<span class="badge-annule">Annulée</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-app-body">
+        <div class="meta-grid">
+          <div class="meta-item">
+            <label>Référence</label>
+            <div class="meta-val" style="font-family:monospace;">{{ invoice.reference }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Réf. Fournisseur</label>
+            <div class="meta-val">{{ invoice.external_reference }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Fournisseur</label>
+            <div class="meta-val">{{ invoice.supplier.raison_sociale }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Date facture</label>
+            <div class="meta-val">{{ invoice.invoice_date|date:"d/m/Y" }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Date d'échéance</label>
+            <div class="meta-val {% if invoice.is_overdue %}text-danger{% endif %}">{{ invoice.due_date|date:"d/m/Y" }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Rapprochement</label>
+            <div class="meta-val">
+              {% if invoice.reconciliation_result == 'compliant' %}<span class="badge-valide">Conforme</span>
+              {% elif invoice.reconciliation_result == 'minor_discrepancy' %}<span class="badge-non-paye">Écart mineur</span>
+              {% elif invoice.reconciliation_result == 'dispute' %}<span class="badge-en-retard">Litige</span>
+              {% else %}<span class="badge-en-attente">En attente</span>{% endif %}
+            </div>
+          </div>
+          <div class="meta-item">
+            <label>Créé par</label>
+            <div class="meta-val">{{ invoice.created_by.get_full_name|default:invoice.created_by.username }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Créé le</label>
+            <div class="meta-val">{{ invoice.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BL liés -->
+    {% if linked_dns %}
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Bons de livraison liés</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Référence BL</th>
+                <th>Date livraison</th>
+                <th style="text-align:right;">Total HT</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dn in linked_dns %}
+              <tr>
+                <td><a href="{% url 'supplier_ops:supplier_dn_detail' dn.id %}" style="color:var(--accent);font-family:monospace;">{{ dn.reference }}</a></td>
+                <td style="color:var(--text-secondary);">{{ dn.delivery_date|date:"d/m/Y" }}</td>
+                <td class="amount-cell">{{ dn.total_amount_ht|floatformat:0 }} DA</td>
+                <td><span class="badge-valide">Validé</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Lignes facturées -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Lignes facturées</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Réf. MP</th>
+                <th>Désignation</th>
+                <th style="text-align:right;">Qté facturée</th>
+                <th style="text-align:right;">Prix unitaire</th>
+                <th style="text-align:right;">Montant HT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in lines %}
+              <tr>
+                <td><span class="ref-cell">{{ line.raw_material.reference }}</span></td>
+                <td>{{ line.designation }}</td>
+                <td style="text-align:right;font-weight:500;">{{ line.quantity_invoiced|floatformat:3 }}</td>
+                <td class="amount-cell">{{ line.unit_price_invoiced|floatformat:2 }}</td>
+                <td class="amount-cell">{{ line.line_amount|floatformat:0 }} DA</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="total-bar">
+          <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">Total HT :</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;font-weight:700;color:var(--accent);">{{ invoice.total_ht|floatformat:0 }} DA</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rapprochement -->
+    {% if reconciliation_lines %}
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Rapprochement BL ↔ Facture</span>
+        <div>
+          {% if invoice.reconciliation_result == 'compliant' %}<span class="badge-valide">Conforme · Écart: {{ invoice.reconciliation_delta|floatformat:0 }} DA</span>
+          {% elif invoice.reconciliation_result == 'minor_discrepancy' %}<span class="badge-non-paye">Écart mineur · {{ invoice.reconciliation_delta|floatformat:0 }} DA</span>
+          {% elif invoice.reconciliation_result == 'dispute' %}<span class="badge-en-retard">Litige · {{ invoice.reconciliation_delta|floatformat:0 }} DA</span>
+          {% else %}<span class="badge-en-attente">En attente</span>{% endif %}
+        </div>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0" style="font-size:12.5px;">
+            <thead class="bg-raised">
+              <tr>
+                <th>Matière première</th>
+                <th style="text-align:right;">Qté livrée</th>
+                <th style="text-align:right;">Qté facturée</th>
+                <th style="text-align:right;">Δ Qté</th>
+                <th style="text-align:right;">PU convenu</th>
+                <th style="text-align:right;">PU facturé</th>
+                <th style="text-align:right;">Δ Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for rl in reconciliation_lines %}
+              <tr>
+                <td>{{ rl.raw_material.designation }}</td>
+                <td style="text-align:right;">{{ rl.qty_delivered|floatformat:3 }}</td>
+                <td style="text-align:right;">{{ rl.qty_invoiced|floatformat:3 }}</td>
+                <td style="text-align:right;">
+                  {% if rl.delta_qty == 0 %}
+                    <span class="delta-ok">—</span>
+                  {% elif rl.delta_qty|abs < 10 %}
+                    <span class="delta-minor">{{ rl.delta_qty|floatformat:3 }}</span>
+                  {% else %}
+                    <span class="delta-alert">{{ rl.delta_qty|floatformat:3 }}</span>
+                  {% endif %}
+                </td>
+                <td style="text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">{{ rl.price_agreed|floatformat:2 }}</td>
+                <td style="text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">{{ rl.price_invoiced|floatformat:2 }}</td>
+                <td style="text-align:right;">
+                  {% if rl.delta_amount == 0 %}
+                    <span class="delta-ok">—</span>
+                  {% elif rl.delta_amount|abs < 500 %}
+                    <span class="delta-minor">{{ rl.delta_amount|floatformat:0 }} DA</span>
+                  {% else %}
+                    <span class="delta-alert">{{ rl.delta_amount|floatformat:0 }} DA</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Paiements -->
+    {% if payments %}
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Historique des paiements</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Référence</th>
+                <th>Date</th>
+                <th>Mode</th>
+                <th>Réf. bancaire</th>
+                <th style="text-align:right;">Montant</th>
+                <th>Par</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in payments %}
+              <tr>
+                <td><span class="ref-cell">{{ p.reference }}</span></td>
+                <td style="color:var(--text-secondary);">{{ p.payment_date|date:"d/m/Y" }}</td>
+                <td style="color:var(--text-secondary);">{{ p.get_payment_method_display }}</td>
+                <td style="color:var(--text-muted);font-size:12px;">{{ p.bank_reference|default:"—" }}</td>
+                <td class="amount-cell" style="color:#166534;">{{ p.amount|floatformat:0 }} DA</td>
+                <td style="font-size:12.5px;color:var(--text-muted);">{{ p.recorded_by.get_full_name|default:p.recorded_by.username }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Right sidebar -->
+  <div class="col-lg-4">
+
+    <!-- Financial summary -->
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title">Récapitulatif financier</span>
+      </div>
+      <div class="card-app-body">
+        <div class="fin-row">
+          <span class="fin-label">Total HT</span>
+          <span class="fin-value">{{ invoice.total_ht|floatformat:0 }} DA</span>
+        </div>
+        <div class="fin-row">
+          <span class="fin-label">TVA (19%)</span>
+          <span class="fin-value">{{ invoice.vat_amount|floatformat:0 }} DA</span>
+        </div>
+        <div class="fin-row" style="border-bottom:2px solid var(--border-strong);">
+          <span class="fin-label" style="font-weight:600;">Total TTC</span>
+          <span class="fin-value fin-total">{{ invoice.total_ttc|floatformat:0 }} DA</span>
+        </div>
+        {% for p in payments %}
+        <div class="fin-row" style="color:#166534;">
+          <span style="font-size:12.5px;">Paiement {{ p.payment_date|date:"d/m/Y" }}</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">- {{ p.amount|floatformat:0 }} DA</span>
+        </div>
+        {% endfor %}
+        <div class="fin-row" style="border-top:2px solid var(--border-strong);padding-top:12px;">
+          <span class="fin-label" style="font-weight:700;font-size:14px;">Solde dû</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:18px;{% if invoice.balance_due > 0 %}color:#dc2626;{% else %}color:#166534;{% endif %}">
+            {{ invoice.balance_due|floatformat:0 }} DA
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Supplier -->
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title">Fournisseur</span>
+      </div>
+      <div class="card-app-body">
+        <div style="font-weight:600;margin-bottom:4px;">{{ invoice.supplier.raison_sociale }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">{{ invoice.supplier.code }}</div>
+        {% if invoice.supplier.nif %}<div style="font-size:12px;color:var(--text-secondary);">NIF: {{ invoice.supplier.nif }}</div>{% endif %}
+        {% if invoice.supplier.nis %}<div style="font-size:12px;color:var(--text-secondary);">NIS: {{ invoice.supplier.nis }}</div>{% endif %}
+        {% if invoice.supplier.rc %}<div style="font-size:12px;color:var(--text-secondary);">RC: {{ invoice.supplier.rc }}</div>{% endif %}
+        {% if invoice.supplier.ai %}<div style="font-size:12px;color:var(--text-secondary);">AI: {{ invoice.supplier.ai }}</div>{% endif %}
+        {% if invoice.supplier.phone %}<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;">Tél: {{ invoice.supplier.phone }}</div>{% endif %}
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Délai: {{ invoice.supplier.payment_terms }} jours</div>
+      </div>
+    </div>
+
+    <!-- Actions manager -->
+    {% if request.user.userprofile.role == 'manager' and invoice.status == 'in_dispute' %}
+    <div class="card-app danger-zone">
+      <div class="card-app-header">
+        <span class="card-app-title" style="color:#dc2626;">Zone Manager</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">Cette facture est en litige. Résolvez le litige pour autoriser les paiements.</p>
+        <button class="btn-secondary-app w-100" style="color:#dc2626;border-color:#dc2626;" disabled>
+          <i class="bx bx-check-shield"></i> Résoudre le litige
+        </button>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

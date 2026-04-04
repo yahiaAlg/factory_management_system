@@ -1,0 +1,312 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Rapport dépenses{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'expenses:expenses_list' %}">Dépenses</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Rapport d'analyse</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .report-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .report-stat {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+  }
+  .report-stat-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    font-family: 'Inter', sans-serif;
+  }
+  .report-stat-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+  .chart-panel {
+    height: 260px;
+    position: relative;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1" style="font-size:22px; font-weight:700;">Rapport d'analyse des dépenses</h1>
+    <p class="mb-0" style="color:var(--text-muted); font-size:13px;">Dépenses validées et payées uniquement</p>
+  </div>
+  <a href="{% url 'expenses:expenses_dashboard' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Tableau de bord
+  </a>
+</div>
+
+<!-- Date filter -->
+<form method="get" class="filter-bar mb-4">
+  <div style="display:flex; align-items:center; gap:6px; color:var(--text-secondary); font-size:13px; font-weight:500;">
+    <i class="bx bx-calendar"></i> Période :
+  </div>
+  <input type="date" name="date_from" value="{{ request.GET.date_from }}"
+         class="form-control-app" style="max-width:148px;" title="Du">
+  <input type="date" name="date_to" value="{{ request.GET.date_to }}"
+         class="form-control-app" style="max-width:148px;" title="Au">
+  <button type="submit" class="btn-primary-app">
+    <i class="bx bx-filter-alt"></i> Appliquer
+  </button>
+  <a href="{% url 'expenses:expenses_report' %}" class="btn-secondary-app">Réinitialiser</a>
+</form>
+
+<!-- Summary stats -->
+<div class="report-summary-grid">
+  <div class="report-stat" style="border-left:3px solid var(--accent);">
+    <div class="report-stat-label">Total validé / payé</div>
+    <div class="report-stat-value">{{ total_amount|da_format }}</div>
+  </div>
+  <div class="report-stat" style="border-left:3px solid #3b82f6;">
+    <div class="report-stat-label">Nombre de catégories</div>
+    <div class="report-stat-value">{{ category_totals|length }}</div>
+  </div>
+  <div class="report-stat" style="border-left:3px solid #8b5cf6;">
+    <div class="report-stat-label">Bénéficiaires distincts</div>
+    <div class="report-stat-value">{{ top_beneficiaries|length }}</div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Trend chart -->
+  <div class="col-lg-8">
+    <div class="card-app h-100">
+      <div class="card-app-header">
+        <span class="card-app-title">Tendance mensuelle (12 mois)</span>
+      </div>
+      <div class="card-app-body">
+        <div class="chart-panel">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Category breakdown -->
+  <div class="col-lg-4">
+    <div class="card-app h-100">
+      <div class="card-app-header">
+        <span class="card-app-title">Par catégorie</span>
+      </div>
+      <div class="card-app-body p-0">
+        {% if category_totals %}
+        <div class="table-container" style="border:none; border-radius:0;">
+          <table class="table mb-0">
+            <thead>
+              <tr class="bg-raised">
+                <th>Catégorie</th>
+                <th class="text-end">Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for label, amount in category_totals.items %}
+              <tr>
+                <td style="font-size:13px; color:var(--text-primary);">{{ label }}</td>
+                <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:13px; white-space:nowrap;">
+                  {{ amount|da_format }}
+                </td>
+              </tr>
+              {% endfor %}
+              <tr style="background:var(--bg-raised);">
+                <td style="font-weight:600; font-size:13px; font-family:'Plus Jakarta Sans',sans-serif;">Total</td>
+                <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:13px; color:var(--accent); white-space:nowrap;">
+                  {{ total_amount|da_format }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div style="padding:32px; text-align:center; color:var(--text-muted); font-size:13px;">
+          Aucune donnée pour la période sélectionnée.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top beneficiaries -->
+{% if top_beneficiaries %}
+<div class="card-app mb-4">
+  <div class="card-app-header">
+    <span class="card-app-title">Top bénéficiaires</span>
+  </div>
+  <div class="card-app-body p-0">
+    <div class="table-container" style="border:none; border-radius:0;">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr class="bg-raised">
+            <th style="width:36px;">#</th>
+            <th>Bénéficiaire</th>
+            <th class="text-end">Montant total</th>
+            <th style="width:200px;">Part</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ben in top_beneficiaries %}
+          <tr>
+            <td style="color:var(--text-muted); font-size:12px;">{{ forloop.counter }}</td>
+            <td style="font-weight:500;">{{ ben.beneficiary }}</td>
+            <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; white-space:nowrap;">
+              {{ ben.total|da_format }}
+            </td>
+            <td>
+              {% if total_amount %}
+              {% widthratio ben.total total_amount 100 as pct %}
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="flex:1; height:6px; background:var(--bg-raised); border-radius:4px; overflow:hidden;">
+                  <div style="width:{{ pct }}%; height:100%; background:var(--accent); border-radius:4px;"></div>
+                </div>
+                <span style="font-size:12px; color:var(--text-muted); min-width:32px; text-align:right;">{{ pct }}%</span>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Expense detail table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">Détail des dépenses (100 dernières)</span>
+  </div>
+  <div class="card-app-body p-0">
+    {% if expenses %}
+    <div class="table-container" style="border:none; border-radius:0;">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr class="bg-raised">
+            <th>Référence</th>
+            <th>Date</th>
+            <th>Catégorie</th>
+            <th>Bénéficiaire</th>
+            <th>Description</th>
+            <th class="text-end">Montant</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for exp in expenses %}
+          <tr>
+            <td>
+              <a href="{% url 'expenses:expense_detail' expense_id=exp.id %}"
+                 style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:12px; color:var(--accent);">
+                {{ exp.reference }}
+              </a>
+            </td>
+            <td style="font-size:12px; color:var(--text-muted);">{{ exp.expense_date|date:"d/m/Y" }}</td>
+            <td style="font-size:12px;">{{ exp.category.label }}</td>
+            <td style="font-size:12px; color:var(--text-secondary);">{{ exp.beneficiary }}</td>
+            <td style="font-size:12px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ exp.description }}">
+              {{ exp.description }}
+            </td>
+            <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:12px; white-space:nowrap;">
+              {{ exp.amount|da_format }}
+            </td>
+            <td>
+              {% if exp.status == 'validated' %}<span class="badge-valide">Validée</span>
+              {% elif exp.status == 'paid' %}<span class="badge-paye">Payée</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="padding:32px; text-align:center; color:var(--text-muted); font-size:13px;">
+      Aucune dépense validée pour la période sélectionnée.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const monthLabels = [{% for m in monthly_trend %}"{{ m.month }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+  const monthValues = [{% for m in monthly_trend %}{{ m.total }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+  const ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: monthLabels,
+      datasets: [{
+        label: 'Dépenses (DA)',
+        data: monthValues,
+        borderColor: '#0f766e',
+        backgroundColor: 'rgba(15,118,110,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: '#0f766e',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        tension: 0.35,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function (ctx) {
+              return ' ' + parseInt(ctx.raw).toLocaleString('fr-DZ') + ' DA';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(226,232,240,0.6)' },
+          ticks: { font: { family: 'Inter', size: 11 }, color: '#94a3b8' }
+        },
+        y: {
+          grid: { color: 'rgba(226,232,240,0.6)' },
+          ticks: {
+            font: { family: 'Inter', size: 11 },
+            color: '#94a3b8',
+            callback: function (v) { return parseInt(v).toLocaleString('fr-DZ') + ' DA'; }
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

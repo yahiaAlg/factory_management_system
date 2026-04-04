@@ -1,0 +1,143 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Ordres de production — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item active">Ordres de production</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.progress-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+.dot-pending { background:var(--text-muted); }
+.dot-validated { background:#3b82f6; }
+.dot-in_progress { background:#f59e0b; }
+.dot-completed { background:#16a34a; }
+.dot-cancelled { background:#94a3b8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="page-title mb-0">Ordres de production</h1>
+    <p class="text-muted small mb-0">{{ orders|length }} ordre{{ orders|length|pluralize }} trouvé{{ orders|length|pluralize }}</p>
+  </div>
+  {% if request.user.userprofile.role in 'manager,stock_prod' %}
+  <a href="{% url 'production:production_order_create' %}" class="btn-primary-app">
+    <i class="bi bi-plus-lg me-1"></i> Nouvel ordre
+  </a>
+  {% endif %}
+</div>
+
+{# Filter bar #}
+<form method="get" class="filter-bar mb-3">
+  <div class="position-relative">
+    <i class="bi bi-search position-absolute" style="left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);"></i>
+    <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, formulation…" class="form-control-app ps-4" style="min-width:220px;">
+  </div>
+  <select name="status" class="form-control-app">
+    <option value="">Tous les statuts</option>
+    {% for val, label in status_choices %}
+    <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="yield_status" class="form-control-app">
+    <option value="">Tous les rendements</option>
+    {% for val, label in yield_choices %}
+    <option value="{{ val }}" {% if request.GET.yield_status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control-app" placeholder="Date début">
+  <input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control-app" placeholder="Date fin">
+  <button type="submit" class="btn-secondary-app">Filtrer</button>
+  <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app">Réinitialiser</a>
+</form>
+
+<div class="card-app">
+  <div class="card-app-header"><span class="card-app-title">Liste des ordres</span></div>
+  <div class="card-app-body p-0">
+    {% if orders %}
+    <div class="table-container">
+      <table class="table table-hover mb-0">
+        <thead class="bg-raised">
+          <tr>
+            <th>Référence</th>
+            <th>Formulation</th>
+            <th>Produit fini</th>
+            <th class="text-end">Qté cible</th>
+            <th class="text-end">Qté produite</th>
+            <th>Rendement</th>
+            <th>Lancement</th>
+            <th>Statut</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in orders %}
+          <tr>
+            <td>
+              <a href="{% url 'production:production_order_detail' o.id %}" class="text-decoration-none fw-600" style="font-family:monospace;color:var(--accent);">{{ o.reference }}</a>
+            </td>
+            <td style="font-family:'Inter',sans-serif;">
+              <a href="{% url 'production:formulation_detail' o.formulation.id %}" class="text-decoration-none text-muted">{{ o.formulation.designation }}</a>
+            </td>
+            <td class="text-muted small">{{ o.formulation.finished_product.designation }}</td>
+            <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">
+              {{ o.target_qty|floatformat:3 }} {{ o.target_unit.symbol }}
+            </td>
+            <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">
+              {% if o.actual_qty_produced %}{{ o.actual_qty_produced|floatformat:3 }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if o.yield_rate is not None %}
+                {% if o.yield_status == 'normal' %}
+                  <span class="badge-normal-yield">{{ o.yield_rate|floatformat:1 }} %</span>
+                {% elif o.yield_status == 'warning' %}
+                  <span class="badge-warn-yield">{{ o.yield_rate|floatformat:1 }} %</span>
+                {% else %}
+                  <span class="badge-crit-yield">{{ o.yield_rate|floatformat:1 }} %</span>
+                {% endif %}
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-muted small">{{ o.launch_date|date:"d/m/Y" }}</td>
+            <td>
+              {% if o.status == 'pending' %}
+                <span class="progress-dot dot-pending"></span><span class="badge-en-attente">En attente</span>
+              {% elif o.status == 'validated' %}
+                <span class="progress-dot dot-validated"></span><span class="badge-valide">Validé</span>
+              {% elif o.status == 'in_progress' %}
+                <span class="progress-dot dot-in_progress"></span><span class="badge-commande">En cours</span>
+              {% elif o.status == 'completed' %}
+                <span class="progress-dot dot-completed"></span><span class="badge-valide">Clôturé</span>
+              {% elif o.status == 'cancelled' %}
+                <span class="progress-dot dot-cancelled"></span><span class="badge-annule">Annulé</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'production:production_order_detail' o.id %}" class="btn-icon" title="Voir détail"><i class="bi bi-eye"></i></a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-box-seam"></i>
+      <p>Aucun ordre de production trouvé</p>
+      {% if request.user.userprofile.role in 'manager,stock_prod' %}
+      <a href="{% url 'production:production_order_create' %}" class="btn-primary-app">Créer un ordre</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

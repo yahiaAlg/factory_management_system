@@ -1,0 +1,233 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:production_orders_list' %}">Ordres de production</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:production_order_detail' order.id %}">{{ order.reference }}</a></li>
+    <li class="breadcrumb-item active">Clôture</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.consumption-row td { vertical-align: middle; padding: 10px 12px; }
+.theo-val { font-family: 'Inter', sans-serif; color: var(--text-secondary); font-size: 13px; }
+.live-delta { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 600; transition: color .2s; }
+.delta-positive { color: #dc2626; }
+.delta-negative { color: #16a34a; }
+.delta-zero     { color: var(--text-muted); }
+.warning-banner { background:#fffbeb; border:1px solid #fcd34d; border-radius:var(--radius-md); padding:12px 16px; font-size:13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="page-title mb-0">{{ title }}</h1>
+    <p class="text-muted small mb-0 mt-1">
+      Formulation {{ order.formulation.reference }} v{{ order.formulation.version }}
+      &nbsp;·&nbsp; Produit : {{ order.formulation.finished_product.designation }}
+      &nbsp;·&nbsp; Qté cible : <strong>{{ order.target_qty|floatformat:3 }} {{ order.target_unit.symbol }}</strong>
+    </p>
+  </div>
+  <a href="{% url 'production:production_order_detail' order.id %}" class="btn-secondary-app">
+    <i class="bi bi-arrow-left me-1"></i> Retour
+  </a>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="warning-banner mb-3">
+  <i class="bi bi-info-circle-fill me-1" style="color:#d97706;"></i>
+  <strong>Action irréversible.</strong> Après clôture, les mouvements de stock RM et PF seront enregistrés et l'ordre passera au statut <em>Clôturé</em>.
+</div>
+
+<form method="post" id="close-form">
+  {% csrf_token %}
+  <div class="row g-3">
+
+    {# ─── Quantité produite ─── #}
+    <div class="col-lg-5">
+      <div class="card-app">
+        <div class="card-app-header"><span class="card-app-title">Résultat de production</span></div>
+        <div class="card-app-body">
+          <div class="mb-3">
+            <label class="form-label-app">Quantité réellement produite <span class="text-danger">*</span></label>
+            {{ form.actual_qty_produced }}
+            {% if form.actual_qty_produced.errors %}
+            <div class="form-error">{{ form.actual_qty_produced.errors.0 }}</div>
+            {% endif %}
+            <div class="text-muted small mt-1">Unité : {{ order.target_unit.symbol }}</div>
+          </div>
+
+          {# Live yield preview #}
+          <div class="info-cell mt-3" style="background:var(--accent-dim);border-color:var(--accent-glow);padding:12px 16px;border-radius:var(--radius-md);">
+            <div class="text-muted small mb-1" style="font-family:'Inter',sans-serif;">Rendement estimé</div>
+            <div id="yield-preview" style="font-size:22px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;color:var(--accent);">
+              — %
+            </div>
+            <div class="text-muted small">Cible : {{ order.target_qty|floatformat:3 }} {{ order.target_unit.symbol }} · Rendement théo. : {{ order.formulation.expected_yield_pct|floatformat:1 }} %</div>
+          </div>
+
+          <div class="mt-3">
+            <label class="form-label-app">Notes de clôture</label>
+            {{ form.notes }}
+          </div>
+          {% if form.non_field_errors %}
+          <div class="form-error mt-2">{{ form.non_field_errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─── Consommations réelles ─── #}
+    <div class="col-lg-7">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Consommations réelles MP</span>
+          <span class="text-muted small">Valeurs théoriques pré-remplies</span>
+        </div>
+        <div class="card-app-body p-0">
+          <div class="table-container" style="border:none;border-radius:0;">
+            <table class="table mb-0">
+              <thead class="bg-raised">
+                <tr>
+                  <th>Matière première</th>
+                  <th class="text-center" style="width:100px;">Théorique</th>
+                  <th style="width:150px;">Consommé réel</th>
+                  <th class="text-end" style="width:90px;">Écart</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for line in order.consumption_lines.all %}
+                {% with field_name="consumption_"|add:line.id|stringformat:"s" %}
+                <tr class="consumption-row" data-theo="{{ line.qty_theoretical }}">
+                  <td>
+                    <span class="fw-500" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ line.raw_material.designation }}</span>
+                    <br><small class="text-muted">{{ line.unit_of_measure.symbol|default:line.raw_material.unit_of_measure.symbol }}</small>
+                  </td>
+                  <td class="text-center theo-val">{{ line.qty_theoretical|floatformat:3 }}</td>
+                  <td>
+                    {{ form|getfield:field_name }}
+                    {% if form|getfield:field_name %}{% with f=form|getfield:field_name %}{% if f.errors %}<div class="form-error">{{ f.errors.0 }}</div>{% endif %}{% endwith %}{% endif %}
+                  </td>
+                  <td class="text-end">
+                    <span class="live-delta delta-zero" id="delta-{{ line.id }}">—</span>
+                  </td>
+                </tr>
+                {% endwith %}
+                {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-3">Aucune ligne de consommation</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── Actions ─── #}
+    <div class="col-12 d-flex gap-2 justify-content-end pb-4">
+      <a href="{% url 'production:production_order_detail' order.id %}" class="btn-secondary-app">Annuler</a>
+      <button type="button" id="confirm-close-btn" class="btn-primary-app">
+        <i class="bi bi-flag-fill me-1"></i> Clôturer l'ordre
+      </button>
+    </div>
+  </div>
+</form>
+
+{# Confirmation modal #}
+<div class="modal fade" id="confirmCloseModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-600">Confirmer la clôture de l'OP</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="text-muted small mb-2">Résumé avant confirmation :</p>
+        <ul class="text-muted small mb-0" id="close-summary"></ul>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Retour</button>
+        <button type="button" class="btn-primary-app" id="final-submit-btn">
+          <i class="bi bi-check2-circle me-1"></i> Confirmer la clôture
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Apply form-control-app class
+  document.querySelectorAll('#close-form input:not([type=hidden]), #close-form select, #close-form textarea')
+    .forEach(el => el.classList.add('form-control-app'));
+
+  const targetQty = {{ order.target_qty|floatformat:3 }};
+  const yieldPreview = document.getElementById('yield-preview');
+  const actualInput = document.getElementById('id_actual_qty_produced');
+
+  // Live yield preview
+  function updateYield() {
+    const actual = parseFloat(actualInput.value);
+    if (!isNaN(actual) && actual > 0 && targetQty > 0) {
+      const rate = (actual / targetQty) * 100;
+      yieldPreview.textContent = rate.toFixed(1) + ' %';
+      yieldPreview.style.color = rate >= 90 ? 'var(--accent)' : rate >= 75 ? '#d97706' : '#dc2626';
+    } else {
+      yieldPreview.textContent = '— %';
+      yieldPreview.style.color = 'var(--accent)';
+    }
+  }
+  actualInput && actualInput.addEventListener('input', updateYield);
+
+  // Live delta per consumption line
+  document.querySelectorAll('.consumption-row').forEach(row => {
+    const theo = parseFloat(row.dataset.theo) || 0;
+    const input = row.querySelector('input[type=number]');
+    const deltaEl = row.querySelector('.live-delta');
+    if (!input || !deltaEl) return;
+    input.addEventListener('input', () => {
+      const actual = parseFloat(input.value);
+      if (isNaN(actual)) { deltaEl.textContent = '—'; deltaEl.className = 'live-delta delta-zero'; return; }
+      const delta = actual - theo;
+      deltaEl.textContent = (delta > 0 ? '+' : '') + delta.toFixed(3);
+      deltaEl.className = 'live-delta ' + (delta > 0 ? 'delta-positive' : delta < 0 ? 'delta-negative' : 'delta-zero');
+    });
+  });
+
+  // Confirm modal
+  const confirmModal = new bootstrap.Modal(document.getElementById('confirmCloseModal'));
+  document.getElementById('confirm-close-btn').addEventListener('click', () => {
+    const actual = parseFloat(actualInput ? actualInput.value : 0);
+    const summary = document.getElementById('close-summary');
+    const yieldRate = (actual > 0 && targetQty > 0) ? ((actual / targetQty) * 100).toFixed(1) + ' %' : '—';
+    summary.innerHTML = `
+      <li>Quantité produite : <strong>${actual || '—'} {{ order.target_unit.symbol }}</strong></li>
+      <li>Rendement calculé : <strong>${yieldRate}</strong></li>
+      <li>Les mouvements de stock RM et PF seront créés automatiquement.</li>
+    `;
+    confirmModal.show();
+  });
+  document.getElementById('final-submit-btn').addEventListener('click', () => {
+    document.getElementById('close-form').submit();
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,178 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'expenses:expenses_list' %}">Dépenses</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">{% if form.instance.pk %}Modifier{% else %}Nouvelle dépense{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1" style="font-size:22px; font-weight:700;">{{ title }}</h1>
+    <p class="mb-0" style="color:var(--text-muted); font-size:13px;">
+      Renseignez les informations de la dépense
+    </p>
+  </div>
+  <a href="{% url 'expenses:expenses_list' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  <div class="row g-4">
+
+    <!-- Main form card -->
+    <div class="col-lg-8">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Informations de la dépense</span>
+        </div>
+        <div class="card-app-body">
+
+          <!-- Non-field errors -->
+          {% if form.non_field_errors %}
+          <div class="alert-banner alert-banner-error mb-4">
+            <i class="bx bx-error-circle"></i>
+            <div>{{ form.non_field_errors }}</div>
+          </div>
+          {% endif %}
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Date de la dépense <span class="req-star">*</span>
+              </label>
+              {{ form.expense_date }}
+              {% if form.expense_date.errors %}
+              <div class="field-error">{{ form.expense_date.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Catégorie <span class="req-star">*</span>
+              </label>
+              {{ form.category }}
+              {% if form.category.errors %}
+              <div class="field-error">{{ form.category.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-12">
+              <label class="form-label-app">
+                Description <span class="req-star">*</span>
+              </label>
+              {{ form.description }}
+              {% if form.description.errors %}
+              <div class="field-error">{{ form.description.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Montant (DZD) <span class="req-star">*</span>
+              </label>
+              <div style="position:relative;">
+                {{ form.amount }}
+                <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--text-muted); font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; pointer-events:none;">
+                  DA
+                </span>
+              </div>
+              {% if form.amount.errors %}
+              <div class="field-error">{{ form.amount.errors.0 }}</div>
+              {% endif %}
+              <div id="thresholdWarning" class="mt-2" style="display:none;">
+                <div class="alert-banner alert-banner-warning" style="padding:8px 12px; font-size:12px;">
+                  <i class="bx bx-error"></i>
+                  <span>Montant supérieur au seuil de délégation — validation Manager requise.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Bénéficiaire <span class="req-star">*</span>
+              </label>
+              {{ form.beneficiary }}
+              {% if form.beneficiary.errors %}
+              <div class="field-error">{{ form.beneficiary.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar card -->
+    <div class="col-lg-4">
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">Lien facture fournisseur</span>
+        </div>
+        <div class="card-app-body">
+          <label class="form-label-app">Facture liée <span style="color:var(--text-muted); font-weight:400;">(optionnel)</span></label>
+          {{ form.linked_supplier_invoice }}
+          {% if form.linked_supplier_invoice.errors %}
+          <div class="field-error">{{ form.linked_supplier_invoice.errors.0 }}</div>
+          {% endif %}
+          <p style="font-size:12px; color:var(--text-muted); margin-top:8px; margin-bottom:0;">
+            Associez cette dépense à une facture fournisseur vérifiée ou non réglée.
+          </p>
+        </div>
+      </div>
+
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Actions</span>
+        </div>
+        <div class="card-app-body d-flex flex-column gap-2">
+          <button type="submit" class="btn-primary-app w-100">
+            <i class="bx bx-save"></i>
+            {% if form.instance.pk %}Enregistrer les modifications{% else %}Enregistrer la dépense{% endif %}
+          </button>
+          <a href="{% url 'expenses:expenses_list' %}" class="btn-secondary-app w-100 text-center">
+            Annuler
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Apply form-control-app class to all form inputs rendered by Django
+  document.querySelectorAll(
+    'input[type="text"], input[type="number"], input[type="date"], select, textarea'
+  ).forEach(function (el) {
+    el.classList.add('form-control-app');
+  });
+
+  // Threshold warning (50 000 DA default — mirrors model default)
+  const amountInput = document.querySelector('input[name="amount"]');
+  const warning = document.getElementById('thresholdWarning');
+  const THRESHOLD = 50000;
+
+  if (amountInput && warning) {
+    function checkThreshold() {
+      const val = parseFloat(amountInput.value) || 0;
+      warning.style.display = val > THRESHOLD ? 'block' : 'none';
+    }
+    amountInput.addEventListener('input', checkThreshold);
+    checkThreshold(); // run on load (edit mode)
+  }
+})();
+</script>
+{% endblock %}

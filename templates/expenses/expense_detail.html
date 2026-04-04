@@ -1,0 +1,413 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'expenses:expenses_list' %}">Dépenses</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">{{ expense.reference }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .info-cell {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .info-cell:nth-child(odd) { padding-right: 24px; }
+  .info-cell:nth-child(even) { padding-left: 24px; border-left: 1px solid var(--border); }
+  .info-cell:nth-last-child(-n+2) { border-bottom: none; }
+  .info-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 5px;
+    font-family: 'Inter', sans-serif;
+  }
+  .info-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+  }
+  .amount-display {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+  }
+  .doc-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .doc-item:last-child { border-bottom: none; }
+  .doc-item-type {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-radius: var(--radius-xs);
+    white-space: nowrap;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  .rejection-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    margin-bottom: 20px;
+  }
+  .rejection-box-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: #dc2626;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rejection-box-reason {
+    font-size: 13px;
+    color: #b91c1c;
+    font-family: 'Inter', sans-serif;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="d-flex align-items-start justify-content-between mb-4">
+  <div>
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:6px;">
+      <h1 style="font-size:22px; font-weight:700; margin:0;">{{ expense.reference }}</h1>
+      {% if expense.status == 'recorded' %}
+        <span class="badge-en-attente">Enregistrée</span>
+      {% elif expense.status == 'validated' %}
+        <span class="badge-valide">Validée</span>
+      {% elif expense.status == 'paid' %}
+        <span class="badge-paye">Payée</span>
+      {% elif expense.status == 'rejected' %}
+        <span class="badge-annule">Rejetée</span>
+      {% endif %}
+      {% if requires_manager %}
+        <span style="font-size:11px; padding:3px 8px; background:#fef3c7; color:#b45309; border-radius:var(--radius-xs); font-weight:600; border:1px solid #fde68a;">
+          <i class="bx bx-shield"></i> Approbation Manager requise
+        </span>
+      {% endif %}
+    </div>
+    <p class="mb-0" style="color:var(--text-muted); font-size:13px;">
+      Enregistrée le {{ expense.created_at|date:"d/m/Y" }} par {{ expense.created_by.get_full_name|default:expense.created_by.username }}
+    </p>
+  </div>
+  <a href="{% url 'expenses:expenses_list' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<!-- Rejection notice -->
+{% if expense.status == 'rejected' and expense.rejection_reason %}
+<div class="rejection-box">
+  <div class="rejection-box-title">
+    <i class="bx bx-x-circle"></i> Dépense rejetée
+  </div>
+  <div class="rejection-box-reason">{{ expense.rejection_reason }}</div>
+  {% if expense.validated_by %}
+  <div style="font-size:11px; color:#b91c1c; margin-top:6px; font-family:'Inter',sans-serif;">
+    Par {{ expense.validated_by.get_full_name|default:expense.validated_by.username }}
+    {% if expense.validated_at %}— {{ expense.validated_at|date:"d/m/Y H:i" }}{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <!-- Main column -->
+  <div class="col-lg-8">
+
+    <!-- Amount hero card -->
+    <div class="card-app mb-4">
+      <div class="card-app-body">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+          <div>
+            <div class="info-label" style="margin-bottom:8px;">Montant de la dépense</div>
+            <div class="amount-display">{{ expense.amount|da_format }}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="info-label" style="margin-bottom:8px;">Catégorie</div>
+            <span style="font-size:15px; padding:5px 14px; background:var(--accent-dim); color:var(--accent); border-radius:var(--radius-sm); font-weight:600; font-family:'Plus Jakarta Sans',sans-serif;">
+              {{ expense.category.label }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details card -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Détails</span>
+      </div>
+      <div class="card-app-body">
+        <div class="info-grid">
+          <div class="info-cell">
+            <div class="info-label">Date de la dépense</div>
+            <div class="info-value">{{ expense.expense_date|date:"d/m/Y" }}</div>
+          </div>
+          <div class="info-cell">
+            <div class="info-label">Bénéficiaire</div>
+            <div class="info-value">{{ expense.beneficiary }}</div>
+          </div>
+          <div class="info-cell" style="grid-column: 1 / -1; border-right: none; padding-right:0; border-left:none; padding-left:0;">
+            <div class="info-label">Description</div>
+            <div class="info-value" style="white-space:pre-line;">{{ expense.description }}</div>
+          </div>
+          {% if expense.linked_supplier_invoice %}
+          <div class="info-cell" style="grid-column: 1 / -1; border-right: none; padding-right:0; border-left:none; padding-left:0; border-bottom:none;">
+            <div class="info-label">Facture fournisseur liée</div>
+            <div class="info-value">
+              <a href="{% url 'supplier_ops:supplier_invoice_detail' invoice_id=expense.linked_supplier_invoice.id %}"
+                 style="color:var(--accent); font-weight:600;">
+                {{ expense.linked_supplier_invoice.reference }}
+              </a>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment info card (if paid) -->
+    {% if expense.status == 'paid' %}
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Informations de paiement</span>
+      </div>
+      <div class="card-app-body">
+        <div class="info-grid">
+          <div class="info-cell">
+            <div class="info-label">Date de paiement</div>
+            <div class="info-value">{{ expense.payment_date|date:"d/m/Y" }}</div>
+          </div>
+          <div class="info-cell">
+            <div class="info-label">Mode de paiement</div>
+            <div class="info-value">{{ expense.get_payment_method_display }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Supporting docs card -->
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Documents justificatifs</span>
+        <div class="card-header-actions">
+          {% if request.user.userprofile.role in 'manager,accountant' %}
+          <a href="{% url 'expenses:supporting_document_create' expense_id=expense.id %}"
+             class="btn-secondary-app btn-sm">
+            <i class="bx bx-plus"></i> Ajouter
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-app-body">
+        {% if supporting_docs %}
+          {% for doc in supporting_docs %}
+          <div class="doc-item">
+            <div class="ic-box ic-slate" style="width:34px; height:34px; font-size:16px; flex-shrink:0;">
+              <i class="bx bx-file"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+                <span class="doc-item-type">{{ doc.get_doc_type_display }}</span>
+                {% if doc.file_reference %}
+                <span style="font-size:11px; color:var(--text-muted); font-family:monospace;">{{ doc.file_reference }}</span>
+                {% endif %}
+              </div>
+              <div style="font-size:13px; color:var(--text-primary);">{{ doc.description }}</div>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:3px;">
+                {{ doc.registered_by.get_full_name|default:doc.registered_by.username }} — {{ doc.registered_at|date:"d/m/Y H:i" }}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div style="text-align:center; padding:28px 0; color:var(--text-muted);">
+          <i class="bx bx-folder-open" style="font-size:32px; display:block; margin-bottom:8px; opacity:.4;"></i>
+          <span style="font-size:13px;">Aucun document justificatif attaché</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sidebar column -->
+  <div class="col-lg-4">
+
+    <!-- Actions card -->
+    {% if can_validate or can_mark_paid %}
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Actions</span>
+      </div>
+      <div class="card-app-body d-flex flex-column gap-2">
+
+        {% if can_validate %}
+        <!-- Validate -->
+        <form method="post" action="{% url 'expenses:expense_validate' expense_id=expense.id %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="validate">
+          <button type="submit" class="btn-validate w-100">
+            <i class="bx bx-check-circle"></i> Valider la dépense
+          </button>
+        </form>
+
+        <!-- Reject (opens modal) -->
+        <button type="button" class="btn-danger-app w-100" data-bs-toggle="modal" data-bs-target="#rejectModal">
+          <i class="bx bx-x-circle"></i> Rejeter
+        </button>
+        {% endif %}
+
+        {% if can_mark_paid %}
+        <!-- Mark paid (opens modal) -->
+        <button type="button" class="btn-primary-app w-100" data-bs-toggle="modal" data-bs-target="#payModal">
+          <i class="bx bx-money"></i> Marquer comme payée
+        </button>
+        {% endif %}
+
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Meta card -->
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Historique</span>
+      </div>
+      <div class="card-app-body">
+        <div class="info-cell" style="padding-top:0; border-bottom:1px solid var(--border); padding-bottom:14px; margin-bottom:14px;">
+          <div class="info-label">Créé par</div>
+          <div class="info-value" style="font-size:13px;">
+            {{ expense.created_by.get_full_name|default:expense.created_by.username }}
+          </div>
+          <div style="font-size:12px; color:var(--text-muted);">{{ expense.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+        {% if expense.validated_by %}
+        <div class="info-cell" style="padding-top:0; border-bottom:none; padding-bottom:0;">
+          <div class="info-label">
+            {% if expense.status == 'rejected' %}Rejeté par{% else %}Validé par{% endif %}
+          </div>
+          <div class="info-value" style="font-size:13px;">
+            {{ expense.validated_by.get_full_name|default:expense.validated_by.username }}
+          </div>
+          {% if expense.validated_at %}
+          <div style="font-size:12px; color:var(--text-muted);">{{ expense.validated_at|date:"d/m/Y H:i" }}</div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ MODALS ============ -->
+
+{% if can_validate %}
+<!-- Reject modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:1px solid var(--border); border-radius:var(--radius-lg);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border); padding:18px 20px;">
+        <h5 class="modal-title" id="rejectModalLabel" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:16px;">
+          <i class="bx bx-x-circle" style="color:#dc2626;"></i> Rejeter la dépense
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <form method="post" action="{% url 'expenses:expense_validate' expense_id=expense.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reject">
+        <div class="modal-body" style="padding:20px;">
+          <label class="form-label-app">Motif de rejet <span class="req-star">*</span></label>
+          <textarea name="rejection_reason" class="form-control-app" rows="4"
+                    placeholder="Expliquez la raison du rejet…" required></textarea>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border); padding:14px 20px; gap:8px;">
+          <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn-danger-app">Confirmer le rejet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if can_mark_paid %}
+<!-- Pay modal -->
+<div class="modal fade" id="payModal" tabindex="-1" aria-labelledby="payModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:1px solid var(--border); border-radius:var(--radius-lg);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border); padding:18px 20px;">
+        <h5 class="modal-title" id="payModalLabel" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:16px;">
+          <i class="bx bx-money" style="color:var(--accent);"></i> Enregistrer le paiement
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <form method="post" action="{% url 'expenses:expense_mark_paid' expense_id=expense.id %}">
+        {% csrf_token %}
+        <div class="modal-body" style="padding:20px;">
+          <div class="mb-3">
+            <label class="form-label-app">Date de paiement <span class="req-star">*</span></label>
+            <input type="date" name="payment_date" class="form-control-app" required>
+          </div>
+          <div>
+            <label class="form-label-app">Mode de paiement <span class="req-star">*</span></label>
+            <select name="payment_method" class="form-control-app" required>
+              <option value="">— Sélectionner —</option>
+              <option value="cash">Espèces</option>
+              <option value="transfer">Virement</option>
+              <option value="cheque">Chèque</option>
+              <option value="card">Carte bancaire</option>
+              <option value="direct_debit">Prélèvement</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border); padding:14px 20px; gap:8px;">
+          <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn-primary-app">Confirmer le paiement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Pre-fill today's date in pay modal
+(function () {
+  const payDateInput = document.querySelector('#payModal input[name="payment_date"]');
+  if (payDateInput && !payDateInput.value) {
+    payDateInput.value = new Date().toISOString().substring(0, 10);
+  }
+})();
+</script>
+{% endblock %}

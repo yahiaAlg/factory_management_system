@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}{{ dn.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_dns_list' %}">BL Clients</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">{{ dn.reference }}</span>
+{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'sales:client_dn_print' dn_id=dn.id %}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);background:var(--bg-surface);">
+  <i class="bx bx-printer"></i> Imprimer
+</a>
+{% if can_validate %}
+<form method="post" action="{% url 'sales:client_dn_validate' dn_id=dn.id %}" style="display:inline;">
+  {% csrf_token %}
+  <button type="submit" class="btn-primary-app" onclick="return confirm('Valider ce BL ? Cette action déduira le stock produits finis.');">
+    <i class="bx bx-check-circle"></i> Valider le BL
+  </button>
+</form>
+{% endif %}
+{% if can_invoice %}
+<a href="{% url 'sales:client_invoice_create' %}" class="btn-primary-app" style="background:#1d4ed8;">
+  <i class="bx bx-spreadsheet"></i> Créer facture
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:20px;display:flex;align-items:center;gap:14px;">
+  <div>
+    <div class="section-eyebrow">BON DE LIVRAISON CLIENT</div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;font-family:'Inter','Courier New',monospace;letter-spacing:.03em;">{{ dn.reference }}</h1>
+  </div>
+  <div style="margin-left:4px;">
+    {% if dn.status == 'validated' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(21,128,61,.08);color:#15803d;border:1px solid rgba(21,128,61,.2);">Validé</span>
+    {% elif dn.status == 'invoiced' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(29,78,216,.08);color:#1d4ed8;border:1px solid rgba(29,78,216,.2);">Facturé</span>
+    {% elif dn.status == 'delivered' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(15,118,110,.08);color:#0f766e;border:1px solid rgba(15,118,110,.2);">Livré</span>
+    {% elif dn.status == 'cancelled' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(100,116,139,.08);color:#64748b;border:1px solid rgba(100,116,139,.15);">Annulé</span>
+    {% else %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(71,85,105,.08);color:#475569;border:1px solid rgba(71,85,105,.15);">Brouillon</span>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:flex-start;">
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Info header -->
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Client</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary);">{{ dn.client.raison_sociale }}</div>
+          <div style="font-size:12px;color:var(--text-muted);">{{ dn.client.code }}</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">{{ dn.client.address|truncatechars:50 }}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Date de livraison</div>
+          <div style="font-size:15px;font-weight:600;color:var(--text-primary);">{{ dn.delivery_date|date:"d/m/Y" }}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Remise</div>
+          <div style="font-size:15px;font-weight:600;color:{% if dn.discount_pct > 0 %}#b45309{% else %}var(--text-muted){% endif %};">{{ dn.discount_pct|floatformat:1 }} %</div>
+        </div>
+      </div>
+      {% if dn.remarks %}
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Observations</div>
+        <div style="font-size:13px;color:var(--text-secondary);">{{ dn.remarks }}</div>
+      </div>
+      {% endif %}
+      {% if dn.validated_by %}
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);">
+        Validé par <strong>{{ dn.validated_by.get_full_name|default:dn.validated_by.username }}</strong> le {{ dn.validated_at|date:"d/m/Y à H:i" }}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Lines table -->
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">Lignes de livraison</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--bg-raised);">
+            <th style="padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Produit fini</th>
+            <th style="padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">Qté livrée</th>
+            <th style="padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Unité</th>
+            <th style="padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">PU HT</th>
+            <th style="padding:9px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">Montant HT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:11px 16px;">
+              <div style="font-size:13px;font-weight:500;color:var(--text-primary);">{{ line.finished_product.designation }}</div>
+              <div style="font-size:11px;color:var(--text-muted);font-family:'Inter','Courier New',monospace;">{{ line.finished_product.reference }}</div>
+            </td>
+            <td style="padding:11px 16px;text-align:right;font-size:13px;font-weight:500;color:var(--text-primary);">{{ line.quantity_delivered|floatformat:3 }}</td>
+            <td style="padding:11px 16px;font-size:13px;color:var(--text-secondary);">{{ line.unit_of_measure.symbol }}</td>
+            <td style="padding:11px 16px;text-align:right;font-size:13px;color:var(--text-secondary);">{{ line.selling_unit_price_ht|floatformat:2 }} DA</td>
+            <td style="padding:11px 16px;text-align:right;font-size:14px;font-weight:600;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">{{ line.line_amount|floatformat:2 }} DA</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sidebar totals -->
+  <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:calc(var(--topbar-h) + 20px);">
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:16px;">Récapitulatif</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
+          <span>Total brut HT</span>
+          <span style="font-weight:500;">{{ dn.total_ht|floatformat:2 }} DA</span>
+        </div>
+        {% if dn.discount_pct > 0 %}
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#b45309;">
+          <span>Remise ({{ dn.discount_pct|floatformat:1 }}%)</span>
+          <span style="font-weight:500;">— … DA</span>
+        </div>
+        {% endif %}
+        <div style="height:1px;background:var(--border);"></div>
+        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">
+          <span>Total HT net</span>
+          <span>{{ dn.net_amount|floatformat:2 }} DA</span>
+        </div>
+      </div>
+    </div>
+
+    {% if dn.linked_invoice %}
+    <div style="background:rgba(29,78,216,.06);border:1px solid rgba(29,78,216,.2);border-radius:var(--radius-lg);padding:16px;">
+      <div style="font-size:12px;font-weight:600;color:#1d4ed8;margin-bottom:6px;"><i class="bx bx-link"></i> Facture associée</div>
+      <a href="{% url 'sales:client_invoice_detail' invoice_id=dn.linked_invoice.id %}" style="font-family:'Inter','Courier New',monospace;font-size:13px;font-weight:500;color:#1d4ed8;letter-spacing:.03em;">{{ dn.linked_invoice.reference }}</a>
+    </div>
+    {% endif %}
+
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;">
+      <div style="font-size:11px;color:var(--text-muted);">Créé par <strong>{{ dn.created_by.get_full_name|default:dn.created_by.username }}</strong></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">{{ dn.created_at|date:"d/m/Y à H:i" }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

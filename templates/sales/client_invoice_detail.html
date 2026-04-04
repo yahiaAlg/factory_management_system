@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}{{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoices_list' %}">Factures Clients</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">{{ invoice.reference }}</span>
+{% endblock %}
+
+{% block page_actions %}
+<a href="{% url 'sales:client_invoice_print' invoice_id=invoice.id %}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);background:var(--bg-surface);">
+  <i class="bx bx-printer"></i> Imprimer
+</a>
+{% if can_collect %}
+<a href="{% url 'sales:client_payment_create' invoice_id=invoice.id %}" class="btn-primary-app">
+  <i class="bx bx-money"></i> Enregistrer encaissement
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:20px;display:flex;align-items:center;gap:14px;">
+  <div>
+    <div class="section-eyebrow">FACTURE CLIENT</div>
+    <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;font-family:'Inter','Courier New',monospace;letter-spacing:.03em;">{{ invoice.reference }}</h1>
+  </div>
+  <div>
+    {% if invoice.status == 'paid' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(21,128,61,.08);color:#15803d;border:1px solid rgba(21,128,61,.2);">Payée</span>
+    {% elif invoice.status == 'partially_paid' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(29,78,216,.08);color:#1d4ed8;border:1px solid rgba(29,78,216,.2);">Partiellement payée</span>
+    {% elif invoice.status == 'in_dispute' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(217,119,6,.1);color:#d97706;border:1px solid rgba(217,119,6,.2);">En litige</span>
+    {% elif invoice.status == 'cancelled' %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(100,116,139,.08);color:#64748b;">Annulée</span>
+    {% else %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(71,85,105,.08);color:#475569;border:1px solid rgba(71,85,105,.15);">Émise</span>
+    {% endif %}
+    {% if invoice.is_overdue %}
+      <span style="font-size:12px;font-weight:500;padding:4px 12px;border-radius:12px;background:rgba(220,38,38,.08);color:#dc2626;border:1px solid rgba(220,38,38,.2);margin-left:6px;">{{ invoice.days_overdue }}j de retard</span>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:flex-start;">
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Header info -->
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Client</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary);">{{ invoice.client.raison_sociale }}</div>
+          <div style="font-size:12px;color:var(--text-muted);">{{ invoice.client.code }}</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">{{ invoice.client.address|truncatechars:50 }}</div>
+          {% if invoice.client.nif %}<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">NIF: {{ invoice.client.nif }}</div>{% endif %}
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Date facture</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary);">{{ invoice.invoice_date|date:"d/m/Y" }}</div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;margin-top:14px;">Échéance</div>
+          <div style="font-size:14px;font-weight:600;color:{% if invoice.is_overdue %}#dc2626{% else %}var(--text-primary){% endif %};">{{ invoice.due_date|date:"d/m/Y" }}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Remise</div>
+          <div style="font-size:14px;font-weight:600;color:{% if invoice.discount_pct > 0 %}#b45309{% else %}var(--text-muted){% endif %};">{{ invoice.discount_pct|floatformat:1 }} %</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Linked BLs -->
+    {% if linked_dns %}
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">BL Clients liés</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--bg-raised);">
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Référence</th>
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Date</th>
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">Montant HT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dn in linked_dns %}
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;">
+              <a href="{% url 'sales:client_dn_detail' dn_id=dn.id %}" style="font-family:'Inter','Courier New',monospace;font-size:13px;font-weight:500;color:var(--accent);letter-spacing:.03em;">{{ dn.reference }}</a>
+            </td>
+            <td style="padding:10px 16px;text-align:center;font-size:13px;color:var(--text-secondary);">{{ dn.delivery_date|date:"d/m/Y" }}</td>
+            <td style="padding:10px 16px;text-align:right;font-size:13px;font-weight:600;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">{{ dn.total_ht|floatformat:2 }} DA</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <!-- Payments history -->
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">Historique des encaissements</div>
+        {% if can_collect %}
+        <a href="{% url 'sales:client_payment_create' invoice_id=invoice.id %}" style="font-size:12px;color:var(--accent);font-weight:500;">+ Encaissement</a>
+        {% endif %}
+      </div>
+      {% if payments %}
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:var(--bg-raised);">
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Référence</th>
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Date</th>
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:left;text-transform:uppercase;">Mode</th>
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:right;text-transform:uppercase;">Montant</th>
+            <th style="padding:8px 16px;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--text-muted);text-align:center;text-transform:uppercase;">Reçu</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in payments %}
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 16px;font-family:'Inter','Courier New',monospace;font-size:13px;font-weight:500;color:var(--text-primary);letter-spacing:.03em;">{{ p.reference }}</td>
+            <td style="padding:10px 16px;text-align:center;font-size:13px;color:var(--text-secondary);">{{ p.payment_date|date:"d/m/Y" }}</td>
+            <td style="padding:10px 16px;font-size:13px;color:var(--text-secondary);">{{ p.get_payment_method_display }}</td>
+            <td style="padding:10px 16px;text-align:right;font-size:14px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;color:#15803d;">{{ p.amount|floatformat:2 }} DA</td>
+            <td style="padding:10px 16px;text-align:center;">
+              <a href="{% url 'sales:client_payment_receipt_print' payment_id=p.id %}" target="_blank" data-bs-toggle="tooltip" title="Imprimer reçu" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:var(--bg-raised);color:var(--text-secondary);border:1px solid var(--border);">
+                <i class="bx bx-printer" style="font-size:14px;"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Aucun encaissement enregistré</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Sidebar financial summary -->
+  <div style="display:flex;flex-direction:column;gap:16px;position:sticky;top:calc(var(--topbar-h) + 20px);">
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:16px;">Récapitulatif financier</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
+          <span>Total HT brut</span><span style="font-weight:500;">{{ invoice.total_ht|floatformat:2 }} DA</span>
+        </div>
+        {% if invoice.discount_pct > 0 %}
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#b45309;">
+          <span>Remise ({{ invoice.discount_pct|floatformat:1 }}%)</span>
+          <span style="font-weight:500;">— … DA</span>
+        </div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
+          <span>Net HT</span><span style="font-weight:500;">{{ invoice.net_ht|floatformat:2 }} DA</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
+          <span>TVA</span><span style="font-weight:500;">{{ invoice.vat_amount|floatformat:2 }} DA</span>
+        </div>
+        <div style="height:1px;background:var(--border);"></div>
+        <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;">
+          <span>Total TTC</span><span>{{ invoice.total_ttc|floatformat:2 }} DA</span>
+        </div>
+        <div style="height:1px;background:var(--border);"></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
+          <span>Encaissé</span><span style="font-weight:500;color:#15803d;">{{ invoice.total_ttc|floatformat:2|add:"0" }} DA</span>
+        </div>
+        <div style="background:{% if invoice.balance_due > 0 %}rgba(220,38,38,.06){% else %}rgba(21,128,61,.06){% endif %};border:1px solid {% if invoice.balance_due > 0 %}rgba(220,38,38,.2){% else %}rgba(21,128,61,.2){% endif %};border-radius:var(--radius-sm);padding:12px;margin-top:4px;">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:{% if invoice.balance_due > 0 %}#dc2626{% else %}#15803d{% endif %};margin-bottom:4px;">Solde dû</div>
+          <div style="font-size:20px;font-weight:800;font-family:'Plus Jakarta Sans',sans-serif;color:{% if invoice.balance_due > 0 %}#dc2626{% else %}#15803d{% endif %};">{{ invoice.balance_due|floatformat:2 }} DA</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;">
+      <div style="font-size:11px;color:var(--text-muted);">Créé par <strong>{{ invoice.created_by.get_full_name|default:invoice.created_by.username }}</strong></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">{{ invoice.created_at|date:"d/m/Y à H:i" }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

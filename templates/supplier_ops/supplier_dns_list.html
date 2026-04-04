@@ -1,0 +1,133 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}BL Fournisseurs{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>BL Fournisseurs</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.ref-cell { font-family: monospace; font-size: 12.5px; color: var(--text-secondary); }
+.amount-cell { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; text-align: right; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Bons de Livraison Fournisseurs</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">{{ dns|length }} document{{ dns|length|pluralize }}</p>
+  </div>
+  {% if request.user.userprofile.role in "manager,stock_prod" %}
+  <a href="{% url 'supplier_ops:supplier_dn_create' %}" class="btn-primary-app">
+    <i class="bx bx-plus"></i> Nouveau BL
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filter bar -->
+<form method="get" class="filter-bar mb-4">
+  <div class="filter-search-wrap">
+    <i class="bx bx-search filter-search-icon"></i>
+    <input type="text" name="search" class="form-control-app filter-search-input"
+           placeholder="Référence, fournisseur…" value="{{ request.GET.search }}">
+  </div>
+  <select name="status" class="form-control-app">
+    <option value="">Tous les statuts</option>
+    {% for val, label in status_choices %}
+    <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="date_from" class="form-control-app" value="{{ request.GET.date_from }}"
+         title="Date de livraison — depuis">
+  <input type="date" name="date_to" class="form-control-app" value="{{ request.GET.date_to }}"
+         title="Date de livraison — jusqu'à">
+  <button type="submit" class="btn-primary-app">Filtrer</button>
+  <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="btn-secondary-app">Réinitialiser</a>
+</form>
+
+<!-- Table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">Liste des BL Fournisseurs</span>
+  </div>
+  <div class="card-app-body p-0">
+    {% if dns %}
+    <div class="table-container" style="border:none;border-radius:0;">
+      <table class="table table-hover mb-0">
+        <thead class="bg-raised">
+          <tr>
+            <th>Référence</th>
+            <th>Réf. Fournisseur</th>
+            <th>Fournisseur</th>
+            <th>Date livraison</th>
+            <th>Montant HT</th>
+            <th>Statut</th>
+            <th>Validé par</th>
+            <th style="width:80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dn in dns %}
+          <tr>
+            <td><span class="ref-cell">{{ dn.reference }}</span></td>
+            <td style="color:var(--text-secondary);font-size:13px;">{{ dn.external_reference }}</td>
+            <td>
+              <div style="font-weight:500;">{{ dn.supplier.raison_sociale }}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);">{{ dn.supplier.code }}</div>
+            </td>
+            <td style="color:var(--text-secondary);">{{ dn.delivery_date|date:"d/m/Y" }}</td>
+            <td class="amount-cell">{{ dn.total_amount_ht|floatformat:0 }} DA</td>
+            <td>
+              {% if dn.status == 'draft' %}<span class="badge-en-attente">Brouillon</span>
+              {% elif dn.status == 'pending' %}<span class="badge-en-attente">En attente</span>
+              {% elif dn.status == 'validated' %}<span class="badge-valide">Validé</span>
+              {% elif dn.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+              {% elif dn.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12.5px;color:var(--text-muted);">
+              {% if dn.validated_by %}{{ dn.validated_by.get_full_name|default:dn.validated_by.username }}{% else %}—{% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'supplier_ops:supplier_dn_detail' dn.id %}" class="btn-icon" title="Voir">
+                  <i class="bx bx-show"></i>
+                </a>
+                <a href="{% url 'supplier_ops:supplier_dn_print' dn.id %}" class="btn-icon" title="Imprimer" target="_blank">
+                  <i class="bx bx-printer"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bx bx-package empty-state-icon"></i>
+      <div class="empty-state-title">Aucun BL Fournisseur</div>
+      <div class="empty-state-text">
+        {% if request.GET.search or request.GET.status %}
+          Aucun résultat ne correspond à vos filtres.
+        {% else %}
+          Commencez par créer un bon de livraison fournisseur.
+        {% endif %}
+      </div>
+      {% if request.user.userprofile.role in "manager,stock_prod" %}
+      <a href="{% url 'supplier_ops:supplier_dn_create' %}" class="btn-primary-app mt-3">
+        <i class="bx bx-plus"></i> Nouveau BL
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

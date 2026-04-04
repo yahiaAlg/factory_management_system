@@ -83,7 +83,7 @@ def supplier_dn_create(request):
                 request=request,
             )
             messages.success(request, f"BL Fournisseur {dn.reference} créé avec succès")
-            return redirect("supplier_dn_detail", dn_id=dn.id)
+            return redirect("supplier_ops:supplier_dn_detail", dn_id=dn.id)
     else:
         form = SupplierDNForm()
         formset = SupplierDNLineFormSet()
@@ -140,7 +140,7 @@ def supplier_dn_validate(request, dn_id):
         except ValidationError as e:
             messages.error(request, e.message if hasattr(e, "message") else str(e))
 
-    return redirect("supplier_dn_detail", dn_id=dn.id)
+    return redirect("supplier_ops:supplier_dn_detail", dn_id=dn.id)
 
 
 @login_required
@@ -211,7 +211,7 @@ def supplier_invoice_create(request):
                 request=request,
             )
             messages.success(request, f"Facture {invoice.reference} créée avec succès")
-            return redirect("supplier_invoice_detail", invoice_id=invoice.id)
+            return redirect("supplier_ops:supplier_invoice_detail", invoice_id=invoice.id)
     else:
         form = SupplierInvoiceForm()
         formset = SupplierInvoiceLineFormSet()
@@ -269,11 +269,11 @@ def supplier_payment_create(request, invoice_id):
             "Impossible d'enregistrer un paiement : la facture est en litige (BR-INV-04). "
             "Le litige doit être résolu par le Manager avant tout paiement.",
         )
-        return redirect("supplier_invoice_detail", invoice_id=invoice.id)
+        return redirect("supplier_ops:supplier_invoice_detail", invoice_id=invoice.id)
 
     if invoice.balance_due <= 0:
         messages.error(request, "Cette facture est déjà entièrement payée")
-        return redirect("supplier_invoice_detail", invoice_id=invoice.id)
+        return redirect("supplier_ops:supplier_invoice_detail", invoice_id=invoice.id)
 
     if request.method == "POST":
         form = SupplierPaymentForm(request.POST)
@@ -322,7 +322,7 @@ def supplier_payment_create(request, invoice_id):
             messages.success(
                 request, f"Paiement {payment.reference} enregistré avec succès"
             )
-            return redirect("supplier_invoice_detail", invoice_id=invoice.id)
+            return redirect("supplier_ops:supplier_invoice_detail", invoice_id=invoice.id)
     else:
         form = SupplierPaymentForm(initial={"amount": invoice.balance_due})
 

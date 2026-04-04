@@ -1,0 +1,231 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:formulations_list' %}">Formulations</a></li>
+    <li class="breadcrumb-item active">{{ title }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.lines-table th { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.line-row td { vertical-align: middle; }
+.delete-col { width: 40px; text-align: center; }
+#lines-tbody tr.marked-delete { opacity: .45; background: #fff5f5; }
+.formset-empty-row { display: none; }
+.add-line-btn { border: 1px dashed var(--border-strong); background: none; color: var(--accent); border-radius: var(--radius-sm); padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; width: 100%; margin-top: 8px; transition: background .15s; }
+.add-line-btn:hover { background: var(--accent-dim); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="page-title mb-0">{{ title }}</h1>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if form._br_prod_03_locked %}
+<div class="alert-banner alert-banner-warning mb-3">
+  <i class="bi bi-lock-fill me-1"></i>
+  <strong>BR-PROD-03 :</strong> Cette formulation est verrouillée car des ordres de production sont en cours.
+</div>
+{% endif %}
+
+<form method="post" id="formulation-form">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    {# ─── Informations générales ─── #}
+    <div class="col-12">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Informations générales</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label-app">Désignation <span class="text-danger">*</span></label>
+              {{ form.designation }}
+              {% if form.designation.errors %}<div class="form-error">{{ form.designation.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label-app">Produit fini <span class="text-danger">*</span></label>
+              {{ form.finished_product }}
+              {% if form.finished_product.errors %}<div class="form-error">{{ form.finished_product.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Quantité de référence par lot <span class="text-danger">*</span></label>
+              {{ form.reference_batch_qty }}
+              {% if form.reference_batch_qty.errors %}<div class="form-error">{{ form.reference_batch_qty.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Unité du lot <span class="text-danger">*</span></label>
+              {{ form.reference_batch_unit }}
+              {% if form.reference_batch_unit.errors %}<div class="form-error">{{ form.reference_batch_unit.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Rendement attendu (%) <span class="text-danger">*</span></label>
+              {{ form.expected_yield_pct }}
+              {% if form.expected_yield_pct.errors %}<div class="form-error">{{ form.expected_yield_pct.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Notes techniques</label>
+              {{ form.technical_notes }}
+            </div>
+          </div>
+          {% if form.non_field_errors %}
+          <div class="form-error mt-2">{{ form.non_field_errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─── Lignes de formulation ─── #}
+    <div class="col-12">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Composition — matières premières</span>
+        </div>
+        <div class="card-app-body p-0">
+          {{ formset.management_form }}
+          <div class="table-container" style="border:none;border-radius:0;">
+            <table class="table table-hover mb-0">
+              <thead class="bg-raised">
+                <tr class="lines-table">
+                  <th>Matière première</th>
+                  <th style="width:140px;">Qté / lot</th>
+                  <th style="width:140px;">Unité</th>
+                  <th style="width:120px;">Tolérance (%)</th>
+                  <th class="delete-col"></th>
+                </tr>
+              </thead>
+              <tbody id="lines-tbody">
+                {% for lf in formset %}
+                <tr class="line-row {% if lf.instance.pk and lf.DELETE.value %}marked-delete{% endif %}" data-row-index="{{ forloop.counter0 }}">
+                  <td>
+                    {{ lf.raw_material }}
+                    {% if lf.raw_material.errors %}<div class="form-error">{{ lf.raw_material.errors.0 }}</div>{% endif %}
+                  </td>
+                  <td>{{ lf.qty_per_batch }}</td>
+                  <td>{{ lf.unit_of_measure }}</td>
+                  <td>{{ lf.tolerance_pct }}</td>
+                  <td class="delete-col">
+                    {% if lf.instance.pk %}
+                      <div style="display:none;">{{ lf.DELETE }}</div>
+                      <button type="button" class="btn-icon btn-danger-line-toggle" title="Supprimer la ligne">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    {% else %}
+                      <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    {% endif %}
+                    {% for hidden in lf.hidden_fields %}{{ hidden }}{% endfor %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {# Empty row template for JS cloning #}
+          <div id="empty-form-template" class="formset-empty-row">
+            <table><tbody>
+              <tr class="line-row" data-row-index="__prefix__">
+                {% with formset.empty_form as ef %}
+                <td>{{ ef.raw_material }}</td>
+                <td>{{ ef.qty_per_batch }}</td>
+                <td>{{ ef.unit_of_measure }}</td>
+                <td>{{ ef.tolerance_pct }}</td>
+                <td class="delete-col">
+                  <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer"><i class="bi bi-x-lg"></i></button>
+                  {% for hidden in ef.hidden_fields %}{{ hidden }}{% endfor %}
+                </td>
+                {% endwith %}
+              </tr>
+            </tbody></table>
+          </div>
+          <div class="px-3 pb-3 pt-2">
+            <button type="button" id="add-line-btn" class="add-line-btn">
+              <i class="bi bi-plus-circle me-1"></i> Ajouter une matière première
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── Actions ─── #}
+    <div class="col-12 d-flex gap-2 justify-content-end pb-4">
+      <a href="{% url 'production:formulations_list' %}" class="btn-secondary-app">Annuler</a>
+      <button type="submit" class="btn-primary-app" {% if form._br_prod_03_locked %}disabled{% endif %}>
+        <i class="bi bi-check2 me-1"></i> Enregistrer la formulation
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Apply .form-control-app to all formset inputs/selects
+  function applyInputClass(root) {
+    root.querySelectorAll('input:not([type=hidden]):not([type=checkbox]), select, textarea').forEach(el => {
+      el.classList.add('form-control-app');
+    });
+  }
+  applyInputClass(document);
+
+  const tbody = document.getElementById('lines-tbody');
+  const emptyTemplate = document.getElementById('empty-form-template');
+  const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
+  const addBtn = document.getElementById('add-line-btn');
+
+  addBtn.addEventListener('click', () => {
+    const currentCount = parseInt(totalForms.value, 10);
+    const rawHtml = emptyTemplate.querySelector('tr').outerHTML
+      .replace(/__prefix__/g, currentCount);
+    const tmp = document.createElement('tbody');
+    tmp.innerHTML = rawHtml;
+    const newRow = tmp.querySelector('tr');
+    applyInputClass(newRow);
+    tbody.appendChild(newRow);
+    totalForms.value = currentCount + 1;
+    bindRowActions(newRow);
+  });
+
+  function bindRowActions(row) {
+    // Remove empty (unsaved) line
+    const removeBtn = row.querySelector('.btn-remove-empty-line');
+    if (removeBtn) removeBtn.addEventListener('click', () => row.remove());
+
+    // Toggle delete for saved lines
+    const deleteBtn = row.querySelector('.btn-danger-line-toggle');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        const deleteInput = row.querySelector('input[name$="-DELETE"]');
+        const marked = row.classList.toggle('marked-delete');
+        if (deleteInput) deleteInput.checked = marked;
+        deleteBtn.innerHTML = marked
+          ? '<i class="bi bi-arrow-counterclockwise"></i>'
+          : '<i class="bi bi-trash"></i>';
+      });
+    }
+  }
+
+  tbody.querySelectorAll('tr.line-row').forEach(bindRowActions);
+})();
+</script>
+{% endblock %}

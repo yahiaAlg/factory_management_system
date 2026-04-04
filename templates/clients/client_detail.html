@@ -1,0 +1,456 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'clients:clients_list' %}">Clients</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ client.code }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .page-header-left h1 {
+    font-size: 22px; font-weight: 800; color: var(--text-primary); margin: 0 0 4px;
+  }
+  .page-header-left .sub {
+    font-size: 13px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .page-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .info-item {}
+  .info-item-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--text-muted); margin-bottom: 4px;
+  }
+  .info-item-value {
+    font-size: 13.5px; color: var(--text-primary); font-family: 'Inter', sans-serif;
+  }
+  .info-item-value.mono {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-weight: 600; font-size: 13px; color: var(--accent);
+  }
+
+  .fiscal-tag {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--accent-dim); border: 1px solid var(--accent-glow);
+    border-radius: var(--radius-sm); padding: 4px 10px;
+    font-size: 12px; font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600; color: var(--accent);
+  }
+  .fiscal-tag .label { font-weight: 700; font-size: 10px; text-transform: uppercase; color: var(--text-muted); }
+
+  .metric-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .credit-active    { background: #dcfce7; color: #15803d; }
+  .credit-suspended { background: #fef9c3; color: #a16207; }
+  .credit-blocked   { background: #fee2e2; color: #dc2626; }
+
+  .section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--text-muted);
+    display: flex; align-items: center; gap: 7px;
+    padding-bottom: 10px; margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .danger-zone {
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    margin-top: 24px;
+  }
+  .danger-zone-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px; font-weight: 700; color: #dc2626; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .danger-zone-desc {
+    font-size: 12.5px; color: var(--text-secondary); margin-bottom: 12px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="page-header">
+  <div class="page-header-left">
+    <h1>{{ client.raison_sociale }}</h1>
+    <div class="sub">
+      <span style="font-family:'Plus Jakarta Sans',monospace;font-weight:700;color:var(--accent);">{{ client.code }}</span>
+      {% if client.forme_juridique %}
+      <span style="color:var(--border-strong);">•</span>
+      <span>{{ client.forme_juridique }}</span>
+      {% endif %}
+      <span style="color:var(--border-strong);">•</span>
+      {% if client.is_active %}
+        <span class="badge-disponible"><i class="bx bx-check"></i> Actif</span>
+      {% else %}
+        <span class="badge-annule">Inactif</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="page-header-actions">
+    {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'sales' %}
+    <a href="{% url 'clients:client_edit' client.id %}" class="btn-secondary-app">
+      <i class="bx bx-edit"></i> Modifier
+    </a>
+    {% endif %}
+    <a href="{% url 'clients:clients_list' %}" class="btn-secondary-app">
+      <i class="bx bx-list-ul"></i> Liste
+    </a>
+  </div>
+</div>
+
+<!-- Financial metrics row -->
+<div class="metric-row">
+  <div class="metric-card">
+    <div class="metric-icon ic-red"><i class="bx bx-time"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" style="font-size:18px;">
+        {{ outstanding_balance|floatformat:0 }} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">DA</span>
+      </div>
+      <div class="metric-label">Solde impayé</div>
+    </div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-icon ic-teal"><i class="bx bx-trending-up"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" style="font-size:18px;">
+        {{ total_sales_current_year|floatformat:0 }} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">DA</span>
+      </div>
+      <div class="metric-label">CA {{ "now"|date:"Y" }}</div>
+    </div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-icon ic-slate"><i class="bx bx-calendar"></i></div>
+    <div class="metric-body">
+      <div class="metric-value" style="font-size:18px;">
+        {{ total_sales_previous_year|floatformat:0 }} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">DA</span>
+      </div>
+      <div class="metric-label">CA année précédente</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- LEFT COLUMN -->
+  <div class="col-lg-8">
+
+    <!-- Coordonnées & identifiants -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-id-card" style="margin-right:6px;color:var(--accent);"></i>Informations client</span>
+      </div>
+      <div class="card-app-body">
+
+        <!-- Fiscal tags -->
+        {% if client.nif or client.nis or client.rc or client.ai %}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+          {% if client.nif %}
+          <span class="fiscal-tag"><span class="label">NIF</span> {{ client.nif }}</span>
+          {% endif %}
+          {% if client.nis %}
+          <span class="fiscal-tag"><span class="label">NIS</span> {{ client.nis }}</span>
+          {% endif %}
+          {% if client.rc %}
+          <span class="fiscal-tag"><span class="label">RC</span> {{ client.rc }}</span>
+          {% endif %}
+          {% if client.ai %}
+          <span class="fiscal-tag"><span class="label">AI</span> {{ client.ai }}</span>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-item-label">Adresse</div>
+            <div class="info-item-value">{{ client.address|linebreaksbr }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-item-label">Wilaya</div>
+            <div class="info-item-value">{{ client.wilaya|default:"—" }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-item-label">Téléphone</div>
+            <div class="info-item-value">{{ client.phone|default:"—" }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-item-label">Fax</div>
+            <div class="info-item-value">{{ client.fax|default:"—" }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-item-label">Email</div>
+            <div class="info-item-value">
+              {% if client.email %}<a href="mailto:{{ client.email }}" style="color:var(--accent);">{{ client.email }}</a>{% else %}—{% endif %}
+            </div>
+          </div>
+          {% if client.contact_person %}
+          <div class="info-item">
+            <div class="info-item-label">Contact</div>
+            <div class="info-item-value">{{ client.contact_person }}{% if client.contact_phone %} — {{ client.contact_phone }}{% endif %}</div>
+          </div>
+          {% endif %}
+          <div class="info-item">
+            <div class="info-item-label">Délai paiement</div>
+            <div class="info-item-value">{{ client.payment_terms }} jours</div>
+          </div>
+          <div class="info-item">
+            <div class="info-item-label">Remise max.</div>
+            <div class="info-item-value">{{ client.max_discount_pct }} %</div>
+          </div>
+          <div class="info-item">
+            <div class="info-item-label">Créé par</div>
+            <div class="info-item-value">{{ client.created_by.get_full_name|default:client.created_by.username }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-item-label">Date création</div>
+            <div class="info-item-value">{{ client.created_at|date:"d/m/Y" }}</div>
+          </div>
+        </div>
+
+        {% if client.notes %}
+        <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
+          <div class="info-item-label" style="margin-bottom:6px;">Notes</div>
+          <div style="font-size:13px;color:var(--text-secondary);white-space:pre-line;">{{ client.notes }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Recent deliveries -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-send" style="margin-right:6px;color:var(--accent);"></i>Bons de livraison récents</span>
+        <div class="card-header-actions">
+          <a href="{% url 'sales:client_dns_list' %}?client={{ client.id }}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
+            Voir tous <i class="bx bx-chevron-right"></i>
+          </a>
+        </div>
+      </div>
+      {% if recent_deliveries %}
+      <div class="table-container" style="border:none;border-radius:0;overflow-x:auto;">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr style="background:var(--bg-raised);">
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;">N° BL</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;">Date</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;">Statut</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dn in recent_deliveries %}
+            <tr>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;">
+                <span style="font-family:'Plus Jakarta Sans',monospace;font-weight:600;font-size:12.5px;color:var(--text-primary);">{{ dn.reference }}</span>
+              </td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;color:var(--text-secondary);">{{ dn.delivery_date|date:"d/m/Y" }}</td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;">
+                {% if dn.status == 'validated' %}<span class="badge-valide">Validé</span>
+                {% elif dn.status == 'delivered' %}<span class="badge-disponible">Livré</span>
+                {% elif dn.status == 'invoiced' %}<span class="badge-commande">Facturé</span>
+                {% elif dn.status == 'draft' %}<span class="badge-en-attente">Brouillon</span>
+                {% elif dn.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+                {% else %}<span class="badge-en-attente">{{ dn.status }}</span>{% endif %}
+              </td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;text-align:right;">
+                <a href="{% url 'sales:client_dn_detail' dn.id %}" class="btn-icon" data-bs-toggle="tooltip" title="Voir">
+                  <i class="bx bx-show"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-app-body">
+        <div class="empty-state" style="padding:24px 0;">
+          <i class="bx bx-send empty-state-icon" style="font-size:32px;"></i>
+          <div class="empty-state-text">Aucun bon de livraison</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Recent invoices -->
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-spreadsheet" style="margin-right:6px;color:var(--accent);"></i>Factures récentes</span>
+        <div class="card-header-actions">
+          <a href="{% url 'sales:client_invoices_list' %}?client={{ client.id }}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
+            Voir toutes <i class="bx bx-chevron-right"></i>
+          </a>
+        </div>
+      </div>
+      {% if recent_invoices %}
+      <div class="table-container" style="border:none;border-radius:0;overflow-x:auto;">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr style="background:var(--bg-raised);">
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;">N° Facture</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;">Date</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;text-align:right;">Montant TTC</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;text-align:right;">Solde dû</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;">Statut</th>
+              <th style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);padding:10px 16px;border:none;text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in recent_invoices %}
+            <tr>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;">
+                <span style="font-family:'Plus Jakarta Sans',monospace;font-weight:600;font-size:12.5px;color:var(--text-primary);">{{ inv.reference }}</span>
+              </td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;color:var(--text-secondary);">{{ inv.invoice_date|date:"d/m/Y" }}</td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">
+                {{ inv.total_ttc|floatformat:0 }} DA
+              </td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;{% if inv.balance_due > 0 %}color:#dc2626;{% endif %}">
+                {{ inv.balance_due|floatformat:0 }} DA
+              </td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;">
+                {% if inv.status == 'paid' %}<span class="badge-paye">Payé</span>
+                {% elif inv.status == 'partially_paid' %}<span class="badge-partiellement">Partiellement payé</span>
+                {% elif inv.status == 'issued' %}<span class="badge-non-paye">Non payé</span>
+                {% elif inv.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+                {% elif inv.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+                {% else %}<span class="badge-en-attente">{{ inv.status }}</span>{% endif %}
+              </td>
+              <td style="padding:10px 16px;border-color:var(--border);vertical-align:middle;text-align:right;">
+                <a href="{% url 'sales:client_invoice_detail' inv.id %}" class="btn-icon" data-bs-toggle="tooltip" title="Voir">
+                  <i class="bx bx-show"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-app-body">
+        <div class="empty-state" style="padding:24px 0;">
+          <i class="bx bx-spreadsheet empty-state-icon" style="font-size:32px;"></i>
+          <div class="empty-state-text">Aucune facture</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /col-lg-8 -->
+
+  <!-- RIGHT COLUMN -->
+  <div class="col-lg-4">
+
+    <!-- Credit status card -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-shield" style="margin-right:6px;color:var(--accent);"></i>Statut crédit</span>
+      </div>
+      <div class="card-app-body">
+        <div style="text-align:center; padding:8px 0 16px;">
+          <span class="credit-{{ client.credit_status }}"
+                style="display:inline-flex;align-items:center;gap:6px;padding:6px 18px;border-radius:99px;font-size:14px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;">
+            {% if client.credit_status == 'active' %}
+              <i class="bx bx-check-circle"></i> Actif
+            {% elif client.credit_status == 'suspended' %}
+              <i class="bx bx-pause-circle"></i> Suspendu
+            {% else %}
+              <i class="bx bx-block"></i> Bloqué
+            {% endif %}
+          </span>
+        </div>
+
+        {% if request.user.userprofile.role == 'manager' %}
+        <form method="post" action="{% url 'clients:client_update_credit_status' client.id %}" id="creditStatusForm">
+          {% csrf_token %}
+          <label class="field-label" style="font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;">
+            Changer le statut
+          </label>
+          <div style="display:flex;gap:8px;">
+            <select name="credit_status" class="form-control-app" style="flex:1;" id="creditStatusSelect">
+              <option value="active"    {% if client.credit_status == 'active'    %}selected{% endif %}>Actif</option>
+              <option value="suspended" {% if client.credit_status == 'suspended' %}selected{% endif %}>Suspendu</option>
+              <option value="blocked"   {% if client.credit_status == 'blocked'   %}selected{% endif %}>Bloqué</option>
+            </select>
+            <button type="submit" class="btn-primary-app" style="padding:0 14px; white-space:nowrap;">
+              <i class="bx bx-check"></i>
+            </button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Metadata card -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-info-circle" style="margin-right:6px;color:var(--accent);"></i>Métadonnées</span>
+      </div>
+      <div class="card-app-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <div class="info-item-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:3px;">Créé par</div>
+            <div style="font-size:13px;color:var(--text-primary);">{{ client.created_by.get_full_name|default:client.created_by.username }}</div>
+          </div>
+          <div>
+            <div class="info-item-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:3px;">Date de création</div>
+            <div style="font-size:13px;color:var(--text-primary);">{{ client.created_at|date:"d/m/Y" }}</div>
+          </div>
+          <div>
+            <div class="info-item-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:3px;">Dernière modification</div>
+            <div style="font-size:13px;color:var(--text-primary);">{{ client.updated_at|date:"d/m/Y" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'sales' %}
+    <div class="danger-zone">
+      <div class="danger-zone-title"><i class="bx bx-error-alt"></i> Zone critique</div>
+      <div class="danger-zone-desc">
+        {% if client.is_active %}
+        Désactiver ce client l'empêche d'apparaître dans les sélecteurs de BL et de commandes.
+        {% else %}
+        Réactiver ce client le rend à nouveau disponible pour les opérations.
+        {% endif %}
+      </div>
+      <form method="post" action="{% url 'clients:client_toggle_active' client.id %}" id="toggleActiveForm">
+        {% csrf_token %}
+        <button type="submit" class="{% if client.is_active %}btn-danger-app{% else %}btn-validate{% endif %}" onclick="return confirm('Confirmer cette action ?')">
+          <i class="bx bx-{% if client.is_active %}hide{% else %}show{% endif %}"></i>
+          {% if client.is_active %}Désactiver le client{% else %}Réactiver le client{% endif %}
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div><!-- /col-lg-4 -->
+
+</div>
+{% endblock %}

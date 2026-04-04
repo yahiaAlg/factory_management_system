@@ -1,0 +1,183 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Stock Produits Finis{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Stock Produits Finis</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--text-primary);
+  margin: 0;
+}
+.wac-cell {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  text-align: right;
+  color: var(--text-secondary);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title">Stock Produits Finis</h1>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Niveaux de stock, coûts moyens pondérés et valorisation</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'stock:stock_alerts_dashboard' %}" class="btn-secondary-app">
+      <i class="bx bx-bell"></i> Alertes
+      {% if stockout_count or low_stock_count %}
+      <span style="background:#dc2626;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;">{{ stockout_count|add:low_stock_count }}</span>
+      {% endif %}
+    </a>
+    <a href="{% url 'stock:stock_movements_list' %}" class="btn-secondary-app">
+      <i class="bx bx-transfer-alt"></i> Mouvements
+    </a>
+  </div>
+</div>
+
+<!-- Metrics -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-blue"><i class="bx bx-box"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">{{ balances|length }}</div>
+        <div class="metric-label">Références actives</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-teal"><i class="bx bx-wallet"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="font-size:17px;">{{ total_value|floatformat:0 }} DA</div>
+        <div class="metric-label">Valeur totale (CMP)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-amber"><i class="bx bx-error-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="color:{% if low_stock_count %}#d97706{% else %}var(--text-primary){% endif %};">{{ low_stock_count }}</div>
+        <div class="metric-label">Stock faible</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-red"><i class="bx bx-x-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="color:{% if stockout_count %}#dc2626{% else %}var(--text-primary){% endif %};">{{ stockout_count }}</div>
+        <div class="metric-label">Ruptures de stock</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<form method="get" id="filterForm">
+<div class="filter-bar">
+  <div class="filter-search">
+    <i class="bx bx-search"></i>
+    <input type="text" name="search" value="{{ request.GET.search }}"
+           class="form-control-app" placeholder="Rechercher un produit (ref, désignation)…"
+           onchange="document.getElementById('filterForm').submit()">
+  </div>
+  <select name="status" class="form-control-app" onchange="document.getElementById('filterForm').submit()">
+    <option value="">Tous les statuts</option>
+    <option value="available" {% if request.GET.status == 'available' %}selected{% endif %}>Disponible</option>
+    <option value="running_low" {% if request.GET.status == 'running_low' %}selected{% endif %}>Stock faible</option>
+    <option value="stockout" {% if request.GET.status == 'stockout' %}selected{% endif %}>Rupture</option>
+  </select>
+  {% if request.GET.search or request.GET.status %}
+  <a href="{% url 'stock:finished_products_stock_list' %}" class="filter-reset">
+    <i class="bx bx-x"></i> Réinitialiser
+  </a>
+  {% endif %}
+</div>
+</form>
+
+<!-- Table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">
+      <i class="bx bx-box" style="color:var(--accent);margin-right:6px;"></i>
+      Produits Finis
+    </span>
+    <span style="font-size:12px;color:var(--text-muted);">{{ balances|length }} résultat{{ balances|length|pluralize }}</span>
+  </div>
+  <div class="table-container" style="border:none;border-radius:0;">
+    {% if balances %}
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Référence</th>
+          <th>Désignation</th>
+          <th class="text-end">Qté en stock</th>
+          <th class="text-end">CMP</th>
+          <th class="text-end">Prix vente réf.</th>
+          <th class="text-end">Valeur stock</th>
+          <th>Statut</th>
+          <th class="text-center">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for balance in balances %}
+        {% with status=balance.get_stock_status %}
+        <tr>
+          <td><span class="col-ref">{{ balance.finished_product.reference }}</span></td>
+          <td style="font-weight:500;">{{ balance.finished_product.designation }}</td>
+          <td class="text-end">
+            <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;color:{% if status == 'stockout' %}#dc2626{% elif status == 'running_low' %}#d97706{% else %}#16a34a{% endif %};">
+              {{ balance.quantity|floatformat:3 }} {{ balance.finished_product.sales_unit.symbol }}
+            </span>
+          </td>
+          <td class="wac-cell">{{ balance.weighted_average_cost|floatformat:2 }} DA</td>
+          <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">
+            {{ balance.finished_product.reference_selling_price|floatformat:2 }} DA
+          </td>
+          <td class="col-amount">{{ balance.get_stock_value|floatformat:0 }} DA</td>
+          <td>
+            {% if status == 'available' %}
+              <span class="badge-disponible"><i class="bx bx-check-circle"></i> Disponible</span>
+            {% elif status == 'running_low' %}
+              <span class="badge-presque"><i class="bx bx-error"></i> Stock faible</span>
+            {% elif status == 'stockout' %}
+              <span class="badge-rupture"><i class="bx bx-x-circle"></i> Rupture</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            <a href="{% url 'stock:finished_product_stock_detail' product_id=balance.finished_product.id %}"
+               class="btn-icon" data-bs-toggle="tooltip" title="Voir détail">
+              <i class="bx bx-show"></i>
+            </a>
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bx bx-box"></i></div>
+      <div class="empty-title">Aucun produit fini trouvé</div>
+      <div class="empty-desc">Aucun stock enregistré pour les critères sélectionnés.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

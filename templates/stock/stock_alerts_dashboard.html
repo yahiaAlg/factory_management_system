@@ -1,0 +1,315 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Alertes Stock{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Alertes Stock</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-title { font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:22px;color:var(--text-primary);margin:0; }
+.alert-section-title {
+  font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:14px;
+  display:flex; align-items:center; gap:8px; margin-bottom:14px;
+}
+.alert-section-title .count-pill {
+  font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:99px;
+}
+.pulse-dot {
+  width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;
+  animation:pulseDot 1.4s ease-in-out infinite;
+}
+.pulse-dot.danger { background:#dc2626; }
+.pulse-dot.warning { background:#d97706; }
+@keyframes pulseDot {
+  0%,100% { transform:scale(1); opacity:1; }
+  50% { transform:scale(1.6); opacity:0.6; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% with total_alerts=rm_stockouts|length|add:rm_low_stock|length|add:fp_stockouts|length|add:fp_low_stock|length %}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title">
+      Alertes Stock
+      {% if total_alerts %}
+      <span style="font-size:15px;background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:99px;padding:2px 12px;margin-left:10px;vertical-align:middle;">
+        {{ total_alerts }} alerte{{ total_alerts|pluralize }}
+      </span>
+      {% endif %}
+    </h1>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Ruptures et seuils critiques — matières premières et produits finis</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'stock:raw_materials_stock_list' %}" class="btn-secondary-app">
+      <i class="bx bx-package"></i> Stock MP
+    </a>
+    <a href="{% url 'stock:finished_products_stock_list' %}" class="btn-secondary-app">
+      <i class="bx bx-box"></i> Stock PF
+    </a>
+    {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'stock_prod' %}
+    <a href="{% url 'stock:stock_adjustment_create' %}" class="btn-primary-app">
+      <i class="bx bx-edit-alt"></i> Créer ajustement
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Summary metrics -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-red"><i class="bx bx-x-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="color:{% if rm_stockouts %}#dc2626{% else %}var(--text-primary){% endif %};">{{ rm_stockouts|length }}</div>
+        <div class="metric-label">Ruptures MP</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-amber"><i class="bx bx-error-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="color:{% if rm_low_stock %}#d97706{% else %}var(--text-primary){% endif %};">{{ rm_low_stock|length }}</div>
+        <div class="metric-label">Stock MP faible</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-red"><i class="bx bx-x-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="color:{% if fp_stockouts %}#dc2626{% else %}var(--text-primary){% endif %};">{{ fp_stockouts|length }}</div>
+        <div class="metric-label">Ruptures PF</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-amber"><i class="bx bx-error-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="color:{% if fp_low_stock %}#d97706{% else %}var(--text-primary){% endif %};">{{ fp_low_stock|length }}</div>
+        <div class="metric-label">Stock PF faible</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if not total_alerts %}
+<div class="card-app">
+  <div class="card-app-body">
+    <div class="empty-state" style="padding:80px 24px;">
+      <div class="empty-icon" style="color:#16a34a;opacity:1;"><i class="bx bx-check-shield"></i></div>
+      <div class="empty-title" style="color:#16a34a;">Aucune alerte active</div>
+      <div class="empty-desc">Tous les niveaux de stock sont au-dessus des seuils définis.</div>
+    </div>
+  </div>
+</div>
+{% else %}
+
+<div class="row g-3">
+
+  <!-- RM Stockouts -->
+  {% if rm_stockouts %}
+  <div class="col-12">
+    <div class="card-app" style="border-color:#fca5a5;">
+      <div class="card-app-header" style="background:#fef2f2;">
+        <div class="alert-section-title" style="color:#dc2626;margin-bottom:0;">
+          <span class="pulse-dot danger"></span>
+          Matières premières — Rupture de stock
+          <span class="count-pill" style="background:#fee2e2;color:#dc2626;">{{ rm_stockouts|length }}</span>
+        </div>
+      </div>
+      <div class="table-container" style="border:none;border-radius:0;">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Désignation</th>
+              <th>Catégorie</th>
+              <th class="text-end">Stock actuel</th>
+              <th class="text-end">Seuil rupture</th>
+              <th class="text-end">Seuil alerte</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in rm_stockouts %}
+            <tr>
+              <td><span class="col-ref">{{ b.raw_material.reference }}</span></td>
+              <td style="font-weight:500;">{{ b.raw_material.designation }}</td>
+              <td style="font-size:13px;color:var(--text-secondary);">{{ b.raw_material.category.name }}</td>
+              <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;color:#dc2626;">
+                {{ b.quantity|floatformat:3 }} {{ b.raw_material.unit_of_measure.symbol }}
+              </td>
+              <td class="text-end" style="font-size:13px;color:var(--text-muted);">{{ b.raw_material.stockout_threshold|floatformat:3 }} {{ b.raw_material.unit_of_measure.symbol }}</td>
+              <td class="text-end" style="font-size:13px;color:var(--text-muted);">{{ b.raw_material.alert_threshold|floatformat:3 }} {{ b.raw_material.unit_of_measure.symbol }}</td>
+              <td class="text-center">
+                <a href="{% url 'stock:raw_material_stock_detail' material_id=b.raw_material.id %}" class="btn-icon" data-bs-toggle="tooltip" title="Voir détail">
+                  <i class="bx bx-show"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- RM Low Stock -->
+  {% if rm_low_stock %}
+  <div class="col-12">
+    <div class="card-app" style="border-color:#fcd34d;">
+      <div class="card-app-header" style="background:#fffbeb;">
+        <div class="alert-section-title" style="color:#d97706;margin-bottom:0;">
+          <span class="pulse-dot warning"></span>
+          Matières premières — Stock faible
+          <span class="count-pill" style="background:#fef9c3;color:#a16207;">{{ rm_low_stock|length }}</span>
+        </div>
+      </div>
+      <div class="table-container" style="border:none;border-radius:0;">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Désignation</th>
+              <th>Catégorie</th>
+              <th class="text-end">Stock actuel</th>
+              <th class="text-end">Seuil alerte</th>
+              <th class="text-end">Valeur stock</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in rm_low_stock %}
+            <tr>
+              <td><span class="col-ref">{{ b.raw_material.reference }}</span></td>
+              <td style="font-weight:500;">{{ b.raw_material.designation }}</td>
+              <td style="font-size:13px;color:var(--text-secondary);">{{ b.raw_material.category.name }}</td>
+              <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;color:#d97706;">
+                {{ b.quantity|floatformat:3 }} {{ b.raw_material.unit_of_measure.symbol }}
+              </td>
+              <td class="text-end" style="font-size:13px;color:var(--text-muted);">{{ b.raw_material.alert_threshold|floatformat:3 }} {{ b.raw_material.unit_of_measure.symbol }}</td>
+              <td class="col-amount">{{ b.get_stock_value|floatformat:0 }} DA</td>
+              <td class="text-center">
+                <a href="{% url 'stock:raw_material_stock_detail' material_id=b.raw_material.id %}" class="btn-icon" data-bs-toggle="tooltip" title="Voir détail">
+                  <i class="bx bx-show"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- FP Stockouts -->
+  {% if fp_stockouts %}
+  <div class="col-12">
+    <div class="card-app" style="border-color:#fca5a5;">
+      <div class="card-app-header" style="background:#fef2f2;">
+        <div class="alert-section-title" style="color:#dc2626;margin-bottom:0;">
+          <span class="pulse-dot danger"></span>
+          Produits finis — Rupture de stock
+          <span class="count-pill" style="background:#fee2e2;color:#dc2626;">{{ fp_stockouts|length }}</span>
+        </div>
+      </div>
+      <div class="table-container" style="border:none;border-radius:0;">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Désignation</th>
+              <th class="text-end">Stock actuel</th>
+              <th class="text-end">CMP</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in fp_stockouts %}
+            <tr>
+              <td><span class="col-ref">{{ b.finished_product.reference }}</span></td>
+              <td style="font-weight:500;">{{ b.finished_product.designation }}</td>
+              <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;color:#dc2626;">
+                {{ b.quantity|floatformat:3 }} {{ b.finished_product.sales_unit.symbol }}
+              </td>
+              <td class="col-amount">{{ b.weighted_average_cost|floatformat:2 }} DA</td>
+              <td class="text-center">
+                <a href="{% url 'stock:finished_product_stock_detail' product_id=b.finished_product.id %}" class="btn-icon" data-bs-toggle="tooltip" title="Voir détail">
+                  <i class="bx bx-show"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- FP Low Stock -->
+  {% if fp_low_stock %}
+  <div class="col-12">
+    <div class="card-app" style="border-color:#fcd34d;">
+      <div class="card-app-header" style="background:#fffbeb;">
+        <div class="alert-section-title" style="color:#d97706;margin-bottom:0;">
+          <span class="pulse-dot warning"></span>
+          Produits finis — Stock faible
+          <span class="count-pill" style="background:#fef9c3;color:#a16207;">{{ fp_low_stock|length }}</span>
+        </div>
+      </div>
+      <div class="table-container" style="border:none;border-radius:0;">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Désignation</th>
+              <th class="text-end">Stock actuel</th>
+              <th class="text-end">Seuil alerte</th>
+              <th class="text-end">CMP</th>
+              <th class="text-end">Valeur stock</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in fp_low_stock %}
+            <tr>
+              <td><span class="col-ref">{{ b.finished_product.reference }}</span></td>
+              <td style="font-weight:500;">{{ b.finished_product.designation }}</td>
+              <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;color:#d97706;">
+                {{ b.quantity|floatformat:3 }} {{ b.finished_product.sales_unit.symbol }}
+              </td>
+              <td class="text-end" style="font-size:13px;color:var(--text-muted);">{{ b.finished_product.alert_threshold|floatformat:3 }} {{ b.finished_product.sales_unit.symbol }}</td>
+              <td class="col-amount">{{ b.weighted_average_cost|floatformat:2 }} DA</td>
+              <td class="col-amount">{{ b.get_stock_value|floatformat:0 }} DA</td>
+              <td class="text-center">
+                <a href="{% url 'stock:finished_product_stock_detail' product_id=b.finished_product.id %}" class="btn-icon" data-bs-toggle="tooltip" title="Voir détail">
+                  <i class="bx bx-show"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endif %}
+{% endwith %}
+{% endblock %}

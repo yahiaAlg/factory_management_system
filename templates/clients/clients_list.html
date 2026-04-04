@@ -1,0 +1,256 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}Répertoire clients{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Clients</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .credit-active    { background: #dcfce7; color: #15803d; }
+  .credit-suspended { background: #fef9c3; color: #a16207; }
+  .credit-blocked   { background: #fee2e2; color: #dc2626; }
+
+  .client-code {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  .raison-sociale {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--text-primary);
+  }
+
+  .inactive-row { opacity: 0.55; }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  .filter-bar .search-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .filter-bar .search-wrap i {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 16px;
+  }
+
+  .filter-bar .search-wrap input {
+    padding-left: 34px;
+  }
+
+  .filter-bar select,
+  .filter-bar input[type="text"],
+  .filter-bar input[type="search"] {
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .filter-reset {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: color 0.15s, background 0.15s;
+  }
+  .filter-reset:hover { color: var(--accent); background: var(--accent-dim); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bx bx-group" style="color:var(--accent); margin-right:8px;"></i>{{ title }}</h1>
+  {% if request.user.userprofile.role in 'manager,sales' %}
+  <a href="{% url 'clients:client_create' %}" class="btn-primary-app">
+    <i class="bx bx-plus"></i> Nouveau client
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filter Bar -->
+<form method="get" class="filter-bar">
+  <div class="search-wrap">
+    <i class="bx bx-search"></i>
+    <input type="search" name="search" class="form-control-app"
+           placeholder="Code, raison sociale, NIF, NIS…"
+           value="{{ request.GET.search }}">
+  </div>
+
+  <select name="credit_status" class="form-control-app" style="width:auto;">
+    <option value="">Statut crédit</option>
+    {% for val, label in credit_statuses %}
+    <option value="{{ val }}" {% if request.GET.credit_status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="wilaya" class="form-control-app" style="width:auto;">
+    <option value="">Wilaya</option>
+    {% for w in wilayas %}
+    <option value="{{ w }}" {% if request.GET.wilaya == w %}selected{% endif %}>{{ w }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="active" class="form-control-app" style="width:auto;">
+    <option value="" {% if not request.GET.active %}selected{% endif %}>Actifs seulement</option>
+    <option value="all" {% if request.GET.active == 'all' %}selected{% endif %}>Tous</option>
+    <option value="false" {% if request.GET.active == 'false' %}selected{% endif %}>Inactifs</option>
+  </select>
+
+  <button type="submit" class="btn-primary-app" style="height:36px; padding:0 14px;">
+    <i class="bx bx-filter-alt"></i> Filtrer
+  </button>
+  <a href="{% url 'clients:clients_list' %}" class="filter-reset">
+    <i class="bx bx-x"></i> Réinitialiser
+  </a>
+</form>
+
+<!-- Clients Table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">
+      <i class="bx bx-list-ul" style="margin-right:6px; color:var(--accent);"></i>
+      {% with count=clients|length %}
+      {{ count }} client{{ count|pluralize }}
+      {% endwith %}
+    </span>
+  </div>
+
+  {% if clients %}
+  <div class="table-container" style="border:none; border-radius:0; overflow-x:auto;">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr style="background:var(--bg-raised);">
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none;">Code</th>
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none;">Raison sociale</th>
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none;">Wilaya</th>
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none;">Téléphone</th>
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none;">Délai paiement</th>
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none;">Statut crédit</th>
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none;">Statut</th>
+          <th style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); padding:12px 16px; border:none; text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for client in clients %}
+        <tr class="{% if not client.is_active %}inactive-row{% endif %}">
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle;">
+            <span class="client-code">{{ client.code }}</span>
+          </td>
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle;">
+            <a href="{% url 'clients:client_detail' client.id %}" class="raison-sociale" style="color:inherit;">
+              {{ client.raison_sociale }}
+            </a>
+            {% if client.forme_juridique %}
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">{{ client.forme_juridique }}</div>
+            {% endif %}
+          </td>
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle; color:var(--text-secondary);">
+            {{ client.wilaya|default:"—" }}
+          </td>
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle; color:var(--text-secondary);">
+            {{ client.phone|default:"—" }}
+          </td>
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle; color:var(--text-secondary);">
+            {{ client.payment_terms }} j
+          </td>
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle;">
+            <span class="credit-{{ client.credit_status }}"
+                  style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;">
+              {% if client.credit_status == 'active' %}
+                <i class="bx bx-check-circle"></i> Actif
+              {% elif client.credit_status == 'suspended' %}
+                <i class="bx bx-pause-circle"></i> Suspendu
+              {% else %}
+                <i class="bx bx-block"></i> Bloqué
+              {% endif %}
+            </span>
+          </td>
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle;">
+            {% if client.is_active %}
+              <span class="badge-disponible"><i class="bx bx-check"></i> Actif</span>
+            {% else %}
+              <span class="badge-annule">Inactif</span>
+            {% endif %}
+          </td>
+          <td style="padding:12px 16px; border-color:var(--border); vertical-align:middle; text-align:right;">
+            <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">
+              <a href="{% url 'clients:client_detail' client.id %}"
+                 class="btn-icon" data-bs-toggle="tooltip" title="Voir le détail">
+                <i class="bx bx-show"></i>
+              </a>
+              {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'sales' %}
+              <a href="{% url 'clients:client_edit' client.id %}"
+                 class="btn-icon" data-bs-toggle="tooltip" title="Modifier">
+                <i class="bx bx-edit"></i>
+              </a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-app-body">
+    <div class="empty-state">
+      <i class="bx bx-group empty-state-icon"></i>
+      <div class="empty-state-title">Aucun client trouvé</div>
+      <div class="empty-state-text">
+        {% if request.GET.search or request.GET.credit_status or request.GET.wilaya %}
+        Modifiez vos filtres ou
+        <a href="{% url 'clients:clients_list' %}" style="color:var(--accent);">réinitialisez</a>
+        {% else %}
+        Commencez par créer votre premier client
+        {% endif %}
+      </div>
+      {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'sales' %}
+      <a href="{% url 'clients:client_create' %}" class="btn-primary-app mt-3">
+        <i class="bx bx-plus"></i> Nouveau client
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,236 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}{{ order.reference }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:production_orders_list' %}">Ordres de production</a></li>
+    <li class="breadcrumb-item active">{{ order.reference }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.timeline-step { display:flex; align-items:center; gap:8px; }
+.timeline-step .step-dot { width:12px; height:12px; border-radius:50%; border:2px solid var(--border-strong); background:var(--bg-surface); flex-shrink:0; }
+.timeline-step.done .step-dot { background:var(--accent); border-color:var(--accent); }
+.timeline-step.active .step-dot { background:#f59e0b; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.2); }
+.timeline-line { width:32px; height:2px; background:var(--border); flex-shrink:0; }
+.timeline-line.done { background:var(--accent); }
+.info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+.info-cell { padding:10px 14px; background:var(--bg-raised); border-radius:var(--radius-sm); border:1px solid var(--border); }
+.info-cell .label { font-size:11px; font-weight:500; color:var(--text-muted); margin-bottom:3px; font-family:'Inter',sans-serif; text-transform:uppercase; letter-spacing:.04em; }
+.info-cell .value { font-size:15px; font-weight:600; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{# ─── Header ─── #}
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span style="font-family:monospace;font-size:13px;color:var(--text-muted);">{{ order.reference }}</span>
+      {% if order.status == 'pending' %}<span class="badge-en-attente">En attente</span>
+      {% elif order.status == 'validated' %}<span class="badge-valide">Validé</span>
+      {% elif order.status == 'in_progress' %}<span class="badge-commande">En cours</span>
+      {% elif order.status == 'completed' %}<span class="badge-valide">Clôturé</span>
+      {% elif order.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+      {% endif %}
+    </div>
+    <h1 class="page-title mb-1">{{ order.formulation.designation }}</h1>
+    <p class="text-muted small mb-0">
+      Formulation <a href="{% url 'production:formulation_detail' order.formulation.id %}" class="text-decoration-none" style="color:var(--accent);">{{ order.formulation.reference }} v{{ order.formulation.version }}</a>
+      &nbsp;·&nbsp; Créé le {{ order.created_at|date:"d/m/Y" }} par {{ order.created_by.get_full_name|default:order.created_by.username }}
+    </p>
+  </div>
+  {# Action buttons based on status #}
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_validate %}
+    <form method="post" action="{% url 'production:production_order_validate' order.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-validate"><i class="bi bi-patch-check me-1"></i> Valider (vérif. stock)</button>
+    </form>
+    {% endif %}
+    {% if can_launch %}
+    <form method="post" action="{% url 'production:production_order_launch' order.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary-app"><i class="bi bi-play-fill me-1"></i> Lancer</button>
+    </form>
+    {% endif %}
+    {% if can_close %}
+    <a href="{% url 'production:production_order_close' order.id %}" class="btn-primary-app">
+      <i class="bi bi-flag-fill me-1"></i> Clôturer
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{# ─── Status timeline ─── #}
+<div class="d-flex align-items-center mb-4 flex-wrap gap-1">
+  <div class="timeline-step {% if order.status in 'pending,validated,in_progress,completed' %}done{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">En attente</span>
+  </div>
+  <div class="timeline-line {% if order.status in 'validated,in_progress,completed' %}done{% endif %}"></div>
+  <div class="timeline-step {% if order.status in 'validated,in_progress,completed' %}done{% elif order.status == 'pending' %}{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">Validé</span>
+  </div>
+  <div class="timeline-line {% if order.status in 'in_progress,completed' %}done{% endif %}"></div>
+  <div class="timeline-step {% if order.status in 'in_progress,completed' %}done{% elif order.status == 'in_progress' %}active{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">En cours</span>
+  </div>
+  <div class="timeline-line {% if order.status == 'completed' %}done{% endif %}"></div>
+  <div class="timeline-step {% if order.status == 'completed' %}done{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">Clôturé</span>
+  </div>
+</div>
+
+<div class="row g-3">
+  {# ─── Key metrics ─── #}
+  <div class="col-12">
+    <div class="info-grid">
+      <div class="info-cell">
+        <div class="label">Produit fini</div>
+        <div class="value">{{ order.formulation.finished_product.designation }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Qté cible</div>
+        <div class="value">{{ order.target_qty|floatformat:3 }} {{ order.target_unit.symbol }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Qté produite</div>
+        <div class="value">
+          {% if order.actual_qty_produced %}{{ order.actual_qty_produced|floatformat:3 }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Rendement réel</div>
+        <div class="value">
+          {% if order.yield_rate is not None %}
+            {% if order.yield_status == 'normal' %}<span style="color:#16a34a;">
+            {% elif order.yield_status == 'warning' %}<span style="color:#d97706;">
+            {% else %}<span style="color:#dc2626;">{% endif %}
+              {{ order.yield_rate|floatformat:1 }} %
+            </span>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Date lancement</div>
+        <div class="value">{{ order.launch_date|date:"d/m/Y" }}</div>
+      </div>
+      {% if order.closure_date %}
+      <div class="info-cell">
+        <div class="label">Date clôture</div>
+        <div class="value">{{ order.closure_date|date:"d/m/Y" }}</div>
+      </div>
+      {% endif %}
+      {% if order.stock_check_passed is not None %}
+      <div class="info-cell">
+        <div class="label">Vérif. stock</div>
+        <div class="value">
+          {% if order.stock_check_passed %}
+            <span style="color:#16a34a;"><i class="bi bi-check-circle-fill me-1"></i>OK</span>
+          {% else %}
+            <span style="color:#d97706;"><i class="bi bi-exclamation-triangle-fill me-1"></i>Insuffisant</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if order.notes %}
+  <div class="col-12">
+    <div class="card-app">
+      <div class="card-app-header"><span class="card-app-title">Notes</span></div>
+      <div class="card-app-body">
+        <p class="mb-0" style="font-family:'Inter',sans-serif;white-space:pre-line;">{{ order.notes }}</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── Consumption lines ─── #}
+  <div class="col-12">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Matières premières consommées</span>
+      </div>
+      <div class="card-app-body p-0">
+        {% if consumption_lines %}
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Matière première</th>
+                <th class="text-end">Qté théorique</th>
+                <th class="text-end">Qté réelle</th>
+                <th class="text-end">Écart</th>
+                <th class="text-end">Impact financier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in consumption_lines %}
+              <tr>
+                <td>
+                  <span class="fw-500" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ line.raw_material.designation }}</span>
+                  <br><small class="text-muted font-mono">{{ line.raw_material.reference }}</small>
+                </td>
+                <td class="text-end text-muted">{{ line.qty_theoretical|floatformat:3 }}</td>
+                <td class="text-end fw-600" style="font-family:'Plus Jakarta Sans',sans-serif;">
+                  {% if line.qty_actual is not None %}{{ line.qty_actual|floatformat:3 }}{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if line.delta_qty is not None %}
+                    {% if line.delta_qty == 0 %}
+                      <span class="delta-ok">—</span>
+                    {% elif line.delta_qty|abs < 5 %}
+                      <span class="delta-minor">{% if line.delta_qty > 0 %}+{% endif %}{{ line.delta_qty|floatformat:3 }}</span>
+                    {% else %}
+                      <span class="delta-alert">{% if line.delta_qty > 0 %}+{% endif %}{{ line.delta_qty|floatformat:3 }}</span>
+                    {% endif %}
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if line.financial_impact is not None %}
+                    {% if line.financial_impact > 0 %}
+                      <span class="text-danger fw-600">+{{ line.financial_impact|floatformat:0 }} DA</span>
+                    {% elif line.financial_impact < 0 %}
+                      <span class="text-success fw-600">{{ line.financial_impact|floatformat:0 }} DA</span>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:24px;">
+          <i class="bi bi-archive"></i>
+          <p class="mb-0 small">Les lignes de consommation seront disponibles après lancement de l'OP</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Reçu — {{ payment.reference }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; font-size: 10.5pt; color: #1e293b; margin: 0; background: #fff; }
+    @page { size: A5 landscape; margin: 12mm 14mm; }
+    @media print { .no-print { display: none; } }
+    .receipt { max-width: 600px; margin: 30px auto; border: 2px solid #0f766e; border-radius: 10px; overflow: hidden; }
+    .receipt-header { background: #0f766e; color: #fff; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .receipt-company { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13pt; font-weight: 700; }
+    .receipt-company-sub { font-size: 8.5pt; opacity: .8; margin-top: 3px; }
+    .receipt-title-block { text-align: right; }
+    .receipt-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16pt; font-weight: 800; letter-spacing: -.01em; }
+    .receipt-ref { font-size: 9pt; opacity: .85; font-family: 'Inter', monospace; letter-spacing: .04em; margin-top: 2px; }
+    .receipt-body { padding: 22px 24px; }
+    .row { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid #f1f5f9; font-size: 10.5pt; }
+    .row:last-of-type { border-bottom: none; }
+    .row-label { color: #64748b; font-weight: 500; }
+    .row-value { color: #0f172a; font-weight: 600; }
+    .amount-block { margin: 18px 0; padding: 16px 20px; background: #f0fdf4; border: 2px solid #bbf7d0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .amount-label { font-size: 9pt; color: #15803d; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+    .amount-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22pt; font-weight: 800; color: #15803d; }
+    .receipt-footer { padding: 14px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 8.5pt; color: #94a3b8; }
+    .sig-block { margin-top: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+    .sig-line { border-top: 1px solid #cbd5e1; padding-top: 6px; font-size: 8.5pt; color: #64748b; }
+    .btn-print { position: fixed; bottom: 24px; right: 24px; padding: 10px 20px; background: #0f766e; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+  </style>
+</head>
+<body>
+<div class="receipt">
+  <div class="receipt-header">
+    <div>
+      {% if company %}
+      <div class="receipt-company">{{ company.raison_sociale }}</div>
+      <div class="receipt-company-sub">{{ company.address }} — {{ company.wilaya }}</div>
+      {% else %}
+      <div class="receipt-company">UsineERP</div>
+      {% endif %}
+    </div>
+    <div class="receipt-title-block">
+      <div class="receipt-title">REÇU</div>
+      <div class="receipt-ref">{{ payment.reference }}</div>
+    </div>
+  </div>
+
+  <div class="receipt-body">
+    <div class="amount-block">
+      <div class="amount-label">Montant encaissé</div>
+      <div class="amount-value">{{ payment.amount|floatformat:2 }} DA</div>
+    </div>
+
+    <div class="row">
+      <span class="row-label">Date d'encaissement</span>
+      <span class="row-value">{{ payment.payment_date|date:"d/m/Y" }}</span>
+    </div>
+    <div class="row">
+      <span class="row-label">Client</span>
+      <span class="row-value">{{ payment.client.raison_sociale }}</span>
+    </div>
+    <div class="row">
+      <span class="row-label">Facture concernée</span>
+      <span class="row-value" style="font-family:'Inter',monospace;letter-spacing:.03em;">{{ payment.client_invoice.reference }}</span>
+    </div>
+    <div class="row">
+      <span class="row-label">Mode de paiement</span>
+      <span class="row-value">{{ payment.get_payment_method_display }}</span>
+    </div>
+    {% if payment.bank_reference %}
+    <div class="row">
+      <span class="row-label">Référence bancaire</span>
+      <span class="row-value">{{ payment.bank_reference }}</span>
+    </div>
+    {% endif %}
+    <div class="row">
+      <span class="row-label">Solde restant dû</span>
+      <span class="row-value" style="color:{% if payment.client_invoice.balance_due > 0 %}#dc2626{% else %}#15803d{% endif %};">
+        {{ payment.client_invoice.balance_due|floatformat:2 }} DA
+      </span>
+    </div>
+    <div class="row">
+      <span class="row-label">Enregistré par</span>
+      <span class="row-value">{{ payment.recorded_by.get_full_name|default:payment.recorded_by.username }}</span>
+    </div>
+
+    <div class="sig-block">
+      <div class="sig-line">Signature et cachet émetteur</div>
+      <div class="sig-line">Signature client</div>
+    </div>
+  </div>
+
+  <div class="receipt-footer">
+    <span>Document généré par UsineERP — {{ payment.created_at|date:"d/m/Y à H:i" }}</span>
+    <span>{{ payment.reference }}</span>
+  </div>
+</div>
+
+<button class="btn-print no-print" onclick="window.print()">🖨 Imprimer</button>
+</body>
+</html>

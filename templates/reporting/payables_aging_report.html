@@ -1,0 +1,188 @@
+{% extends "reporting/base_report.html" %}
+
+{% block topbar_actions %}
+  {% if report_data %}
+  <a href="{% url 'reporting:export_report_csv' 'payables_aging' %}?as_of_date={{ as_of_date }}"
+     class="btn-outline-sm ms-3"><i class="bi bi-download"></i> CSV</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="filter-panel">
+  <div class="filter-panel-title"><i class="bi bi-calendar-event me-1"></i>Date de situation</div>
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-sm-4">
+      <label class="form-label" style="font-size:12px;font-weight:600">Au</label>
+      {{ form.as_of_date }}
+    </div>
+    <div class="col-sm-3">
+      <button type="submit" class="btn-primary-sm w-100 justify-content-center">
+        <i class="bi bi-arrow-clockwise"></i> Actualiser
+      </button>
+    </div>
+  </form>
+</div>
+
+{% if report_data %}
+{% with d=report_data %}
+
+<div class="row g-3 section-gap">
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Total dettes fournisseurs</span>
+      <span class="kpi-value mono">{{ d.totals.total|floatformat:0 }}</span>
+      <span class="kpi-sub">DZD</span>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Non échus</span>
+      <span class="kpi-value mono" style="color:var(--success)">{{ d.totals.current|floatformat:0 }}</span>
+      <span class="kpi-sub">DZD courant</span>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Échus 1–90 j</span>
+      <span class="kpi-value mono" style="color:var(--warning)">{{ d.totals.days_1_30|add:d.totals.days_31_60|add:d.totals.days_61_90|floatformat:0 }}</span>
+      <span class="kpi-sub">DZD</span>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="kpi-card">
+      <span class="kpi-label">Échus &gt; 90 j</span>
+      <span class="kpi-value mono text-neg">{{ d.totals.days_over_90|floatformat:0 }}</span>
+      <span class="kpi-sub">DZD arriérés critiques</span>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 section-gap">
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-card-title">Dettes par fournisseur — Répartition par ancienneté</div>
+      <canvas id="payAgingBar" height="280"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="chart-card">
+      <div class="chart-card-title">Distribution par tranche</div>
+      <canvas id="payAgingDonut" height="280"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="table-card">
+  <div class="table-card-header">
+    <h6><i class="bi bi-table me-2"></i>Détail par fournisseur</h6>
+    <small class="text-muted">Au {{ as_of_date|date:"d/m/Y" }}</small>
+  </div>
+  <div class="p-3">
+    <table id="payAgingTable" class="table table-hover w-100">
+      <thead>
+        <tr>
+          <th>Fournisseur</th>
+          <th class="text-end heat-0">Courant</th>
+          <th class="text-end heat-1">1–30 j</th>
+          <th class="text-end heat-2">31–60 j</th>
+          <th class="text-end heat-3">61–90 j</th>
+          <th class="text-end heat-4">&gt; 90 j</th>
+          <th class="text-end">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in d.suppliers %}
+        <tr>
+          <td><strong>{{ row.supplier.raison_sociale }}</strong><br>
+              <small class="text-muted mono">{{ row.supplier.code }}</small></td>
+          <td class="text-end mono {% if row.current > 0 %}heat-0{% endif %}">{{ row.current|floatformat:2 }}</td>
+          <td class="text-end mono {% if row.days_1_30 > 0 %}heat-1{% endif %}">{{ row.days_1_30|floatformat:2 }}</td>
+          <td class="text-end mono {% if row.days_31_60 > 0 %}heat-2{% endif %}">{{ row.days_31_60|floatformat:2 }}</td>
+          <td class="text-end mono {% if row.days_61_90 > 0 %}heat-3{% endif %}">{{ row.days_61_90|floatformat:2 }}</td>
+          <td class="text-end mono {% if row.days_over_90 > 0 %}heat-4{% endif %}">{{ row.days_over_90|floatformat:2 }}</td>
+          <td class="text-end mono fw-bold">{{ row.total|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="fw-bold table-secondary">
+          <td>TOTAL</td>
+          <td class="text-end mono">{{ d.totals.current|floatformat:2 }}</td>
+          <td class="text-end mono">{{ d.totals.days_1_30|floatformat:2 }}</td>
+          <td class="text-end mono">{{ d.totals.days_31_60|floatformat:2 }}</td>
+          <td class="text-end mono">{{ d.totals.days_61_90|floatformat:2 }}</td>
+          <td class="text-end mono text-neg">{{ d.totals.days_over_90|floatformat:2 }}</td>
+          <td class="text-end mono">{{ d.totals.total|floatformat:2 }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endwith %}
+{% else %}
+<div class="chart-card text-center py-5">
+  <i class="bi bi-building" style="font-size:2.5rem;color:var(--border)"></i>
+  <p class="mt-3 text-muted">Aucune dette en cours.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{% if report_data %}
+<script>
+$(document).ready(function(){
+  $('#payAgingTable').DataTable({
+    language: DT_LANG_FR,
+    order: [[6,'desc']], pageLength: 15,
+    dom: "<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"
+  });
+});
+
+const suppliers = [{% for row in report_data.suppliers %}"{{ row.supplier.raison_sociale|truncatechars:20 }}",{% endfor %}];
+const bk = {
+  current: [{% for row in report_data.suppliers %}{{ row.current|floatformat:2 }},{% endfor %}],
+  d1_30:   [{% for row in report_data.suppliers %}{{ row.days_1_30|floatformat:2 }},{% endfor %}],
+  d31_60:  [{% for row in report_data.suppliers %}{{ row.days_31_60|floatformat:2 }},{% endfor %}],
+  d61_90:  [{% for row in report_data.suppliers %}{{ row.days_61_90|floatformat:2 }},{% endfor %}],
+  over90:  [{% for row in report_data.suppliers %}{{ row.days_over_90|floatformat:2 }},{% endfor %}],
+};
+const tot = {
+  current:{{ report_data.totals.current|floatformat:2 }},
+  d1_30:  {{ report_data.totals.days_1_30|floatformat:2 }},
+  d31_60: {{ report_data.totals.days_31_60|floatformat:2 }},
+  d61_90: {{ report_data.totals.days_61_90|floatformat:2 }},
+  over90: {{ report_data.totals.days_over_90|floatformat:2 }},
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  new Chart(document.getElementById('payAgingBar'), {
+    type:'bar',
+    data:{
+      labels:suppliers,
+      datasets:[
+        {label:'Courant',  data:bk.current,backgroundColor:'#bbf7d0',stack:'a'},
+        {label:'1–30 j',  data:bk.d1_30,  backgroundColor:'#fde68a',stack:'a'},
+        {label:'31–60 j', data:bk.d31_60, backgroundColor:'#fed7aa',stack:'a'},
+        {label:'61–90 j', data:bk.d61_90, backgroundColor:'#fca5a5',stack:'a'},
+        {label:'> 90 j',  data:bk.over90, backgroundColor:'#991b1b',stack:'a'},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top'}},
+      scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:'#f3f4f6'},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}}}
+    }
+  });
+
+  new Chart(document.getElementById('payAgingDonut'), {
+    type:'doughnut',
+    data:{
+      labels:['Courant','1–30 j','31–60 j','61–90 j','> 90 j'],
+      datasets:[{data:[tot.current,tot.d1_30,tot.d31_60,tot.d61_90,tot.over90],backgroundColor:['#22c55e','#eab308','#f97316','#ef4444','#991b1b'],borderWidth:0,hoverOffset:6}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom'}}}
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,128 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Formulations — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item active">Formulations</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.version-badge {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="page-title mb-0">Formulations</h1>
+    <p class="text-muted small mb-0">{{ formulations|length }} formulation{{ formulations|length|pluralize }} trouvée{{ formulations|length|pluralize }}</p>
+  </div>
+  {% if request.user.userprofile.role == 'manager' %}
+  <a href="{% url 'production:formulation_create' %}" class="btn-primary-app">
+    <i class="bi bi-plus-lg me-1"></i> Nouvelle formulation
+  </a>
+  {% endif %}
+</div>
+
+{# Filter bar #}
+<form method="get" class="filter-bar mb-3">
+  <div class="position-relative">
+    <i class="bi bi-search position-absolute" style="left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);"></i>
+    <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, désignation, produit fini…" class="form-control-app ps-4" style="min-width:260px;">
+  </div>
+  <select name="active" class="form-control-app">
+    <option value="">Actives seulement</option>
+    <option value="all" {% if request.GET.active == 'all' %}selected{% endif %}>Toutes</option>
+    <option value="false" {% if request.GET.active == 'false' %}selected{% endif %}>Inactives</option>
+  </select>
+  <button type="submit" class="btn-secondary-app">Filtrer</button>
+  <a href="{% url 'production:formulations_list' %}" class="btn-secondary-app">Réinitialiser</a>
+</form>
+
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">Liste des formulations</span>
+  </div>
+  <div class="card-app-body p-0">
+    {% if formulations %}
+    <div class="table-container">
+      <table class="table table-hover mb-0">
+        <thead class="bg-raised">
+          <tr>
+            <th>Référence</th>
+            <th>Désignation</th>
+            <th>Produit fini</th>
+            <th>Lot de référence</th>
+            <th>Rendement théo.</th>
+            <th>Statut</th>
+            <th>Créée le</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in formulations %}
+          <tr>
+            <td>
+              <a href="{% url 'production:formulation_detail' f.id %}" class="fw-600 font-mono text-decoration-none" style="color:var(--accent);font-family:monospace;">
+                {{ f.reference }}
+              </a>
+              <span class="version-badge ms-1">v{{ f.version }}</span>
+            </td>
+            <td style="font-family:'Inter',sans-serif;">{{ f.designation }}</td>
+            <td>
+              <span class="fw-500" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ f.finished_product.reference }}</span>
+              <br><small class="text-muted">{{ f.finished_product.designation }}</small>
+            </td>
+            <td style="font-family:'Inter',sans-serif;">{{ f.reference_batch_qty|floatformat:3 }} {{ f.reference_batch_unit.symbol }}</td>
+            <td style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">{{ f.expected_yield_pct|floatformat:1 }} %</td>
+            <td>
+              {% if f.is_active %}
+                <span class="badge-valide">Active</span>
+              {% else %}
+                <span class="badge-annule">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">{{ f.created_at|date:"d/m/Y" }}</td>
+            <td class="text-end">
+              <a href="{% url 'production:formulation_detail' f.id %}" class="btn-icon" title="Voir détail">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% if request.user.userprofile.role == 'manager' %}
+              <a href="{% url 'production:formulation_edit' f.id %}" class="btn-icon" title="Nouvelle version">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bi bi-journals"></i>
+      <p>Aucune formulation trouvée</p>
+      {% if request.user.userprofile.role == 'manager' %}
+      <a href="{% url 'production:formulation_create' %}" class="btn-primary-app">Créer la première formulation</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

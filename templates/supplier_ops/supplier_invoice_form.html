@@ -1,0 +1,306 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Nouvelle Facture Fournisseur{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_invoices_list' %}">Factures Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Nouvelle facture</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.line-row td { vertical-align: middle; padding: 8px 10px; }
+.delete-line-btn { color:#dc2626; background:none; border:none; cursor:pointer; padding:4px 8px; border-radius:var(--radius-xs); }
+.delete-line-btn:hover { background:#fef2f2; }
+.line-total-cell { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; text-align:right; font-size:13px; }
+#invoice-total-ht { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:700; color:var(--accent); }
+.recon-preview { background:var(--bg-raised); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; }
+.recon-status-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:var(--radius-xl); font-size:13px; font-weight:600; }
+.recon-status-badge.success { background:#dcfce7; color:#166534; }
+.recon-status-badge.warning { background:#fef9c3; color:#854d0e; }
+.recon-status-badge.danger  { background:#fee2e2; color:#991b1b; }
+.delta-val { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:15px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Nouvelle Facture Fournisseur</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Saisie et rapprochement</p>
+  </div>
+  <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<form method="post" id="invoice-form">
+  {% csrf_token %}
+
+  <!-- Header -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-receipt ic-teal me-2" style="font-size:16px;"></i>Informations de la facture</span>
+    </div>
+    <div class="card-app-body">
+      {% if form.non_field_errors %}
+      <div class="alert-banner alert-banner-error mb-3">
+        {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label-app">Fournisseur <span style="color:#dc2626;">*</span></label>
+          {{ form.supplier }}
+          {% if form.supplier.errors %}<div class="field-error">{{ form.supplier.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-app">Réf. fournisseur <span style="color:#dc2626;">*</span></label>
+          {{ form.external_reference }}
+          {% if form.external_reference.errors %}<div class="field-error">{{ form.external_reference.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-app">Date de facture <span style="color:#dc2626;">*</span></label>
+          {{ form.invoice_date }}
+          {% if form.invoice_date.errors %}<div class="field-error">{{ form.invoice_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-app">Date d'échéance <span style="color:#dc2626;">*</span></label>
+          {{ form.due_date }}
+          {% if form.due_date.errors %}<div class="field-error">{{ form.due_date.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lines + AJAX reconciliation preview side by side -->
+  <div class="row g-4 mb-4">
+    <div class="col-xl-8">
+      <div class="card-app h-100">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-list-ul ic-blue me-2" style="font-size:16px;"></i>Lignes facturées</span>
+          <div class="card-header-actions">
+            <button type="button" class="btn-secondary-app" id="add-inv-line-btn">
+              <i class="bx bx-plus"></i> Ajouter
+            </button>
+          </div>
+        </div>
+        <div class="card-app-body p-0">
+          {{ formset.management_form }}
+          <div class="table-container" style="border:none;border-radius:0;">
+            <table class="table mb-0" id="inv-lines-table">
+              <thead class="bg-raised">
+                <tr>
+                  <th style="width:28%;">Matière première</th>
+                  <th style="width:22%;">Désignation</th>
+                  <th style="width:14%;">Qté facturée</th>
+                  <th style="width:16%;">Prix unitaire</th>
+                  <th style="width:14%;text-align:right;">Montant HT</th>
+                  <th style="width:6%;"></th>
+                </tr>
+              </thead>
+              <tbody id="inv-lines-body">
+                {% for lf in formset %}
+                <tr class="line-row" id="inv-line-row-{{ forloop.counter0 }}">
+                  <td>{{ lf.raw_material }}{{ lf.id }}{% if lf.raw_material.errors %}<div class="field-error">{{ lf.raw_material.errors.0 }}</div>{% endif %}</td>
+                  <td>{{ lf.designation }}{% if lf.designation.errors %}<div class="field-error">{{ lf.designation.errors.0 }}</div>{% endif %}</td>
+                  <td>{{ lf.quantity_invoiced }}{% if lf.quantity_invoiced.errors %}<div class="field-error">{{ lf.quantity_invoiced.errors.0 }}</div>{% endif %}</td>
+                  <td>{{ lf.unit_price_invoiced }}{% if lf.unit_price_invoiced.errors %}<div class="field-error">{{ lf.unit_price_invoiced.errors.0 }}</div>{% endif %}</td>
+                  <td class="line-total-cell">—</td>
+                  <td>{% if lf.DELETE %}<button type="button" class="delete-line-btn" title="Supprimer"><i class="bx bx-trash" style="font-size:15px;"></i></button>{{ lf.DELETE }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="d-flex align-items-center justify-content-end gap-3 p-3" style="border-top:1px solid var(--border);">
+            <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">Total HT :</span>
+            <span id="invoice-total-ht">0 DA</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live reconciliation preview -->
+    <div class="col-xl-4">
+      <div class="card-app h-100">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-git-compare ic-purple me-2" style="font-size:16px;"></i>Rapprochement BL</span>
+          <div id="recon-status-indicator" style="display:none;"></div>
+        </div>
+        <div class="card-app-body">
+          <div class="recon-preview mb-3" id="recon-preview-box">
+            <p style="color:var(--text-muted);font-size:13px;margin:0;text-align:center;">
+              <i class="bx bx-info-circle" style="font-size:16px;margin-bottom:4px;display:block;"></i>
+              Saisissez les lignes de facture pour voir le rapprochement en temps réel.
+            </p>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);">
+            Le rapprochement compare les quantités et prix de la facture avec les BL fournisseurs liés.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="d-flex justify-content-end gap-3">
+    <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">Annuler</a>
+    <button type="submit" class="btn-primary-app">
+      <i class="bx bx-save"></i> Enregistrer la facture
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  /* ── Apply classes to all formset inputs ── */
+  function applyInputClasses() {
+    document.querySelectorAll('#inv-lines-body input, #inv-lines-body select').forEach(function (el) {
+      el.classList.add('form-control-app');
+    });
+  }
+  applyInputClasses();
+
+  /* ── Line totals ── */
+  function getFloat(el) { return parseFloat(el ? el.value : '') || 0; }
+
+  function recomputeLineTotals() {
+    var grand = 0;
+    document.querySelectorAll('.line-row').forEach(function (row) {
+      var del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (del && del.checked) { row.style.opacity = '0.4'; return; }
+      row.style.opacity = '1';
+      var qty = getFloat(row.querySelector('input[name$="-quantity_invoiced"]'));
+      var price = getFloat(row.querySelector('input[name$="-unit_price_invoiced"]'));
+      var amt = qty * price;
+      grand += amt;
+      var cell = row.querySelector('.line-total-cell');
+      if (cell) cell.textContent = amt > 0 ? amt.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA' : '—';
+    });
+    document.getElementById('invoice-total-ht').textContent =
+      grand.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA';
+  }
+
+  /* ── AJAX Reconciliation Preview ── */
+  var ajaxTimer = null;
+  function triggerReconPreview() {
+    clearTimeout(ajaxTimer);
+    ajaxTimer = setTimeout(fetchReconPreview, 600);
+  }
+
+  function fetchReconPreview() {
+    var formData = new FormData(document.getElementById('invoice-form'));
+    // We need the invoice_id — only works on an existing invoice.
+    // On create page we show a static info note instead.
+    var indicator = document.getElementById('recon-status-indicator');
+    indicator.style.display = 'flex';
+    indicator.innerHTML = '<span style="font-size:12px;color:var(--text-muted);"><i class="bx bx-loader-alt bx-spin" style="font-size:14px;margin-right:4px;"></i>Calcul…</span>';
+
+    // Simulate live delta from form data (client-side pre-calc, no invoice_id needed for create)
+    var lines = [];
+    document.querySelectorAll('.line-row').forEach(function (row) {
+      var del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (del && del.checked) return;
+      var mat = row.querySelector('select[name$="-raw_material"]');
+      var qty = getFloat(row.querySelector('input[name$="-quantity_invoiced"]'));
+      var price = getFloat(row.querySelector('input[name$="-unit_price_invoiced"]'));
+      if (mat && mat.value && qty > 0) {
+        lines.push({ mat: mat.options[mat.selectedIndex].text, qty: qty, price: price, amount: qty * price });
+      }
+    });
+
+    var total = lines.reduce(function (s, l) { return s + l.amount; }, 0);
+    var box = document.getElementById('recon-preview-box');
+
+    if (lines.length === 0) {
+      box.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0;text-align:center;">Aucune ligne saisie.</p>';
+      indicator.style.display = 'none';
+      return;
+    }
+
+    var rows = lines.map(function (l) {
+      return '<tr><td style="font-size:12.5px;">' + l.mat + '</td>' +
+             '<td style="text-align:right;font-size:12.5px;">' + l.qty.toLocaleString() + '</td>' +
+             '<td style="text-align:right;font-size:12.5px;font-weight:600;">' + l.amount.toLocaleString('fr-DZ',{maximumFractionDigits:0}) + ' DA</td></tr>';
+    }).join('');
+
+    box.innerHTML =
+      '<table class="table table-sm mb-0" style="font-size:12px;">' +
+      '<thead><tr><th>Matière</th><th style="text-align:right;">Qté</th><th style="text-align:right;">Montant</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="2" style="font-weight:600;font-size:13px;">Total facturé</td>' +
+      '<td style="text-align:right;font-family:\'Plus Jakarta Sans\',sans-serif;font-weight:700;font-size:13px;">' +
+      total.toLocaleString('fr-DZ',{maximumFractionDigits:0}) + ' DA</td></tr></tfoot></table>';
+
+    indicator.innerHTML = '<span style="font-size:12px;color:#166534;background:#dcfce7;padding:3px 10px;border-radius:99px;"><i class="bx bx-check" style="margin-right:3px;"></i>' + lines.length + ' ligne' + (lines.length > 1 ? 's' : '') + '</span>';
+  }
+
+  document.getElementById('inv-lines-body').addEventListener('input', function () {
+    recomputeLineTotals();
+    triggerReconPreview();
+  });
+  document.getElementById('inv-lines-body').addEventListener('change', function () {
+    recomputeLineTotals();
+    triggerReconPreview();
+  });
+
+  /* ── Delete line ── */
+  document.getElementById('inv-lines-body').addEventListener('click', function (e) {
+    var btn = e.target.closest('.delete-line-btn');
+    if (!btn) return;
+    var row = btn.closest('.line-row');
+    var chk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (chk) {
+      chk.checked = !chk.checked;
+      btn.querySelector('i').className = chk.checked ? 'bx bx-undo' : 'bx bx-trash';
+    } else { row.remove(); }
+    recomputeLineTotals();
+    triggerReconPreview();
+  });
+
+  /* ── Add line ── */
+  document.getElementById('add-inv-line-btn').addEventListener('click', function () {
+    var totalFormsEl = document.getElementById('id_lines-TOTAL_FORMS');
+    var count = parseInt(totalFormsEl.value, 10);
+    var existing = document.querySelector('.line-row');
+    if (!existing) return;
+    var clone = existing.cloneNode(true);
+    clone.id = 'inv-line-row-' + count;
+    clone.style.opacity = '1';
+    clone.querySelectorAll('[name],[id],[for]').forEach(function (el) {
+      ['name','id','for'].forEach(function (attr) {
+        if (el.getAttribute(attr)) {
+          el.setAttribute(attr, el.getAttribute(attr).replace(/-\d+-/, '-' + count + '-'));
+        }
+      });
+      if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.value = '';
+      if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      if (el.type === 'checkbox') el.checked = false;
+      if (el.type === 'hidden' && el.name.endsWith('-id')) el.value = '';
+    });
+    var delBtn = clone.querySelector('.delete-line-btn i');
+    if (delBtn) delBtn.className = 'bx bx-trash';
+    var tc = clone.querySelector('.line-total-cell');
+    if (tc) tc.textContent = '—';
+    document.getElementById('inv-lines-body').appendChild(clone);
+    totalFormsEl.value = count + 1;
+    applyInputClasses();
+    recomputeLineTotals();
+  });
+
+  new MutationObserver(applyInputClasses).observe(document.getElementById('inv-lines-body'), { childList: true, subtree: true });
+
+  recomputeLineTotals();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Encaissement — {{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoices_list' %}">Factures Clients</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoice_detail' invoice_id=invoice.id %}">{{ invoice.reference }}</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Encaissement</span>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+  <div class="section-eyebrow">ENCAISSEMENT CLIENT</div>
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;">Enregistrer un encaissement</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:flex-start;">
+
+  <form method="post">
+    {% csrf_token %}
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+        <i class="bx bx-money" style="color:var(--accent);margin-right:6px;"></i> Détails de l'encaissement
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Date d'encaissement <span style="color:#dc2626;">*</span></label>
+          {{ form.payment_date }}
+          {% if form.payment_date.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.payment_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Mode de paiement <span style="color:#dc2626;">*</span></label>
+          {{ form.payment_method }}
+          {% if form.payment_method.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.payment_method.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Montant (DA) <span style="color:#dc2626;">*</span></label>
+          {{ form.amount }}
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Solde dû : <strong style="color:var(--text-primary);">{{ invoice.balance_due|floatformat:2 }} DA</strong></div>
+          {% if form.amount.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.amount.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Référence bancaire / N° chèque</label>
+          {{ form.bank_reference }}
+          {% if form.bank_reference.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.bank_reference.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+      {% if form.non_field_errors %}
+      <div style="margin-top:14px;padding:10px 14px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-sm);font-size:13px;color:#dc2626;">
+        {{ form.non_field_errors.0 }}
+      </div>
+      {% endif %}
+      <div style="display:flex;gap:10px;margin-top:22px;padding-top:16px;border-top:1px solid var(--border);">
+        <button type="submit" class="btn-primary-app" style="padding:10px 24px;">
+          <i class="bx bx-check"></i> Enregistrer l'encaissement
+        </button>
+        <a href="{% url 'sales:client_invoice_detail' invoice_id=invoice.id %}" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);background:var(--bg-surface);">
+          Annuler
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Invoice summary sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:14px;">Facture concernée</div>
+      <div style="font-family:'Inter','Courier New',monospace;font-size:14px;font-weight:600;color:var(--accent);letter-spacing:.03em;margin-bottom:6px;">{{ invoice.reference }}</div>
+      <div style="font-size:13px;color:var(--text-secondary);">{{ invoice.client.raison_sociale }}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Échéance : {{ invoice.due_date|date:"d/m/Y" }}</div>
+      <div style="height:1px;background:var(--border);margin:14px 0;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-bottom:6px;">
+        <span>Total TTC</span><span style="font-weight:600;color:var(--text-primary);">{{ invoice.total_ttc|floatformat:2 }} DA</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;color:#dc2626;">
+        <span>Solde dû</span><span>{{ invoice.balance_due|floatformat:2 }} DA</span>
+      </div>
+    </div>
+
+    <div style="background:rgba(15,118,110,.05);border:1px solid var(--accent-glow);border-radius:var(--radius-lg);padding:14px;">
+      <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px;"><i class="bx bx-shield-check"></i> Important</div>
+      <div style="font-size:12px;color:var(--text-secondary);">Le montant saisi ne peut pas dépasser le solde dû. Un reçu sera généré automatiquement après enregistrement.</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  form select, form input[type=text], form input[type=date], form input[type=number] {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px;
+    font-size: 13px; color: var(--text-primary); width: 100%; background: var(--bg-surface);
+  }
+  form select:focus, form input:focus {
+    outline: none; border-color: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+</style>
+{% endblock %}

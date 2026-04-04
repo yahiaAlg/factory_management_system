@@ -1,0 +1,339 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'suppliers:suppliers_list' %}">Fournisseurs</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{% if supplier %}Modifier — {{ supplier.code }}{% else %}Nouveau fournisseur{% endif %}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .form-section-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .form-section-title i {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+  }
+  .field-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    display: block;
+  }
+  .field-label .req { color: #dc2626; margin-left: 2px; }
+  .field-hint {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+  .errorlist {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+    color: #dc2626;
+    font-size: 12px;
+  }
+  .non-field-errors {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    color: #dc2626;
+    font-size: 13px;
+  }
+  .form-check-app {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .form-check-app:hover { background: var(--bg-raised); }
+  .form-check-app input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .form-check-app .check-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    color: var(--text-primary);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-0" style="font-size:22px; font-weight:800; color:var(--text-primary);">{{ title }}</h1>
+    <p class="mb-0 mt-1" style="font-size:13px; color:var(--text-muted);">
+      {% if supplier %}Modification du fournisseur {{ supplier.code }}{% else %}Créer un nouveau fournisseur{% endif %}
+    </p>
+  </div>
+  <a href="{% if supplier %}{% url 'suppliers:supplier_detail' supplier.id %}{% else %}{% url 'suppliers:suppliers_list' %}{% endif %}"
+     class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Annuler
+  </a>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  <!-- Non-field errors -->
+  {% if form.non_field_errors %}
+  <div class="non-field-errors mb-3">
+    <i class="bx bx-info-circle me-2"></i>
+    {{ form.non_field_errors|join:", " }}
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+
+    <!-- LEFT COLUMN -->
+    <div class="col-lg-8">
+
+      <!-- Identification générale -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-buildings me-2" style="color:var(--accent);"></i>Identification générale</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="field-label">Code fournisseur <span class="req">*</span></label>
+              <input type="text" name="code" value="{{ form.code.value|default_if_none:'' }}"
+                     class="form-control-app {% if form.code.errors %}is-invalid{% endif %}"
+                     placeholder="F-0001">
+              {% if form.code.errors %}<ul class="errorlist">{% for e in form.code.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="col-md-8">
+              <label class="field-label">Raison sociale <span class="req">*</span></label>
+              <input type="text" name="raison_sociale" value="{{ form.raison_sociale.value|default_if_none:'' }}"
+                     class="form-control-app {% if form.raison_sociale.errors %}is-invalid{% endif %}"
+                     placeholder="Nom de l'entreprise">
+              {% if form.raison_sociale.errors %}<ul class="errorlist">{% for e in form.raison_sociale.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">Forme juridique</label>
+              <input type="text" name="forme_juridique" value="{{ form.forme_juridique.value|default_if_none:'' }}"
+                     class="form-control-app"
+                     placeholder="EURL, SARL, SPA…">
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">Devise</label>
+              <select name="currency" class="form-control-app">
+                {% for code, label in form.fields.currency.choices %}
+                <option value="{{ code }}" {% if form.currency.value == code %}selected{% endif %}>{{ code }} — {{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">Délai de paiement (jours)</label>
+              <input type="number" name="payment_terms" value="{{ form.payment_terms.value|default_if_none:'30' }}"
+                     min="0" class="form-control-app"
+                     placeholder="30">
+              <p class="field-hint">0 = paiement comptant</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Identifiants fiscaux -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-id-card me-2" style="color:var(--accent);"></i>Identifiants fiscaux algériens</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="field-label">NIF</label>
+              <input type="text" name="nif" value="{{ form.nif.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="Numéro d'identification fiscale">
+            </div>
+            <div class="col-md-3">
+              <label class="field-label">NIS</label>
+              <input type="text" name="nis" value="{{ form.nis.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="Numéro d'identification statistique">
+            </div>
+            <div class="col-md-3">
+              <label class="field-label">RC</label>
+              <input type="text" name="rc" value="{{ form.rc.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="Registre du commerce">
+            </div>
+            <div class="col-md-3">
+              <label class="field-label">AI</label>
+              <input type="text" name="ai" value="{{ form.ai.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="Article d'imposition">
+            </div>
+          </div>
+          <p class="field-hint mt-2">
+            <i class="bx bx-info-circle me-1"></i>
+            Au moins un identifiant fiscal est recommandé pour les fournisseurs professionnels.
+          </p>
+        </div>
+      </div>
+
+      <!-- Adresse -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-map me-2" style="color:var(--accent);"></i>Adresse &amp; localisation</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="field-label">Adresse <span class="req">*</span></label>
+              <textarea name="address" rows="3"
+                        class="form-control-app {% if form.address.errors %}is-invalid{% endif %}"
+                        placeholder="Rue, quartier, cité…">{{ form.address.value|default_if_none:'' }}</textarea>
+              {% if form.address.errors %}<ul class="errorlist">{% for e in form.address.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">Wilaya</label>
+              <input type="text" name="wilaya" value="{{ form.wilaya.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="Sétif, Alger…">
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">Téléphone</label>
+              <input type="text" name="phone" value="{{ form.phone.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="+213 5X XXX XXXX">
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">Fax</label>
+              <input type="text" name="fax" value="{{ form.fax.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="+213 X X XX XX XX">
+            </div>
+            <div class="col-md-6">
+              <label class="field-label">Email</label>
+              <input type="email" name="email" value="{{ form.email.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="contact@fournisseur.dz">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Informations bancaires -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-credit-card me-2" style="color:var(--accent);"></i>Informations bancaires</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="field-label">Nom de la banque</label>
+              <input type="text" name="bank_name" value="{{ form.bank_name.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="BNA, CPA, BEA…">
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">Compte bancaire</label>
+              <input type="text" name="bank_account" value="{{ form.bank_account.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="Numéro de compte">
+            </div>
+            <div class="col-md-4">
+              <label class="field-label">RIB</label>
+              <input type="text" name="rib" value="{{ form.rib.value|default_if_none:'' }}"
+                     class="form-control-app" maxlength="23" placeholder="XX XXXX XXXX XXXX XXXX XXXX X">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col-lg-4">
+
+      <!-- Contact -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-user me-2" style="color:var(--accent);"></i>Personne de contact</span>
+        </div>
+        <div class="card-app-body">
+          <div class="d-flex flex-column gap-3">
+            <div>
+              <label class="field-label">Nom du contact</label>
+              <input type="text" name="contact_person" value="{{ form.contact_person.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="Prénom NOM">
+            </div>
+            <div>
+              <label class="field-label">Téléphone contact</label>
+              <input type="text" name="contact_phone" value="{{ form.contact_phone.value|default_if_none:'' }}"
+                     class="form-control-app" placeholder="+213 5X XXX XXXX">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statut -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-toggle-left me-2" style="color:var(--accent);"></i>Statut</span>
+        </div>
+        <div class="card-app-body">
+          <label class="form-check-app">
+            <input type="checkbox" name="is_active"
+                   {% if form.is_active.value %}checked{% endif %}>
+            <div>
+              <div class="check-label">Fournisseur actif</div>
+              <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">
+                Les fournisseurs inactifs n'apparaissent plus dans les listes de sélection
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-note me-2" style="color:var(--accent);"></i>Notes internes</span>
+        </div>
+        <div class="card-app-body">
+          <textarea name="notes" rows="5" class="form-control-app"
+                    placeholder="Remarques, conditions particulières, historique…">{{ form.notes.value|default_if_none:'' }}</textarea>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="d-flex flex-column gap-2">
+        <button type="submit" class="btn-primary-app w-100 justify-content-center" style="padding:11px;">
+          <i class="bx bx-check"></i>
+          {% if supplier %}Enregistrer les modifications{% else %}Créer le fournisseur{% endif %}
+        </button>
+        <a href="{% if supplier %}{% url 'suppliers:supplier_detail' supplier.id %}{% else %}{% url 'suppliers:suppliers_list' %}{% endif %}"
+           class="btn-secondary-app w-100 justify-content-center" style="padding:10px;">
+          <i class="bx bx-x"></i> Annuler
+        </a>
+      </div>
+
+    </div>
+  </div><!-- end row -->
+</form>
+{% endblock %}

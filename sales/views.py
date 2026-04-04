@@ -296,7 +296,7 @@ def client_payment_receipt_print(request, payment_id):
 @login_required
 def sales_dashboard(request):
     current_month = timezone.now().replace(day=1)
-    next_month = (current_month + timezone.timedelta(days=32)).replace(day=1)
+    next_month = (current_month + timedelta(days=32)).replace(day=1)
     monthly_invoiced = ClientInvoice.objects.filter(
         invoice_date__gte=current_month, invoice_date__lt=next_month
     ).aggregate(total=Sum("total_ttc"))["total"] or Decimal("0.00")

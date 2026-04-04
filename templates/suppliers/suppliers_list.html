@@ -1,0 +1,246 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}Fournisseurs{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Répertoire fournisseurs</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .supplier-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--accent-dim);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .supplier-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .supplier-name-cell .s-name {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--text-primary);
+  }
+  .supplier-name-cell .s-forme {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+  .fiscal-ids {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .fiscal-ids span {
+    font-family: monospace;
+    color: var(--text-secondary);
+  }
+  .badge-active   { background: #dcfce7; color: #15803d; padding: 3px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; }
+  .badge-inactive { background: #f1f5f9; color: #94a3b8;  padding: 3px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; }
+  .currency-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--bg-raised);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-0" style="font-size:22px; font-weight:800; color:var(--text-primary);">Répertoire fournisseurs</h1>
+    <p class="mb-0 mt-1" style="font-size:13px; color:var(--text-muted);">
+      {{ suppliers|length }} fournisseur{% if suppliers|length != 1 %}s{% endif %} trouvé{% if suppliers|length != 1 %}s{% endif %}
+    </p>
+  </div>
+  {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'accountant' %}
+  <a href="{% url 'suppliers:supplier_create' %}" class="btn-primary-app">
+    <i class="bx bx-plus"></i> Nouveau fournisseur
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filter bar -->
+<div class="filter-bar mb-3">
+  <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
+    <!-- Search -->
+    <div style="position:relative; flex:1; min-width:220px;">
+      <i class="bx bx-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:16px;"></i>
+      <input type="text"
+             name="search"
+             value="{{ request.GET.search }}"
+             class="form-control-app"
+             placeholder="Code, raison sociale, NIF, NIS…"
+             style="padding-left:34px;">
+    </div>
+    <!-- Wilaya -->
+    <select name="wilaya" class="form-control-app" style="width:auto; min-width:150px;">
+      <option value="">Toutes les wilayas</option>
+      {% for w in wilayas %}
+      <option value="{{ w }}" {% if request.GET.wilaya == w %}selected{% endif %}>{{ w }}</option>
+      {% endfor %}
+    </select>
+    <!-- Currency -->
+    <select name="currency" class="form-control-app" style="width:auto; min-width:130px;">
+      <option value="">Toutes devises</option>
+      {% for code, label in currencies %}
+      <option value="{{ code }}" {% if request.GET.currency == code %}selected{% endif %}>{{ code }} — {{ label }}</option>
+      {% endfor %}
+    </select>
+    <!-- Active filter -->
+    <select name="active" class="form-control-app" style="width:auto; min-width:130px;">
+      <option value="" {% if not request.GET.active or request.GET.active == '' %}selected{% endif %}>Actifs</option>
+      <option value="false" {% if request.GET.active == 'false' %}selected{% endif %}>Inactifs</option>
+      <option value="all" {% if request.GET.active == 'all' %}selected{% endif %}>Tous</option>
+    </select>
+    <button type="submit" class="btn-primary-app">
+      <i class="bx bx-filter-alt"></i> Filtrer
+    </button>
+    <a href="{% url 'suppliers:suppliers_list' %}" class="btn-secondary-app">
+      <i class="bx bx-x"></i> Réinitialiser
+    </a>
+  </form>
+</div>
+
+<!-- Table card -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title"><i class="bx bx-buildings me-2" style="color:var(--accent);"></i>Fournisseurs</span>
+  </div>
+  <div class="card-app-body p-0">
+    {% if suppliers %}
+    <div class="table-container" style="border:none; border-radius:0;">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>FOURNISSEUR</th>
+            <th>IDENTIFIANTS FISCAUX</th>
+            <th>WILAYA</th>
+            <th>CONTACT</th>
+            <th>DÉLAI PAIEMENT</th>
+            <th>DEVISE</th>
+            <th>STATUT</th>
+            <th style="width:80px; text-align:center;">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in suppliers %}
+          <tr>
+            <td>
+              <div class="supplier-name-cell">
+                <div class="supplier-avatar">{{ s.raison_sociale|slice:":2"|upper }}</div>
+                <div>
+                  <div class="s-name">
+                    <a href="{% url 'suppliers:supplier_detail' s.id %}" style="color:inherit;">
+                      {{ s.raison_sociale }}
+                    </a>
+                  </div>
+                  <div class="s-forme">
+                    <span class="col-ref">{{ s.code }}</span>
+                    {% if s.forme_juridique %} · {{ s.forme_juridique }}{% endif %}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="fiscal-ids">
+                {% if s.nif %}<div>NIF&nbsp;<span>{{ s.nif }}</span></div>{% endif %}
+                {% if s.nis %}<div>NIS&nbsp;<span>{{ s.nis }}</span></div>{% endif %}
+                {% if s.rc %}<div>RC&nbsp;&nbsp;<span>{{ s.rc }}</span></div>{% endif %}
+                {% if s.ai %}<div>AI&nbsp;&nbsp;<span>{{ s.ai }}</span></div>{% endif %}
+                {% if not s.nif and not s.nis and not s.rc and not s.ai %}
+                  <span style="color:var(--text-muted); font-style:italic;">—</span>
+                {% endif %}
+              </div>
+            </td>
+            <td>{{ s.wilaya|default:"—" }}</td>
+            <td>
+              {% if s.phone %}
+              <div style="font-size:13px;">{{ s.phone }}</div>
+              {% endif %}
+              {% if s.email %}
+              <div style="font-size:12px; color:var(--text-muted);">{{ s.email }}</div>
+              {% endif %}
+              {% if not s.phone and not s.email %}—{% endif %}
+            </td>
+            <td>
+              <span style="font-family:'Plus Jakarta Sans', sans-serif; font-weight:600;">
+                {{ s.get_payment_terms_display_verbose }}
+              </span>
+            </td>
+            <td><span class="currency-pill">{{ s.currency }}</span></td>
+            <td>
+              {% if s.is_active %}
+                <span class="badge-active">Actif</span>
+              {% else %}
+                <span class="badge-inactive">Inactif</span>
+              {% endif %}
+            </td>
+            <td style="text-align:center;">
+              <div class="d-flex gap-1 justify-content-center">
+                <a href="{% url 'suppliers:supplier_detail' s.id %}"
+                   class="btn-icon"
+                   data-bs-toggle="tooltip" title="Voir le détail">
+                  <i class="bx bx-show"></i>
+                </a>
+                {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'accountant' %}
+                <a href="{% url 'suppliers:supplier_edit' s.id %}"
+                   class="btn-icon"
+                   data-bs-toggle="tooltip" title="Modifier">
+                  <i class="bx bx-edit"></i>
+                </a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bx bx-buildings" style="font-size:48px; color:var(--text-muted);"></i>
+      <p class="mt-3 mb-1" style="font-family:'Plus Jakarta Sans', sans-serif; font-weight:700; font-size:16px; color:var(--text-primary);">Aucun fournisseur trouvé</p>
+      <p style="font-size:13px; color:var(--text-muted);">
+        {% if request.GET.search or request.GET.wilaya or request.GET.currency %}
+          Aucun résultat pour les filtres appliqués.
+          <a href="{% url 'suppliers:suppliers_list' %}" style="color:var(--accent);">Réinitialiser les filtres</a>
+        {% else %}
+          Commencez par ajouter votre premier fournisseur.
+        {% endif %}
+      </p>
+      {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'accountant' %}
+      {% if not request.GET.search %}
+      <a href="{% url 'suppliers:supplier_create' %}" class="btn-primary-app mt-2">
+        <i class="bx bx-plus"></i> Nouveau fournisseur
+      </a>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,153 @@
+{% load static %}
+{% load factory_filters %}
+{% extends "base.html" %}
+
+{% block title %}Factures Fournisseurs{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Factures Fournisseurs</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.ref-cell { font-family:monospace; font-size:12.5px; color:var(--text-secondary); }
+.amount-cell { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; text-align:right; }
+.overdue-row td { background: #fff7f7 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Factures Fournisseurs</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">{{ invoices|length }} facture{{ invoices|length|pluralize }}</p>
+  </div>
+  {% if request.user.userprofile.role in "manager,accountant" %}
+  <a href="{% url 'supplier_ops:supplier_invoice_create' %}" class="btn-primary-app">
+    <i class="bx bx-plus"></i> Nouvelle facture
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filter bar -->
+<form method="get" class="filter-bar mb-4">
+  <div class="filter-search-wrap">
+    <i class="bx bx-search filter-search-icon"></i>
+    <input type="text" name="search" class="form-control-app filter-search-input"
+           placeholder="Référence, fournisseur…" value="{{ request.GET.search }}">
+  </div>
+  <select name="status" class="form-control-app">
+    <option value="">Tous les statuts</option>
+    {% for val, label in status_choices %}
+    <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <select name="reconciliation" class="form-control-app">
+    <option value="">Rapprochement</option>
+    {% for val, label in reconciliation_choices %}
+    <option value="{{ val }}" {% if request.GET.reconciliation == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;">
+    <input type="checkbox" name="overdue" value="true" {% if request.GET.overdue == 'true' %}checked{% endif %}>
+    En retard uniquement
+  </label>
+  <button type="submit" class="btn-primary-app">Filtrer</button>
+  <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">Réinitialiser</a>
+</form>
+
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">Liste des factures</span>
+  </div>
+  <div class="card-app-body p-0">
+    {% if invoices %}
+    <div class="table-container" style="border:none;border-radius:0;">
+      <table class="table table-hover mb-0">
+        <thead class="bg-raised">
+          <tr>
+            <th>Référence</th>
+            <th>Réf. Fournisseur</th>
+            <th>Fournisseur</th>
+            <th>Date facture</th>
+            <th>Échéance</th>
+            <th style="text-align:right;">Total TTC</th>
+            <th style="text-align:right;">Solde dû</th>
+            <th>Rapprochement</th>
+            <th>Statut</th>
+            <th style="width:80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for inv in invoices %}
+          <tr {% if inv.is_overdue %}class="overdue-row"{% endif %}>
+            <td><span class="ref-cell">{{ inv.reference }}</span></td>
+            <td style="color:var(--text-secondary);font-size:13px;">{{ inv.external_reference }}</td>
+            <td>
+              <div style="font-weight:500;">{{ inv.supplier.raison_sociale }}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);">{{ inv.supplier.code }}</div>
+            </td>
+            <td style="color:var(--text-secondary);">{{ inv.invoice_date|date:"d/m/Y" }}</td>
+            <td>
+              <span {% if inv.is_overdue %}style="color:#dc2626;font-weight:500;"{% else %}style="color:var(--text-secondary);"{% endif %}>
+                {{ inv.due_date|date:"d/m/Y" }}
+                {% if inv.is_overdue %}<i class="bx bx-error-circle" style="font-size:13px;margin-left:3px;"></i>{% endif %}
+              </span>
+            </td>
+            <td class="amount-cell">{{ inv.total_ttc|floatformat:0 }} DA</td>
+            <td class="amount-cell {% if inv.balance_due > 0 %}text-danger{% endif %}">
+              {{ inv.balance_due|floatformat:0 }} DA
+            </td>
+            <td>
+              {% if inv.reconciliation_result == 'compliant' %}<span class="badge-valide">Conforme</span>
+              {% elif inv.reconciliation_result == 'minor_discrepancy' %}<span class="badge-non-paye">Écart mineur</span>
+              {% elif inv.reconciliation_result == 'dispute' %}<span class="badge-en-retard">Litige</span>
+              {% else %}<span class="badge-en-attente">En attente</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if inv.status == 'entered' %}<span class="badge-en-attente">Saisie</span>
+              {% elif inv.status == 'under_reconciliation' %}<span class="badge-en-attente">Rapprochement</span>
+              {% elif inv.status == 'verified' %}<span class="badge-valide">Vérifiée</span>
+              {% elif inv.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+              {% elif inv.status == 'unpaid' %}<span class="badge-non-paye">Impayée</span>
+              {% elif inv.status == 'partially_paid' %}<span class="badge-partiellement">Part. payée</span>
+              {% elif inv.status == 'paid' %}<span class="badge-paye">Payée</span>
+              {% elif inv.status == 'cancelled' %}<span class="badge-annule">Annulée</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{% url 'supplier_ops:supplier_invoice_detail' inv.id %}" class="btn-icon" title="Voir">
+                  <i class="bx bx-show"></i>
+                </a>
+                <a href="{% url 'supplier_ops:supplier_invoice_print' inv.id %}" class="btn-icon" title="Imprimer" target="_blank">
+                  <i class="bx bx-printer"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <i class="bx bx-receipt empty-state-icon"></i>
+      <div class="empty-state-title">Aucune facture fournisseur</div>
+      <div class="empty-state-text">
+        {% if request.GET.search or request.GET.status %}Aucun résultat ne correspond à vos filtres.
+        {% else %}Commencez par créer une facture fournisseur.{% endif %}
+      </div>
+      {% if request.user.userprofile.role in "manager,accountant" %}
+      <a href="{% url 'supplier_ops:supplier_invoice_create' %}" class="btn-primary-app mt-3">
+        <i class="bx bx-plus"></i> Nouvelle facture
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

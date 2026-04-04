@@ -1,0 +1,1401 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}UsineERP{% endblock %} — UsineERP</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <!-- Boxicons -->
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+
+  <style>
+    /* =========================================================
+       CSS VARIABLES
+    ========================================================= */
+    :root {
+      --bg-base: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-raised: #f1f5f9;
+      --bg-hover: #e9f0f7;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --accent: #0f766e;
+      --accent-light: #14b8a6;
+      --accent-dim: rgba(15, 118, 110, 0.08);
+      --accent-glow: rgba(15, 118, 110, 0.2);
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --radius-xs: 4px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --sidebar-w: 250px;
+      --sidebar-w-sm: 64px;
+      --topbar-h: 58px;
+    }
+
+    /* =========================================================
+       RESET & BASE
+    ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      margin: 0;
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    h1, h2, h3, h4, h5, h6,
+    .font-display {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    a { text-decoration: none; color: inherit; }
+
+    /* =========================================================
+       LAYOUT
+    ========================================================= */
+    .page-wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .page-content {
+      flex: 1;
+      margin-left: var(--sidebar-w);
+      padding-top: var(--topbar-h);
+      min-height: 100vh;
+      transition: margin-left 0.25s ease;
+    }
+
+    .page-content.sidebar-collapsed {
+      margin-left: var(--sidebar-w-sm);
+    }
+
+    .content-inner {
+      padding: 28px 32px;
+      max-width: 1400px;
+    }
+
+    /* =========================================================
+       TOPBAR
+    ========================================================= */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: var(--sidebar-w);
+      right: 0;
+      height: var(--topbar-h);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px 0 20px;
+      z-index: 900;
+      transition: left 0.25s ease;
+    }
+
+    .topbar.sidebar-collapsed { left: var(--sidebar-w-sm); }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .topbar-toggle {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      transition: background 0.15s;
+    }
+    .topbar-toggle:hover { background: var(--bg-raised); }
+
+    .breadcrumb-app {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
+    }
+    .breadcrumb-app .bc-sep { color: var(--border-strong); }
+    .breadcrumb-app .bc-current {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .breadcrumb-app a:hover { color: var(--accent); }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .topbar-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .topbar-user:hover { background: var(--bg-raised); }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      border: 2px solid var(--accent-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .user-info .user-name {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .user-info .user-role {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.2;
+    }
+
+    /* =========================================================
+       SIDEBAR
+    ========================================================= */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: var(--sidebar-w);
+      height: 100vh;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 1000;
+      overflow-x: hidden;
+      overflow-y: auto;
+      transition: width 0.25s ease;
+    }
+
+    .sidebar.collapsed {
+      width: var(--sidebar-w-sm);
+    }
+
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .sidebar-brand {
+      height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--border);
+      gap: 10px;
+      flex-shrink: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .brand-text {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--text-primary);
+      letter-spacing: -0.3px;
+    }
+
+    .brand-text span {
+      color: var(--accent);
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 0 24px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 14px 18px 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.15s;
+    }
+
+    .sidebar.collapsed .nav-section-label {
+      opacity: 0;
+      padding-top: 8px;
+      padding-bottom: 4px;
+    }
+
+    .sidebar.collapsed .nav-section-label::before {
+      content: '';
+      display: block;
+      height: 1px;
+      background: var(--border);
+      margin: 4px 10px;
+      opacity: 1;
+    }
+
+    .nav-link-app {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 18px;
+      border-radius: 0;
+      color: var(--text-secondary);
+      font-size: 13.5px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      white-space: nowrap;
+      overflow: hidden;
+      position: relative;
+      transition: color 0.15s, background 0.15s;
+      cursor: pointer;
+    }
+
+    .nav-link-app:hover {
+      background: var(--bg-raised);
+      color: var(--text-primary);
+    }
+
+    .nav-link-app.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .nav-link-app.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 3px;
+      background: var(--accent);
+      border-radius: 0 3px 3px 0;
+    }
+
+    .nav-link-app .nav-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      width: 20px;
+      text-align: center;
+    }
+
+    .nav-link-app .nav-label {
+      opacity: 1;
+      transition: opacity 0.15s;
+    }
+
+    .sidebar.collapsed .nav-link-app .nav-label {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+    }
+
+    .sidebar.collapsed .nav-link-app {
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--border);
+      padding: 12px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-footer .nav-link-app {
+      border-radius: var(--radius-sm);
+    }
+
+    /* =========================================================
+       CARDS
+    ========================================================= */
+    .card-app {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .card-app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-raised);
+    }
+
+    .card-app-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .card-header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .card-app-body {
+      padding: 20px;
+    }
+
+    /* =========================================================
+       METRIC CARDS
+    ========================================================= */
+    .metric-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      transition: box-shadow 0.2s;
+    }
+    .metric-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+
+    .metric-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .metric-body { flex: 1; min-width: 0; }
+
+    .metric-value {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 22px;
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .metric-delta {
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .metric-delta.up { color: #16a34a; }
+    .metric-delta.down { color: #dc2626; }
+
+    /* =========================================================
+       ICON BOX VARIANTS
+    ========================================================= */
+    .ic-teal   { background: rgba(15,118,110,0.10); color: #0f766e; }
+    .ic-blue   { background: rgba(37,99,235,0.10);  color: #2563eb; }
+    .ic-green  { background: rgba(22,163,74,0.10);  color: #16a34a; }
+    .ic-amber  { background: rgba(217,119,6,0.10);  color: #d97706; }
+    .ic-red    { background: rgba(220,38,38,0.10);  color: #dc2626; }
+    .ic-purple { background: rgba(124,58,237,0.10); color: #7c3aed; }
+    .ic-slate  { background: rgba(71,85,105,0.10);  color: #475569; }
+    .ic-orange { background: rgba(234,88,12,0.10);  color: #ea580c; }
+
+    /* =========================================================
+       BUTTONS
+    ========================================================= */
+    .btn-primary-app {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 8px 18px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, box-shadow 0.15s;
+      text-decoration: none;
+    }
+    .btn-primary-app:hover {
+      background: #0a5c56;
+      box-shadow: 0 4px 12px var(--accent-glow);
+      color: #fff;
+    }
+
+    .btn-secondary-app {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      padding: 7px 16px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, color 0.15s;
+      text-decoration: none;
+    }
+    .btn-secondary-app:hover {
+      background: var(--bg-raised);
+      color: var(--text-primary);
+    }
+
+    .btn-danger-app {
+      background: transparent;
+      color: #dc2626;
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius-sm);
+      padding: 7px 16px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+      text-decoration: none;
+    }
+    .btn-danger-app:hover { background: #fef2f2; color: #dc2626; }
+
+    .btn-validate {
+      background: transparent;
+      color: #16a34a;
+      border: 1px solid #86efac;
+      border-radius: var(--radius-sm);
+      padding: 7px 16px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+      text-decoration: none;
+    }
+    .btn-validate:hover { background: #f0fdf4; color: #16a34a; }
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      border-radius: var(--radius-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      font-size: 15px;
+      text-decoration: none;
+    }
+    .btn-icon:hover {
+      background: var(--bg-raised);
+      color: var(--accent);
+    }
+
+    /* =========================================================
+       STATUS BADGES
+    ========================================================= */
+    [class^="badge-"], [class*=" badge-"] {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11.5px;
+      font-weight: 600;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      white-space: nowrap;
+      line-height: 1.5;
+    }
+
+    .badge-disponible   { background: #dcfce7; color: #15803d; }
+    .badge-presque      { background: #fef9c3; color: #a16207; }
+    .badge-rupture      { background: #fee2e2; color: #dc2626; }
+    .badge-commande     { background: #dbeafe; color: #1d4ed8; }
+    .badge-valide       { background: #dcfce7; color: #15803d; }
+    .badge-paye         { background: #dcfce7; color: #15803d; }
+    .badge-en-attente   { background: #f1f5f9; color: #475569; }
+    .badge-non-paye     { background: #fef9c3; color: #a16207; }
+    .badge-en-retard    { background: #fee2e2; color: #dc2626; }
+    .badge-partiellement{ background: #dbeafe; color: #1d4ed8; }
+    .badge-en-litige    { background: #ffedd5; color: #c2410c; }
+    .badge-annule       { background: #f1f5f9; color: #94a3b8; }
+    .badge-normal-yield { background: #dcfce7; color: #15803d; }
+    .badge-warn-yield   { background: #fef9c3; color: #a16207; }
+    .badge-crit-yield   { background: #fee2e2; color: #dc2626; }
+
+    /* =========================================================
+       TABLES
+    ========================================================= */
+    .table-container {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .table-container .table {
+      margin-bottom: 0;
+      font-family: 'Inter', sans-serif;
+      font-size: 13.5px;
+    }
+
+    .table-container .table thead th {
+      background: var(--bg-raised);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 11px 16px;
+      white-space: nowrap;
+    }
+
+    .table-container .table tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      color: var(--text-primary);
+    }
+
+    .table-container .table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .table-container .table-hover tbody tr:hover td {
+      background: var(--bg-hover);
+    }
+
+    .col-ref {
+      font-family: 'Plus Jakarta Sans', monospace;
+      font-weight: 600;
+      font-size: 12.5px;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+
+    .col-amount {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      text-align: right;
+    }
+
+    /* =========================================================
+       DELTA CELLS
+    ========================================================= */
+    .delta-ok {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .delta-minor {
+      background: #fef9c3;
+      color: #a16207;
+      padding: 3px 8px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .delta-alert {
+      background: #fee2e2;
+      color: #dc2626;
+      padding: 3px 8px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* =========================================================
+       FORM INPUTS
+    ========================================================= */
+    .form-control-app {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      font-size: 13.5px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+
+    .form-control-app:focus {
+      border-color: var(--accent-light);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .form-control-app::placeholder {
+      color: var(--text-muted);
+    }
+
+    .form-label-app {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    .form-label-app .required {
+      color: #dc2626;
+      margin-left: 2px;
+    }
+
+    .form-hint {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .form-error {
+      font-size: 12px;
+      color: #dc2626;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* =========================================================
+       FILTER BAR
+    ========================================================= */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .filter-bar .filter-search {
+      position: relative;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .filter-bar .filter-search .bx {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 16px;
+      pointer-events: none;
+    }
+
+    .filter-bar .filter-search input {
+      padding-left: 34px;
+    }
+
+    .filter-bar select.form-control-app {
+      width: auto;
+      min-width: 150px;
+    }
+
+    .filter-reset {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 0;
+      transition: color 0.15s;
+      white-space: nowrap;
+    }
+    .filter-reset:hover { color: var(--accent); }
+
+    /* =========================================================
+       ALERTS / TOASTS
+    ========================================================= */
+    .alert-banner {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13.5px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .alert-banner.success {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #15803d;
+    }
+    .alert-banner.error {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #dc2626;
+    }
+    .alert-banner.warning {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      color: #b45309;
+    }
+    .alert-banner.info {
+      background: #eff6ff;
+      border: 1px solid #93c5fd;
+      color: #1d4ed8;
+    }
+
+    .toast-container-app {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: 360px;
+    }
+
+    .toast-app {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      animation: slideInRight 0.3s ease;
+    }
+
+    .toast-app.toast-success { border-left: 3px solid #16a34a; }
+    .toast-app.toast-error   { border-left: 3px solid #dc2626; }
+    .toast-app.toast-warning { border-left: 3px solid #d97706; }
+    .toast-app.toast-info    { border-left: 3px solid #2563eb; }
+
+    .toast-app .toast-msg {
+      font-size: 13.5px;
+      color: var(--text-primary);
+      flex: 1;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .toast-app .toast-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    /* =========================================================
+       EMPTY STATE
+    ========================================================= */
+    .empty-state {
+      text-align: center;
+      padding: 60px 24px;
+      color: var(--text-muted);
+    }
+
+    .empty-state .empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.35;
+    }
+
+    .empty-state .empty-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .empty-state .empty-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    /* =========================================================
+       DANGER ZONE
+    ========================================================= */
+    .danger-zone {
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      background: #fff8f8;
+    }
+
+    .danger-zone-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      color: #dc2626;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* =========================================================
+       FINANCIAL SUMMARY GRID
+    ========================================================= */
+    .fin-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+
+    .fin-summary-item {
+      background: var(--bg-raised);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+    }
+
+    .fin-summary-item .fin-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .fin-summary-item .fin-value {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text-primary);
+    }
+
+    /* =========================================================
+       PAGE HEADER
+    ========================================================= */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+
+    .page-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      color: var(--text-primary);
+      line-height: 1.1;
+      margin: 0;
+    }
+
+    .page-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .page-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* =========================================================
+       PAGINATION
+    ========================================================= */
+    .pagination-app {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .page-btn {
+      min-width: 32px;
+      height: 32px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      border-radius: var(--radius-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+      padding: 0 8px;
+    }
+    .page-btn:hover { background: var(--bg-raised); color: var(--text-primary); }
+    .page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .page-btn.disabled { opacity: 0.4; pointer-events: none; }
+
+    .page-info {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+
+    /* =========================================================
+       MODALS (Bootstrap override)
+    ========================================================= */
+    .modal-app .modal-content {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+    }
+    .modal-app .modal-header {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 20px;
+      background: var(--bg-raised);
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    }
+    .modal-app .modal-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+    .modal-app .modal-body { padding: 20px; }
+    .modal-app .modal-footer {
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      gap: 8px;
+    }
+
+    /* =========================================================
+       DIVIDERS
+    ========================================================= */
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* =========================================================
+       ANIMATIONS
+    ========================================================= */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(24px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes pulseDanger {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+      50%       { box-shadow: 0 0 0 4px rgba(220,38,38,0.15); }
+    }
+
+    .content-inner {
+      animation: fadeIn 0.25s ease;
+    }
+
+    /* =========================================================
+       PRINT
+    ========================================================= */
+    @media print {
+      .sidebar,
+      .topbar,
+      .page-actions,
+      .filter-bar,
+      .btn-primary-app,
+      .btn-secondary-app,
+      .btn-icon,
+      .toast-container-app {
+        display: none !important;
+      }
+
+      .page-content {
+        margin-left: 0 !important;
+        padding-top: 0 !important;
+      }
+
+      body {
+        background: #fff;
+      }
+
+      .card-app {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+      }
+    }
+
+    /* =========================================================
+       RESPONSIVE
+    ========================================================= */
+    @media (max-width: 992px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.25s ease, width 0.25s ease;
+      }
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+      .page-content {
+        margin-left: 0 !important;
+      }
+      .topbar {
+        left: 0 !important;
+      }
+    }
+  </style>
+
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<div class="page-wrapper">
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <i class="bx bx-building-house"></i>
+      </div>
+      <span class="brand-text">Usine<span>ERP</span></span>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      <!-- EXPLOITATION -->
+      <div class="nav-section-label">Exploitation</div>
+      <a href="{% url 'core:dashboard' %}" class="nav-link-app" data-path="/dashboard/">
+        <i class="bx bx-grid-alt nav-icon"></i>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      <a href="{% url 'catalog:raw_materials_list' %}" class="nav-link-app" data-path="/catalog/raw-materials/">
+        <i class="bx bx-cube nav-icon"></i>
+        <span class="nav-label">Matières Premières</span>
+      </a>
+      <a href="{% url 'stock:raw_materials_stock_list' %}" class="nav-link-app" data-path="/stock/raw-materials/">
+        <i class="bx bx-package nav-icon"></i>
+        <span class="nav-label">Stock RM</span>
+      </a>
+      <a href="{% url 'suppliers:suppliers_list' %}" class="nav-link-app" data-path="/suppliers/">
+        <i class="bx bx-store nav-icon"></i>
+        <span class="nav-label">Fournisseurs</span>
+      </a>
+      <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="nav-link-app" data-path="/supplier-ops/supplier-dns/">
+        <i class="bx bx-receipt nav-icon"></i>
+        <span class="nav-label">BL Fournisseurs</span>
+      </a>
+      <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="nav-link-app" data-path="/supplier-ops/supplier-invoices/">
+        <i class="bx bx-file nav-icon"></i>
+        <span class="nav-label">Factures Fournisseurs</span>
+      </a>
+
+      <!-- PRODUCTION -->
+      <div class="nav-section-label">Production</div>
+      <a href="{% url 'production:formulations_list' %}" class="nav-link-app" data-path="/production/formulations/">
+        <i class="bx bx-beaker nav-icon"></i>
+        <span class="nav-label">Formulations</span>
+      </a>
+      <a href="{% url 'production:production_orders_list' %}" class="nav-link-app" data-path="/production/production-orders/">
+        <i class="bx bx-cog nav-icon"></i>
+        <span class="nav-label">Ordres de Production</span>
+      </a>
+      <a href="{% url 'stock:finished_products_stock_list' %}" class="nav-link-app" data-path="/stock/finished-products/">
+        <i class="bx bx-box nav-icon"></i>
+        <span class="nav-label">Stock PF</span>
+      </a>
+
+      <!-- COMMERCIAL -->
+      <div class="nav-section-label">Commercial</div>
+      <a href="{% url 'clients:clients_list' %}" class="nav-link-app" data-path="/clients/">
+        <i class="bx bx-group nav-icon"></i>
+        <span class="nav-label">Clients</span>
+      </a>
+      <a href="{% url 'sales:client_dns_list' %}" class="nav-link-app" data-path="/sales/client-dns/">
+        <i class="bx bx-send nav-icon"></i>
+        <span class="nav-label">BL Clients</span>
+      </a>
+      <a href="{% url 'sales:client_invoices_list' %}" class="nav-link-app" data-path="/sales/client-invoices/">
+        <i class="bx bx-spreadsheet nav-icon"></i>
+        <span class="nav-label">Facturation</span>
+      </a>
+
+      <!-- FINANCE -->
+      <div class="nav-section-label">Finance</div>
+      <a href="#" class="nav-link-app" data-path="/supplier-ops/supplier-invoices/">
+        <i class="bx bx-credit-card nav-icon"></i>
+        <span class="nav-label">Paiements</span>
+      </a>
+      <a href="{% url 'expenses:expenses_list' %}" class="nav-link-app" data-path="/expenses/">
+        <i class="bx bx-wallet nav-icon"></i>
+        <span class="nav-label">Dépenses</span>
+      </a>
+
+      <!-- ANALYSE -->
+      <div class="nav-section-label">Analyse</div>
+      <a href="{% url 'reporting:reporting_dashboard' %}" class="nav-link-app" data-path="/reporting/">
+        <i class="bx bx-bar-chart-alt-2 nav-icon"></i>
+        <span class="nav-label">Rapports</span>
+      </a>
+
+      <!-- ADMINISTRATION -->
+      {% if request.user.userprofile.role == 'manager' %}
+      <div class="nav-section-label">Administration</div>
+      <a href="{% url 'core:company_settings' %}" class="nav-link-app" data-path="/company-settings/">
+        <i class="bx bx-slider-alt nav-icon"></i>
+        <span class="nav-label">Paramètres</span>
+      </a>
+      <a href="{% url 'accounts:user_management' %}" class="nav-link-app" data-path="/accounts/users/">
+        <i class="bx bx-user-circle nav-icon"></i>
+        <span class="nav-label">Utilisateurs</span>
+      </a>
+      <a href="{% url 'accounts:audit_log' %}" class="nav-link-app" data-path="/accounts/audit-log/">
+        <i class="bx bx-shield-quarter nav-icon"></i>
+        <span class="nav-label">Journal Audit</span>
+      </a>
+      {% endif %}
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <form method="post" action="{% url 'accounts:logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="nav-link-app w-100" style="border:none; cursor:pointer;">
+          <i class="bx bx-log-out nav-icon"></i>
+          <span class="nav-label">Déconnexion</span>
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- ===================== TOPBAR ===================== -->
+  <header class="topbar" id="topbar">
+    <div class="topbar-left">
+      <button class="topbar-toggle" id="sidebarToggle" title="Réduire le menu">
+        <i class="bx bx-menu" style="font-size:20px;"></i>
+      </button>
+      <nav class="breadcrumb-app">
+        {% block breadcrumb %}
+        <a href="{% url 'core:dashboard' %}">Accueil</a>
+        {% endblock %}
+      </nav>
+    </div>
+    <div class="topbar-right">
+      {% if request.user.is_authenticated %}
+      <div class="dropdown">
+        <div class="topbar-user" data-bs-toggle="dropdown" aria-expanded="false">
+          <div class="user-avatar">
+            {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
+          </div>
+          <div class="user-info d-none d-md-block">
+            <div class="user-name">{{ request.user.get_full_name|default:request.user.username }}</div>
+            <div class="user-role">
+              {% if request.user.userprofile.role == 'manager' %}Administrateur
+              {% elif request.user.userprofile.role == 'stock_prod' %}Stock / Production
+              {% elif request.user.userprofile.role == 'accountant' %}Comptable
+              {% elif request.user.userprofile.role == 'sales' %}Commercial
+              {% else %}Consultation{% endif %}
+            </div>
+          </div>
+          <i class="bx bx-chevron-down" style="color:var(--text-muted);font-size:16px;"></i>
+        </div>
+        <ul class="dropdown-menu dropdown-menu-end" style="border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:0 8px 24px rgba(0,0,0,0.10); min-width:190px; padding:6px;">
+          <li>
+            <span class="dropdown-item-text" style="font-size:11px;color:var(--text-muted);padding:6px 12px;">
+              {{ request.user.username }}
+            </span>
+          </li>
+          <li><hr class="dropdown-divider" style="margin:4px 0;"></li>
+          <li>
+            <form method="post" action="{% url 'accounts:logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="dropdown-item" style="font-size:13.5px; color:var(--text-secondary); border-radius:var(--radius-sm); display:flex; align-items:center; gap:8px;">
+                <i class="bx bx-log-out" style="font-size:16px;"></i> Déconnexion
+              </button>
+            </form>
+          </li>
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- ===================== MAIN CONTENT ===================== -->
+  <main class="page-content" id="pageContent">
+    <div class="content-inner">
+
+      <!-- Django messages → toast notifications -->
+      {% if messages %}
+      <div class="toast-container-app" id="toastContainer">
+        {% for message in messages %}
+        <div class="toast-app toast-{% if message.tags == 'error' %}error{% elif message.tags == 'warning' %}warning{% elif message.tags == 'success' %}success{% else %}info{% endif %}" role="alert">
+          <i class="bx {% if message.tags == 'error' %}bx-x-circle{% elif message.tags == 'warning' %}bx-error{% elif message.tags == 'success' %}bx-check-circle{% else %}bx-info-circle{% endif %}" style="font-size:18px; flex-shrink:0; margin-top:1px;"></i>
+          <span class="toast-msg">{{ message }}</span>
+          <button class="toast-close" onclick="this.closest('.toast-app').remove()">
+            <i class="bx bx-x"></i>
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+
+    </div>
+  </main>
+</div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  /* =========================================================
+     SIDEBAR TOGGLE
+  ========================================================= */
+  (function () {
+    const sidebar    = document.getElementById('sidebar');
+    const pageContent = document.getElementById('pageContent');
+    const topbar     = document.getElementById('topbar');
+    const toggleBtn  = document.getElementById('sidebarToggle');
+    const STORAGE_KEY = 'sidebarCollapsed';
+
+    function applyCollapsed(collapsed) {
+      if (collapsed) {
+        sidebar.classList.add('collapsed');
+        pageContent.classList.add('sidebar-collapsed');
+        topbar.classList.add('sidebar-collapsed');
+      } else {
+        sidebar.classList.remove('collapsed');
+        pageContent.classList.remove('sidebar-collapsed');
+        topbar.classList.remove('sidebar-collapsed');
+      }
+    }
+
+    // Restore state
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === 'true') applyCollapsed(true);
+
+    toggleBtn.addEventListener('click', function () {
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      applyCollapsed(!isCollapsed);
+      localStorage.setItem(STORAGE_KEY, !isCollapsed);
+    });
+  })();
+
+  /* =========================================================
+     ACTIVE NAV LINK DETECTION
+  ========================================================= */
+  (function () {
+    const currentPath = window.location.pathname;
+    document.querySelectorAll('.nav-link-app[data-path]').forEach(function (link) {
+      const path = link.getAttribute('data-path');
+      if (path && currentPath.startsWith(path)) {
+        link.classList.add('active');
+      }
+    });
+  })();
+
+  /* =========================================================
+     TOAST AUTO-DISMISS (4500ms)
+  ========================================================= */
+  (function () {
+    setTimeout(function () {
+      document.querySelectorAll('.toast-app').forEach(function (t) {
+        t.style.transition = 'opacity 0.4s';
+        t.style.opacity = '0';
+        setTimeout(function () { t.remove(); }, 400);
+      });
+    }, 4500);
+  })();
+
+  /* =========================================================
+     BOOTSTRAP TOOLTIP INIT
+  ========================================================= */
+  (function () {
+    var tooltipEls = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipEls.forEach(function (el) {
+      bootstrap.Tooltip.getOrCreateInstance(el);
+    });
+  })();
+</script>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>

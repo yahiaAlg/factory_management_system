@@ -1,0 +1,271 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}{{ product.reference }} — Produit fini{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'catalog:finished_products_list' %}">Produits finis</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ product.reference }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .margin-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-top: 16px;
+  }
+  .margin-kpi-cell {
+    background: var(--bg-surface);
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .margin-kpi-cell .mk-val {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+  .margin-kpi-cell .mk-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .po-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11.5px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  .po-pending    { background: #f1f5f9; color: #475569; }
+  .po-validated  { background: var(--accent-dim); color: var(--accent); }
+  .po-inprogress { background: #dbeafe; color: #1d4ed8; }
+  .po-completed  { background: #dcfce7; color: #15803d; }
+  .po-cancelled  { background: #f1f5f9; color: #94a3b8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div style="width:52px;height:52px;background:var(--accent-dim);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <i class="bx bx-box" style="font-size:24px;color:var(--accent);"></i>
+    </div>
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <h1 class="page-title" style="margin:0;">{{ product.designation }}</h1>
+        {% if product.is_active %}
+          {% with st=stock_status %}
+          {% if st == 'available' %}<span class="badge-disponible"><i class="bx bx-check-circle"></i> Disponible</span>
+          {% elif st == 'running_low' %}<span class="badge-presque"><i class="bx bx-error"></i> Alerte</span>
+          {% elif st == 'stockout' %}<span class="badge-rupture"><i class="bx bx-x-circle"></i> Rupture</span>
+          {% endif %}
+          {% endwith %}
+        {% else %}
+          <span class="badge-annule">Inactif</span>
+        {% endif %}
+      </div>
+      <p class="page-subtitle" style="margin-top:2px;">
+        <span class="col-ref">{{ product.reference }}</span>
+        &nbsp;·&nbsp; {{ product.sales_unit.name }} ({{ product.sales_unit.symbol }})
+      </p>
+    </div>
+  </div>
+  <div class="page-actions">
+    <a href="{% url 'stock:finished_product_stock_detail' product.id %}" class="btn-secondary-app">
+      <i class="bx bx-box"></i> Fiche stock PF
+    </a>
+    <a href="{% url 'catalog:finished_products_list' %}" class="btn-secondary-app">
+      <i class="bx bx-list-ul"></i> Retour liste
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Left: financial summary -->
+  <div class="col-lg-4">
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-box" style="color:var(--accent);margin-right:6px;"></i>Stock actuel</span>
+      </div>
+      <div class="card-app-body">
+        <div style="text-align:center;padding:8px 0;">
+          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:38px;color:
+            {% if stock_status == 'stockout' %}#dc2626{% elif stock_status == 'running_low' %}#d97706{% else %}var(--text-primary){% endif %};line-height:1;">
+            {{ current_stock|floatformat:3 }}
+          </div>
+          <div style="font-size:14px;color:var(--text-muted);margin-top:4px;">{{ product.sales_unit.symbol }}</div>
+          {% if product.alert_threshold > 0 %}
+          <div style="margin-top:12px;">
+            <div style="height:7px;background:var(--border);border-radius:99px;overflow:hidden;">
+              <div style="height:100%;border-radius:99px;background:
+                {% if stock_status == 'stockout' %}#dc2626{% elif stock_status == 'running_low' %}#d97706{% else %}#16a34a{% endif %};
+                width:{% widthratio current_stock product.alert_threshold 100 %}%;max-width:100%;transition:width 0.3s;"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;text-align:right;">
+              Seuil alerte: {{ product.alert_threshold|floatformat:3 }}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Margin KPIs -->
+        <div class="margin-kpi-row">
+          <div class="margin-kpi-cell">
+            <div class="mk-val">{{ product.reference_selling_price|floatformat:0 }} <span style="font-size:13px;font-weight:500;color:var(--text-muted);">DA</span></div>
+            <div class="mk-label">Prix vente réf.</div>
+          </div>
+          <div class="margin-kpi-cell">
+            <div class="mk-val">{% if wac %}{{ wac|floatformat:0 }}{% else %}—{% endif %} <span style="font-size:13px;font-weight:500;color:var(--text-muted);">DA</span></div>
+            <div class="mk-label">CMP</div>
+          </div>
+          <div class="margin-kpi-cell">
+            <div class="mk-val" style="{% if margin_rate >= 0 %}color:#16a34a;{% else %}color:#dc2626;{% endif %}">
+              {% if wac %}{{ margin_rate|floatformat:1 }}%{% else %}—{% endif %}
+            </div>
+            <div class="mk-label">Taux marge</div>
+          </div>
+        </div>
+
+        {% if wac %}
+        <div style="margin-top:12px;padding:10px 12px;background:var(--bg-raised);border-radius:var(--radius-sm);">
+          <div style="font-size:12px;color:var(--text-muted);">Marge brute unitaire</div>
+          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:16px;
+            {% if unit_margin >= 0 %}color:#16a34a;{% else %}color:#dc2626;{% endif %}margin-top:2px;">
+            {% if unit_margin >= 0 %}+{% endif %}{{ unit_margin|floatformat:2 }} DA
+          </div>
+        </div>
+        {% else %}
+        <div style="margin-top:12px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:var(--radius-sm);font-size:12px;color:#92400e;display:flex;gap:6px;">
+          <i class="bx bx-info-circle" style="flex-shrink:0;"></i>
+          CMP non encore calculé — disponible après clôture du premier ordre de production.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Metadata -->
+    <div class="card-app">
+      <div class="card-app-header"><span class="card-app-title">Informations</span></div>
+      <div style="font-size:13px;">
+        <div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);">
+          <span style="color:var(--text-muted);">Unité de vente</span>
+          <span>{{ product.sales_unit.name }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);">
+          <span style="color:var(--text-muted);">Seuil d'alerte</span>
+          <span>{{ product.alert_threshold|floatformat:3 }} {{ product.sales_unit.symbol }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);">
+          <span style="color:var(--text-muted);">Créé le</span>
+          <span>{{ product.created_at|date:"d/m/Y" }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 16px;">
+          <span style="color:var(--text-muted);">Modifié le</span>
+          <span>{{ product.updated_at|date:"d/m/Y" }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: production orders -->
+  <div class="col-lg-8">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">
+          <i class="bx bx-cog" style="color:var(--accent);margin-right:6px;"></i>
+          Ordres de production récents
+        </span>
+        <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
+          Tous les OP
+        </a>
+      </div>
+      <div class="table-container" style="border:none;border-radius:0;">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Formulation</th>
+              <th>Date lancement</th>
+              <th class="text-end">Qté cible</th>
+              <th class="text-end">Qté réelle</th>
+              <th>Rendement</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for po in production_orders %}
+            <tr>
+              <td>
+                <a href="{% url 'production:production_order_detail' po.id %}" class="col-ref" style="text-decoration:none;">
+                  {{ po.reference }}
+                </a>
+              </td>
+              <td style="font-size:13px;color:var(--text-secondary);">
+                {{ po.formulation.designation|truncatechars:30 }}
+                <span style="font-size:11px;color:var(--text-muted);">v{{ po.formulation_version }}</span>
+              </td>
+              <td style="font-size:13px;color:var(--text-secondary);white-space:nowrap;">
+                {{ po.launch_date|date:"d/m/Y" }}
+              </td>
+              <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">
+                {{ po.target_qty|floatformat:3 }}
+              </td>
+              <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">
+                {% if po.actual_qty_produced %}{{ po.actual_qty_produced|floatformat:3 }}{% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+              </td>
+              <td>
+                {% if po.yield_rate is not None %}
+                  {% if po.yield_status == 'normal' %}
+                    <span class="badge-normal-yield">{{ po.yield_rate|floatformat:1 }}%</span>
+                  {% elif po.yield_status == 'warning' %}
+                    <span class="badge-warn-yield">{{ po.yield_rate|floatformat:1 }}%</span>
+                  {% else %}
+                    <span class="badge-crit-yield">{{ po.yield_rate|floatformat:1 }}%</span>
+                  {% endif %}
+                {% else %}
+                  <span style="font-size:12px;color:var(--text-muted);">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="po-status-badge po-{{ po.status|slugify }}">
+                  {% if po.status == 'pending' %}En attente
+                  {% elif po.status == 'validated' %}Validé
+                  {% elif po.status == 'in_progress' %}En cours
+                  {% elif po.status == 'completed' %}Terminé
+                  {% else %}Annulé{% endif %}
+                </span>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7">
+              <div class="empty-state" style="padding:32px 0;">
+                <div class="empty-icon" style="font-size:32px;"><i class="bx bx-cog"></i></div>
+                <div class="empty-title" style="font-size:14px;">Aucun ordre de production</div>
+                <div class="empty-desc">Les OP utilisant ce produit fini apparaîtront ici.</div>
+              </div>
+            </td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

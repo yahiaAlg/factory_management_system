@@ -1,0 +1,573 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}Gestion des utilisateurs{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Utilisateurs</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .role-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 11.5px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    white-space: nowrap;
+  }
+  .role-manager    { background: var(--accent-dim); color: var(--accent); }
+  .role-stock_prod { background: #ede9fe; color: #7c3aed; }
+  .role-accountant { background: #dbeafe; color: #1d4ed8; }
+  .role-sales      { background: #dcfce7; color: #15803d; }
+  .role-viewer     { background: var(--bg-raised); color: var(--text-muted); }
+
+  .user-avatar-sm {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 2px solid var(--accent-glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--accent);
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .user-info-cell .user-fullname {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+  .user-info-cell .user-username {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.2;
+    margin-top: 1px;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.active   { background: #16a34a; box-shadow: 0 0 0 2px rgba(22,163,74,0.2); }
+  .status-dot.inactive { background: #94a3b8; }
+
+  .form-section-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .form-section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .count-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 99px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Gestion des utilisateurs</h1>
+    <p class="page-subtitle">Créer et gérer les comptes d'accès au système</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-primary-app" data-bs-toggle="modal" data-bs-target="#createUserModal">
+      <i class="bx bx-user-plus"></i>
+      Nouvel utilisateur
+    </button>
+  </div>
+</div>
+
+<!-- Stats row -->
+<div class="row g-3 mb-4">
+  {% with total=users|length %}
+  <div class="col-6 col-lg-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-teal"><i class="bx bx-group"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">{{ users.count }}</div>
+        <div class="metric-label">Utilisateurs total</div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  <div class="col-6 col-lg-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-green"><i class="bx bx-user-check"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">{{ users|dictsort:"userprofile.is_active"|length }}</div>
+        <div class="metric-label">Comptes actifs</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-amber"><i class="bx bx-shield"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">
+          {% with cnt=0 %}
+            {% for u in users %}{% if u.userprofile.role == 'manager' %}{% with cnt=cnt|add:1 %}{% endwith %}{% endif %}{% endfor %}
+          {% endwith %}
+          {{ users|length }}
+        </div>
+        <div class="metric-label">Rôles configurés</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="metric-card">
+      <div class="metric-icon ic-slate"><i class="bx bx-time-five"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">5</div>
+        <div class="metric-label">Niveaux d'accès</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Users table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="card-app-title">Liste des utilisateurs</span>
+      <span class="count-chip">{{ users.count }}</span>
+    </div>
+    <div class="card-header-actions">
+      <div style="position:relative;">
+        <i class="bx bx-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:16px;pointer-events:none;"></i>
+        <input
+          type="text"
+          id="userSearch"
+          class="form-control-app"
+          placeholder="Rechercher..."
+          style="padding-left:34px;width:220px;"
+        />
+      </div>
+    </div>
+  </div>
+
+  <div class="table-container" style="border:none;border-radius:0;">
+    <table class="table table-hover" id="usersTable">
+      <thead>
+        <tr>
+          <th>Utilisateur</th>
+          <th>Email</th>
+          <th>Rôle</th>
+          <th>Statut</th>
+          <th>Créé le</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr class="user-row">
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="user-avatar-sm">
+                {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+              </div>
+              <div class="user-info-cell">
+                <div class="user-fullname">
+                  {{ user.get_full_name|default:user.username }}
+                </div>
+                <div class="user-username">@{{ user.username }}</div>
+              </div>
+            </div>
+          </td>
+          <td style="color:var(--text-secondary);font-size:13px;">
+            {{ user.email|default:"—" }}
+          </td>
+          <td>
+            <span class="role-pill role-{{ user.userprofile.role }}">
+              {% if user.userprofile.role == 'manager' %}
+                <i class="bx bx-shield-quarter"></i> Administrateur
+              {% elif user.userprofile.role == 'stock_prod' %}
+                <i class="bx bx-package"></i> Stock / Production
+              {% elif user.userprofile.role == 'accountant' %}
+                <i class="bx bx-calculator"></i> Comptable
+              {% elif user.userprofile.role == 'sales' %}
+                <i class="bx bx-store-alt"></i> Commercial
+              {% else %}
+                <i class="bx bx-show"></i> Consultation
+              {% endif %}
+            </span>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:7px;">
+              <span class="status-dot {% if user.userprofile.is_active %}active{% else %}inactive{% endif %}"></span>
+              <span style="font-size:13px;color:var(--text-secondary);">
+                {% if user.userprofile.is_active %}Actif{% else %}Désactivé{% endif %}
+              </span>
+            </div>
+          </td>
+          <td style="color:var(--text-secondary);font-size:13px;">
+            {{ user.date_joined|date:"d/m/Y" }}
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
+              {% if user != request.user %}
+              <form method="post" action="{% url 'accounts:toggle_user_status' user.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button
+                  type="submit"
+                  class="btn-icon"
+                  title="{% if user.userprofile.is_active %}Désactiver ce compte{% else %}Activer ce compte{% endif %}"
+                  data-bs-toggle="tooltip"
+                  onclick="return confirm('{% if user.userprofile.is_active %}Désactiver {{ user.username }} ?{% else %}Activer {{ user.username }} ?{% endif %}')"
+                >
+                  {% if user.userprofile.is_active %}
+                    <i class="bx bx-user-x" style="color:#dc2626;"></i>
+                  {% else %}
+                    <i class="bx bx-user-check" style="color:#16a34a;"></i>
+                  {% endif %}
+                </button>
+              </form>
+              {% else %}
+              <span
+                class="btn-icon"
+                style="opacity:0.3;cursor:default;"
+                data-bs-toggle="tooltip"
+                title="Votre propre compte"
+              >
+                <i class="bx bx-lock-alt"></i>
+              </span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="empty-icon"><i class="bx bx-group"></i></div>
+              <div class="empty-title">Aucun utilisateur trouvé</div>
+              <div class="empty-desc">Créez le premier utilisateur en cliquant sur « Nouvel utilisateur ».</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Role Legend -->
+<div class="card-app mt-4">
+  <div class="card-app-header">
+    <span class="card-app-title">Matrice des permissions</span>
+  </div>
+  <div class="card-app-body" style="padding:0;">
+    <table class="table" style="margin:0;font-size:13px;">
+      <thead>
+        <tr>
+          <th style="background:var(--bg-raised);padding:11px 20px;font-size:11.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Permission</th>
+          <th style="background:var(--bg-raised);text-align:center;padding:11px 16px;font-size:11.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Administrateur</th>
+          <th style="background:var(--bg-raised);text-align:center;padding:11px 16px;font-size:11.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Stock/Prod</th>
+          <th style="background:var(--bg-raised);text-align:center;padding:11px 16px;font-size:11.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Comptable</th>
+          <th style="background:var(--bg-raised);text-align:center;padding:11px 16px;font-size:11.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Commercial</th>
+          <th style="background:var(--bg-raised);text-align:center;padding:11px 16px;font-size:11.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Consultation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% with yes='<i class="bx bx-check-circle" style="color:#16a34a;font-size:16px;"></i>' no='<i class="bx bx-minus-circle" style="color:var(--border-strong);font-size:16px;"></i>' %}
+        <tr>
+          <td style="padding:11px 20px;border-bottom:1px solid var(--border);color:var(--text-secondary);">Valider BL Fournisseur</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 20px;border-bottom:1px solid var(--border);color:var(--text-secondary);">Créer facture fournisseur</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 20px;border-bottom:1px solid var(--border);color:var(--text-secondary);">Valider ordre de production</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 20px;border-bottom:1px solid var(--border);color:var(--text-secondary);">Créer BL Client</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 20px;border-bottom:1px solid var(--border);color:var(--text-secondary);">Accès rapports financiers</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;border-bottom:1px solid var(--border);">{{ yes }}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 20px;color:var(--text-secondary);">Gérer paramètres / utilisateurs</td>
+          <td style="text-align:center;padding:11px 16px;">{{ yes }}</td>
+          <td style="text-align:center;padding:11px 16px;">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;">{{ no }}</td>
+          <td style="text-align:center;padding:11px 16px;">{{ no }}</td>
+        </tr>
+        {% endwith %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- =========================================================
+     CREATE USER MODAL
+========================================================= -->
+<div class="modal fade modal-app" id="createUserModal" tabindex="-1" aria-labelledby="createUserModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createUserModalLabel">
+          <i class="bx bx-user-plus" style="color:var(--accent);margin-right:8px;"></i>
+          Créer un utilisateur
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+
+      <form method="post" action="{% url 'accounts:user_management' %}" id="createUserForm">
+        {% csrf_token %}
+        <div class="modal-body">
+
+          {% if user_form.non_field_errors %}
+          <div class="alert-banner error mb-3">
+            <i class="bx bx-error-circle"></i>
+            {% for error in user_form.non_field_errors %}{{ error }}{% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="form-section-title">Informations du compte</div>
+
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-app" for="{{ user_form.username.id_for_label }}">
+                Nom d'utilisateur <span class="required">*</span>
+              </label>
+              <input
+                type="text"
+                id="{{ user_form.username.id_for_label }}"
+                name="{{ user_form.username.html_name }}"
+                class="form-control-app {% if user_form.username.errors %}is-invalid{% endif %}"
+                placeholder="ex: jdupont"
+                value="{{ user_form.username.value|default:'' }}"
+                required
+              />
+              {% if user_form.username.errors %}
+              <div class="form-error">
+                <i class="bx bx-x-circle"></i>
+                {% for e in user_form.username.errors %}{{ e }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ user_form.first_name.id_for_label }}">
+                Prénom
+              </label>
+              <input
+                type="text"
+                id="{{ user_form.first_name.id_for_label }}"
+                name="{{ user_form.first_name.html_name }}"
+                class="form-control-app"
+                placeholder="Prénom"
+                value="{{ user_form.first_name.value|default:'' }}"
+              />
+            </div>
+            <div class="col-6">
+              <label class="form-label-app" for="{{ user_form.last_name.id_for_label }}">
+                Nom
+              </label>
+              <input
+                type="text"
+                id="{{ user_form.last_name.id_for_label }}"
+                name="{{ user_form.last_name.html_name }}"
+                class="form-control-app"
+                placeholder="Nom de famille"
+                value="{{ user_form.last_name.value|default:'' }}"
+              />
+            </div>
+
+            <div class="col-12">
+              <label class="form-label-app" for="{{ user_form.email.id_for_label }}">
+                Email
+              </label>
+              <input
+                type="email"
+                id="{{ user_form.email.id_for_label }}"
+                name="{{ user_form.email.html_name }}"
+                class="form-control-app"
+                placeholder="email@usine.dz"
+                value="{{ user_form.email.value|default:'' }}"
+              />
+            </div>
+          </div>
+
+          <div class="form-section-title mt-4">Mot de passe</div>
+
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label-app" for="{{ user_form.password.id_for_label }}">
+                Mot de passe <span class="required">*</span>
+              </label>
+              <div style="position:relative;">
+                <input
+                  type="password"
+                  id="{{ user_form.password.id_for_label }}"
+                  name="{{ user_form.password.html_name }}"
+                  class="form-control-app {% if user_form.password.errors %}is-invalid{% endif %}"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              {% if user_form.password.errors %}
+              <div class="form-error">
+                <i class="bx bx-x-circle"></i>
+                {% for e in user_form.password.errors %}{{ e }}{% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            <div class="col-6">
+              <label class="form-label-app" for="{{ user_form.password_confirm.id_for_label }}">
+                Confirmer <span class="required">*</span>
+              </label>
+              <input
+                type="password"
+                id="{{ user_form.password_confirm.id_for_label }}"
+                name="{{ user_form.password_confirm.html_name }}"
+                class="form-control-app"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="form-section-title mt-4">Rôle & Accès</div>
+
+          <div class="row g-3">
+            <div class="col-8">
+              <label class="form-label-app" for="{{ profile_form.role.id_for_label }}">
+                Rôle <span class="required">*</span>
+              </label>
+              <select
+                id="{{ profile_form.role.id_for_label }}"
+                name="{{ profile_form.role.html_name }}"
+                class="form-control-app"
+                required
+              >
+                {% for value, label in profile_form.fields.role.choices %}
+                <option value="{{ value }}" {% if profile_form.role.value == value %}selected{% endif %}>
+                  {{ label }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-4">
+              <label class="form-label-app">Statut initial</label>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 0;">
+                <label class="form-check-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;color:var(--text-secondary);">
+                  <input
+                    type="checkbox"
+                    name="{{ profile_form.is_active.html_name }}"
+                    id="{{ profile_form.is_active.id_for_label }}"
+                    {% if profile_form.is_active.value %}checked{% endif %}
+                    style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;"
+                  />
+                  Actif
+                </label>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">
+            Annuler
+          </button>
+          <button type="submit" class="btn-primary-app">
+            <i class="bx bx-check"></i>
+            Créer l'utilisateur
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Live search filter
+  document.getElementById('userSearch').addEventListener('input', function () {
+    var query = this.value.toLowerCase();
+    document.querySelectorAll('#usersTable tbody tr.user-row').forEach(function (row) {
+      var text = row.textContent.toLowerCase();
+      row.style.display = text.includes(query) ? '' : 'none';
+    });
+  });
+
+  // Re-open modal if form had errors (POST redirect would normally handle this,
+  // but if validation fails Django re-renders the page with errors in context)
+  {% if user_form.errors or profile_form.errors %}
+  (function () {
+    var modal = new bootstrap.Modal(document.getElementById('createUserModal'));
+    modal.show();
+  })();
+  {% endif %}
+</script>
+{% endblock %}

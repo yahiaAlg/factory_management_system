@@ -1,0 +1,230 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}Catalogue produits finis{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Produits finis</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .margin-bar-wrap {
+    width: 64px;
+    height: 5px;
+    background: var(--bg-raised);
+    border-radius: 99px;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .margin-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); }
+
+  .tab-switch {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+  }
+  .tab-switch a {
+    padding: 5px 14px;
+    border-radius: var(--radius-xs);
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+  }
+  .tab-switch a.active, .tab-switch a:hover {
+    background: var(--bg-surface);
+    color: var(--accent);
+  }
+
+  .wac-note {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Produits finis</h1>
+    <p class="page-subtitle">Catalogue PF — prix de vente, CMP et marges</p>
+  </div>
+  <div class="page-actions">
+    {% if request.user.userprofile.role == 'manager' %}
+    <a href="{% url 'catalog:finished_product_create' %}" class="btn-primary-app">
+      <i class="bx bx-plus"></i> Nouveau produit
+    </a>
+    {% endif %}
+    <a href="{% url 'stock:finished_products_stock_list' %}" class="btn-secondary-app">
+      <i class="bx bx-box"></i> Vue stock PF
+    </a>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<form method="get" id="filterForm">
+  <div class="filter-bar">
+    <div class="filter-search">
+      <i class="bx bx-search"></i>
+      <input
+        type="text"
+        name="search"
+        value="{{ request.GET.search|default:'' }}"
+        class="form-control-app"
+        placeholder="Référence ou désignation…"
+        id="searchInput"
+      />
+    </div>
+
+    <div class="tab-switch">
+      <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}"
+         class="{% if not request.GET.active %}active{% endif %}">Actifs</a>
+      <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}active=all"
+         class="{% if request.GET.active == 'all' %}active{% endif %}">Tous</a>
+      <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}active=false"
+         class="{% if request.GET.active == 'false' %}active{% endif %}">Inactifs</a>
+    </div>
+
+    {% if request.GET.search %}
+    <a href="{% url 'catalog:finished_products_list' %}" class="filter-reset"><i class="bx bx-x"></i> Réinitialiser</a>
+    {% endif %}
+
+    <span style="margin-left:auto;font-size:12.5px;color:var(--text-muted);">
+      {{ products|length }} produit{{ products|length|pluralize }}
+    </span>
+  </div>
+</form>
+
+<!-- Table -->
+<div class="card-app">
+  <div class="table-container" style="border:none;border-radius:0;">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Référence</th>
+          <th>Désignation</th>
+          <th>Unité</th>
+          <th class="text-end">Stock actuel</th>
+          <th class="text-end">Prix vente réf.</th>
+          <th class="text-end">CMP</th>
+          <th class="text-end">Marge brute</th>
+          <th>Statut</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        {% with st=p.get_stock_status stock=p.get_current_stock %}
+        <tr>
+          <td>
+            <a href="{% url 'catalog:finished_product_detail' p.id %}" class="col-ref" style="text-decoration:none;">
+              {{ p.reference }}
+            </a>
+          </td>
+          <td style="font-weight:500;color:var(--text-primary);font-size:13.5px;">{{ p.designation }}</td>
+          <td style="color:var(--text-secondary);font-size:13px;">{{ p.sales_unit.symbol }}</td>
+          <td class="text-end">
+            <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;
+              {% if st == 'stockout' %}color:#dc2626;{% elif st == 'running_low' %}color:#d97706;{% else %}color:var(--text-primary);{% endif %}">
+              {{ stock|floatformat:3 }}
+            </span>
+          </td>
+          <td class="col-amount" style="font-size:13px;">
+            {{ p.reference_selling_price|floatformat:2 }} <span style="font-size:11px;color:var(--text-muted);">DA</span>
+          </td>
+          <td class="text-end" style="font-size:13px;color:var(--text-secondary);">
+            {% if p.wac %}
+              {{ p.wac|floatformat:2 }} <span style="font-size:11px;color:var(--text-muted);">DA</span>
+            {% else %}
+              <span class="wac-note">Non calculé</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if p.wac and p.reference_selling_price > 0 %}
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
+              <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;
+                {% if p.get_unit_gross_margin >= 0 %}color:#16a34a;{% else %}color:#dc2626;{% endif %}">
+                {{ p.get_margin_rate|floatformat:1 }}%
+              </span>
+              <div class="margin-bar-wrap">
+                <div class="margin-bar-fill" style="width:{{ p.get_margin_rate|floatformat:0 }}%;max-width:100%;
+                  {% if p.get_margin_rate < 10 %}background:#dc2626;{% elif p.get_margin_rate < 25 %}background:#d97706;{% endif %}"></div>
+              </div>
+            </div>
+            {% else %}
+              <span class="wac-note">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not p.is_active %}
+              <span class="badge-annule">Inactif</span>
+            {% elif st == 'available' %}
+              <span class="badge-disponible"><i class="bx bx-check-circle"></i> Disponible</span>
+            {% elif st == 'running_low' %}
+              <span class="badge-presque"><i class="bx bx-error"></i> Alerte</span>
+            {% elif st == 'stockout' %}
+              <span class="badge-rupture"><i class="bx bx-x-circle"></i> Rupture</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;">
+              <a href="{% url 'catalog:finished_product_detail' p.id %}" class="btn-icon" title="Détail" data-bs-toggle="tooltip">
+                <i class="bx bx-show"></i>
+              </a>
+              <a href="{% url 'stock:finished_product_stock_detail' p.id %}" class="btn-icon" title="Fiche stock PF" data-bs-toggle="tooltip">
+                <i class="bx bx-box"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="9">
+          <div class="empty-state">
+            <div class="empty-icon"><i class="bx bx-box"></i></div>
+            <div class="empty-title">Aucun produit fini</div>
+            <div class="empty-desc">
+              {% if request.GET.search %}
+                Aucun résultat — <a href="{% url 'catalog:finished_products_list' %}" style="color:var(--accent);">Réinitialiser</a>
+              {% else %}
+                Créez le premier produit fini du catalogue.
+              {% endif %}
+            </div>
+          </div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if products %}
+  <div style="padding:10px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);">
+    <i class="bx bx-info-circle" style="color:var(--accent-light);"></i>
+    CMP = Coût Moyen Pondéré — calculé automatiquement à la clôture de chaque ordre de production. Non modifiable manuellement.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  var searchInput = document.getElementById('searchInput');
+  var searchTimer;
+  searchInput.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () { document.getElementById('filterForm').submit(); }, 450);
+  });
+</script>
+{% endblock %}

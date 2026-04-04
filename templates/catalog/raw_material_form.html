@@ -1,0 +1,378 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'catalog:raw_materials_list' %}">Matières premières</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{% if material %}Modifier{% else %}Nouvelle{% endif %}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .threshold-visual {
+    position: relative;
+    height: 36px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .threshold-zone {
+    position: absolute;
+    top: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #fff;
+    transition: width 0.25s;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .zone-ok     { left: 0; background: rgba(22,163,74,0.18); color: #15803d; }
+  .zone-alert  { background: rgba(217,119,6,0.20);  color: #a16207; }
+  .zone-out    { background: rgba(220,38,38,0.18);  color: #dc2626; }
+  .threshold-marker {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: rgba(0,0,0,0.15);
+  }
+
+  .locked-field-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fef9c3;
+    border: 1px solid #fcd34d;
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 12.5px;
+    color: #92400e;
+    margin-top: 6px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ title }}</h1>
+    {% if material %}
+    <p class="page-subtitle">Référence auto-générée : <strong style="color:var(--accent);">{{ material.reference }}</strong> — immuable</p>
+    {% else %}
+    <p class="page-subtitle">La référence RM-NNN sera générée automatiquement à la création.</p>
+    {% endif %}
+  </div>
+  <div class="page-actions">
+    {% if material %}
+    <a href="{% url 'catalog:raw_material_detail' material.id %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour au détail
+    </a>
+    {% else %}
+    <a href="{% url 'catalog:raw_materials_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour à la liste
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" id="rmForm">
+  {% csrf_token %}
+  <div class="row g-4">
+
+    <!-- Main fields -->
+    <div class="col-lg-8">
+
+      <!-- Identification -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-cube" style="color:var(--accent);margin-right:7px;"></i>Identification</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+
+            <div class="col-12">
+              <label class="form-label-app" for="{{ form.designation.id_for_label }}">
+                Désignation <span class="required">*</span>
+              </label>
+              <input
+                type="text"
+                id="{{ form.designation.id_for_label }}"
+                name="{{ form.designation.html_name }}"
+                value="{{ form.designation.value|default:'' }}"
+                class="form-control-app {% if form.designation.errors %}is-invalid{% endif %}"
+                placeholder="Nom complet de la matière première"
+                required
+              />
+              {% for e in form.designation.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.category.id_for_label }}">
+                Catégorie <span class="required">*</span>
+              </label>
+              <select
+                id="{{ form.category.id_for_label }}"
+                name="{{ form.category.html_name }}"
+                class="form-control-app {% if form.category.errors %}is-invalid{% endif %}"
+                required
+              >
+                <option value="">— Sélectionner —</option>
+                {% for cat in form.fields.category.queryset %}
+                <option value="{{ cat.id }}"
+                  {% if form.category.value|stringformat:"s" == cat.id|stringformat:"s" %}selected{% endif %}>
+                  {{ cat.name }}
+                </option>
+                {% endfor %}
+              </select>
+              {% for e in form.category.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.unit_of_measure.id_for_label }}">
+                Unité de mesure <span class="required">*</span>
+              </label>
+              <select
+                id="{{ form.unit_of_measure.id_for_label }}"
+                name="{{ form.unit_of_measure.html_name }}"
+                class="form-control-app {% if form.unit_of_measure.errors %}is-invalid{% endif %}"
+                {% if form.fields.unit_of_measure.disabled %}disabled{% endif %}
+                required
+              >
+                <option value="">— Sélectionner —</option>
+                {% for uom in form.fields.unit_of_measure.queryset %}
+                <option value="{{ uom.id }}"
+                  {% if form.unit_of_measure.value|stringformat:"s" == uom.id|stringformat:"s" %}selected{% endif %}>
+                  {{ uom.name }} ({{ uom.symbol }})
+                </option>
+                {% endfor %}
+              </select>
+              {% if form.fields.unit_of_measure.disabled %}
+              <div class="locked-field-note">
+                <i class="bx bx-lock-alt"></i>
+                {{ form.fields.unit_of_measure.help_text }}
+              </div>
+              {% endif %}
+              {% for e in form.unit_of_measure.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.default_supplier.id_for_label }}">
+                Fournisseur par défaut
+              </label>
+              <select
+                id="{{ form.default_supplier.id_for_label }}"
+                name="{{ form.default_supplier.html_name }}"
+                class="form-control-app"
+              >
+                <option value="">— Aucun —</option>
+                {% for sup in form.fields.default_supplier.queryset %}
+                <option value="{{ sup.id }}"
+                  {% if form.default_supplier.value|stringformat:"s" == sup.id|stringformat:"s" %}selected{% endif %}>
+                  {{ sup.code }} — {{ sup.raison_sociale }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.reference_price.id_for_label }}">
+                Prix de référence (DA)
+              </label>
+              <input
+                type="number" step="0.01" min="0"
+                id="{{ form.reference_price.id_for_label }}"
+                name="{{ form.reference_price.html_name }}"
+                value="{{ form.reference_price.value|default:'0.00' }}"
+                class="form-control-app {% if form.reference_price.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Utilisé pour les calculs de coût théorique.</div>
+              {% for e in form.reference_price.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Stock thresholds -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-tachometer" style="color:var(--accent);margin-right:7px;"></i>Seuils de stock</span>
+          <span style="font-size:12px;color:var(--text-muted);">Seuil alerte &gt; Seuil rupture (obligatoire)</span>
+        </div>
+        <div class="card-app-body">
+          {% if form.non_field_errors %}
+          <div class="alert-banner error mb-3">
+            <i class="bx bx-error-circle"></i>
+            {% for e in form.non_field_errors %}{{ e }}{% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.alert_threshold.id_for_label }}">
+                Seuil d'alerte <span class="required">*</span>
+              </label>
+              <input
+                type="number" step="0.001" min="0"
+                id="{{ form.alert_threshold.id_for_label }}"
+                name="{{ form.alert_threshold.html_name }}"
+                value="{{ form.alert_threshold.value|default:'0.000' }}"
+                class="form-control-app {% if form.alert_threshold.errors %}is-invalid{% endif %}"
+                id="alertThresholdInput"
+              />
+              <div class="form-hint">Déclenche un avertissement <span class="badge-presque" style="font-size:10px;">Alerte</span></div>
+              {% for e in form.alert_threshold.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.stockout_threshold.id_for_label }}">
+                Seuil de rupture <span class="required">*</span>
+              </label>
+              <input
+                type="number" step="0.001" min="0"
+                id="{{ form.stockout_threshold.id_for_label }}"
+                name="{{ form.stockout_threshold.html_name }}"
+                value="{{ form.stockout_threshold.value|default:'0.000' }}"
+                class="form-control-app {% if form.stockout_threshold.errors %}is-invalid{% endif %}"
+                id="stockoutThresholdInput"
+              />
+              <div class="form-hint">Déclenche une alerte critique <span class="badge-rupture" style="font-size:10px;">Rupture</span></div>
+              {% for e in form.stockout_threshold.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <!-- Visual threshold bar -->
+          <div style="margin-top:14px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Visualisation des zones de stock</div>
+            <div class="threshold-visual" id="thresholdBar">
+              <div class="threshold-zone zone-out"  id="zoneOut"   style="left:0;width:20%;">Rupture</div>
+              <div class="threshold-zone zone-alert" id="zoneAlert" style="left:20%;width:20%;">Alerte</div>
+              <div class="threshold-zone zone-ok"   id="zoneOk"   style="left:40%;width:60%;">Disponible</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:4px;">
+              <span>0</span>
+              <span id="stockoutLabel">Rupture: —</span>
+              <span id="alertLabel">Alerte: —</span>
+              <span>Max</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: status + submit -->
+    <div class="col-lg-4">
+
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">Statut</span>
+        </div>
+        <div class="card-app-body">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input
+              type="checkbox"
+              name="{{ form.is_active.html_name }}"
+              id="{{ form.is_active.id_for_label }}"
+              {% if form.is_active.value != False %}checked{% endif %}
+              style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;"
+            />
+            <div>
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:14px;color:var(--text-primary);">Matière active</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Les matières inactives n'apparaissent plus dans les formulaires de commande et de formulation.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {% if material %}
+      <div class="card-app mb-4" style="background:var(--bg-raised);">
+        <div class="card-app-body" style="padding:14px 16px;">
+          <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Informations</div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:var(--text-muted);">Référence</span>
+              <span class="col-ref">{{ material.reference }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:var(--text-muted);">Créé le</span>
+              <span style="color:var(--text-secondary);">{{ material.created_at|date:"d/m/Y" }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:var(--text-muted);">Modifié le</span>
+              <span style="color:var(--text-secondary);">{{ material.updated_at|date:"d/m/Y" }}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span style="color:var(--text-muted);">Référencé</span>
+              <span style="color:var(--text-secondary);">{% if material._is_referenced %}Oui{% else %}Non{% endif %}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card-app">
+        <div class="card-app-body" style="padding:14px 16px;">
+          {% if form.errors %}
+          <div class="alert-banner error mb-3" style="padding:9px 12px;font-size:13px;">
+            <i class="bx bx-error-circle"></i>
+            Corrigez les erreurs avant d'enregistrer.
+          </div>
+          {% endif %}
+          <button type="submit" class="btn-primary-app w-100" style="justify-content:center;">
+            <i class="bx bx-save"></i>
+            {% if material %}Enregistrer les modifications{% else %}Créer la matière{% endif %}
+          </button>
+          {% if material %}
+          <a href="{% url 'catalog:raw_material_detail' material.id %}" class="btn-secondary-app w-100 mt-2" style="justify-content:center;">
+            Annuler
+          </a>
+          {% else %}
+          <a href="{% url 'catalog:raw_materials_list' %}" class="btn-secondary-app w-100 mt-2" style="justify-content:center;">
+            Annuler
+          </a>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Live threshold bar visualisation
+  function updateThresholdBar() {
+    var alertVal   = parseFloat(document.getElementById('{{ form.alert_threshold.id_for_label }}').value) || 0;
+    var stockoutVal = parseFloat(document.getElementById('{{ form.stockout_threshold.id_for_label }}').value) || 0;
+    var max = alertVal * 2 || 100;
+
+    var outPct   = Math.min((stockoutVal / max) * 100, 100);
+    var alertPct = Math.min(((alertVal - stockoutVal) / max) * 100, 100);
+    var okPct    = Math.max(100 - outPct - alertPct, 0);
+
+    document.getElementById('zoneOut').style.width   = outPct   + '%';
+    document.getElementById('zoneAlert').style.left  = outPct   + '%';
+    document.getElementById('zoneAlert').style.width = alertPct + '%';
+    document.getElementById('zoneOk').style.left     = (outPct + alertPct) + '%';
+    document.getElementById('zoneOk').style.width    = okPct + '%';
+
+    document.getElementById('stockoutLabel').textContent = 'Rupture: ' + stockoutVal.toFixed(3);
+    document.getElementById('alertLabel').textContent    = 'Alerte: '  + alertVal.toFixed(3);
+  }
+
+  document.getElementById('{{ form.alert_threshold.id_for_label }}').addEventListener('input', updateThresholdBar);
+  document.getElementById('{{ form.stockout_threshold.id_for_label }}').addEventListener('input', updateThresholdBar);
+  updateThresholdBar();
+</script>
+{% endblock %}

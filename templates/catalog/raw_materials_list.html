@@ -1,0 +1,261 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}Catalogue matières premières{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Matières Premières</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stock-bar-wrap {
+    width: 80px;
+    height: 6px;
+    background: var(--bg-raised);
+    border-radius: 99px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .stock-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.3s;
+  }
+  .stock-bar-fill.ok     { background: #16a34a; }
+  .stock-bar-fill.low    { background: #d97706; }
+  .stock-bar-fill.out    { background: #dc2626; }
+  .stock-bar-fill.order  { background: #2563eb; }
+
+  .threshold-cell {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .threshold-sep { color: var(--border-strong); margin: 0 3px; }
+
+  .cat-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-xs);
+    font-size: 11.5px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--bg-raised);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .tab-switch {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+  }
+  .tab-switch a {
+    padding: 5px 14px;
+    border-radius: var(--radius-xs);
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+  }
+  .tab-switch a.active, .tab-switch a:hover {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+  .tab-switch a.active { color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Matières premières</h1>
+    <p class="page-subtitle">Catalogue des matières premières avec statuts de stock</p>
+  </div>
+  <div class="page-actions">
+    {% if request.user.userprofile.role == 'manager' %}
+    <a href="{% url 'catalog:raw_material_create' %}" class="btn-primary-app">
+      <i class="bx bx-plus"></i> Nouvelle matière
+    </a>
+    {% endif %}
+    <a href="{% url 'stock:raw_materials_stock_list' %}" class="btn-secondary-app">
+      <i class="bx bx-package"></i> Vue stock
+    </a>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<form method="get" id="filterForm">
+  <div class="filter-bar">
+    <div class="filter-search">
+      <i class="bx bx-search"></i>
+      <input
+        type="text"
+        name="search"
+        value="{{ request.GET.search|default:'' }}"
+        class="form-control-app"
+        placeholder="Référence ou désignation…"
+        id="searchInput"
+      />
+    </div>
+
+    <select name="category" class="form-control-app" onchange="this.form.submit()" style="width:auto;min-width:160px;">
+      <option value="">Toutes catégories</option>
+      {% for cat in categories %}
+      <option value="{{ cat.id }}" {% if request.GET.category == cat.id|stringformat:"s" %}selected{% endif %}>
+        {{ cat.name }}
+      </option>
+      {% endfor %}
+    </select>
+
+    <div class="tab-switch">
+      <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}"
+         class="{% if not request.GET.active or request.GET.active == '' %}active{% endif %}">Actifs</a>
+      <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}active=all"
+         class="{% if request.GET.active == 'all' %}active{% endif %}">Tous</a>
+      <a href="?{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.category %}category={{ request.GET.category }}&{% endif %}active=false"
+         class="{% if request.GET.active == 'false' %}active{% endif %}">Inactifs</a>
+    </div>
+
+    {% if request.GET.search or request.GET.category %}
+    <a href="{% url 'catalog:raw_materials_list' %}" class="filter-reset"><i class="bx bx-x"></i> Réinitialiser</a>
+    {% endif %}
+
+    <span style="margin-left:auto;font-size:12.5px;color:var(--text-muted);">
+      {{ materials|length }} résultat{{ materials|length|pluralize }}
+    </span>
+  </div>
+</form>
+
+<!-- Table -->
+<div class="card-app">
+  <div class="table-container" style="border:none;border-radius:0;">
+    <table class="table table-hover" id="materialsTable">
+      <thead>
+        <tr>
+          <th>Référence</th>
+          <th>Désignation</th>
+          <th>Catégorie</th>
+          <th>Unité</th>
+          <th>Stock actuel</th>
+          <th>Seuils A / R</th>
+          <th>Prix réf.</th>
+          <th>Statut</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in materials %}
+        {% with status=m.get_stock_status stock=m.get_current_stock %}
+        <tr>
+          <td>
+            <a href="{% url 'catalog:raw_material_detail' m.id %}" class="col-ref" style="text-decoration:none;">
+              {{ m.reference }}
+            </a>
+          </td>
+          <td>
+            <div style="font-weight:500;color:var(--text-primary);font-size:13.5px;">{{ m.designation }}</div>
+            {% if m.default_supplier %}
+            <div style="font-size:11.5px;color:var(--text-muted);">{{ m.default_supplier.raison_sociale }}</div>
+            {% endif %}
+          </td>
+          <td><span class="cat-chip">{{ m.category.name }}</span></td>
+          <td style="color:var(--text-secondary);font-size:13px;">{{ m.unit_of_measure.symbol }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="stock-bar-wrap">
+                {% if status == 'available' %}
+                  <div class="stock-bar-fill ok" style="width:{% widthratio stock m.alert_threshold 100 %}%;max-width:100%;"></div>
+                {% elif status == 'running_low' %}
+                  <div class="stock-bar-fill low" style="width:{% widthratio stock m.alert_threshold 100 %}%;max-width:100%;"></div>
+                {% elif status == 'stockout' %}
+                  <div class="stock-bar-fill out" style="width:3%;"></div>
+                {% else %}
+                  <div class="stock-bar-fill order" style="width:50%;"></div>
+                {% endif %}
+              </div>
+              <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:var(--text-primary);">
+                {{ stock|floatformat:3 }}
+              </span>
+            </div>
+          </td>
+          <td class="threshold-cell">
+            {{ m.alert_threshold|floatformat:3 }}<span class="threshold-sep">/</span>{{ m.stockout_threshold|floatformat:3 }}
+          </td>
+          <td class="col-amount" style="font-size:13px;">{{ m.reference_price|floatformat:2 }} <span style="font-size:11px;color:var(--text-muted);">DA</span></td>
+          <td>
+            {% if not m.is_active %}
+              <span class="badge-annule">Inactif</span>
+            {% elif status == 'available' %}
+              <span class="badge-disponible"><i class="bx bx-check-circle"></i> Disponible</span>
+            {% elif status == 'running_low' %}
+              <span class="badge-presque"><i class="bx bx-error"></i> Alerte</span>
+            {% elif status == 'stockout' %}
+              <span class="badge-rupture"><i class="bx bx-x-circle"></i> Rupture</span>
+            {% elif status == 'on_order' %}
+              <span class="badge-commande"><i class="bx bx-time"></i> Commandé</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:5px;">
+              <a href="{% url 'catalog:raw_material_detail' m.id %}" class="btn-icon" title="Détail" data-bs-toggle="tooltip">
+                <i class="bx bx-show"></i>
+              </a>
+              {% if request.user.userprofile.role == 'manager' %}
+              <a href="{% url 'catalog:raw_material_edit' m.id %}" class="btn-icon" title="Modifier" data-bs-toggle="tooltip">
+                <i class="bx bx-edit-alt"></i>
+              </a>
+              {% endif %}
+              <a href="{% url 'stock:raw_material_stock_detail' m.id %}" class="btn-icon" title="Fiche stock" data-bs-toggle="tooltip">
+                <i class="bx bx-package"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="9">
+          <div class="empty-state">
+            <div class="empty-icon"><i class="bx bx-cube"></i></div>
+            <div class="empty-title">Aucune matière première</div>
+            <div class="empty-desc">
+              {% if request.GET.search or request.GET.category %}
+                Aucun résultat pour ces filtres.
+                <a href="{% url 'catalog:raw_materials_list' %}" style="color:var(--accent);">Réinitialiser</a>
+              {% else %}
+                Créez la première matière première du catalogue.
+              {% endif %}
+            </div>
+          </div>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Debounced search submit
+  var searchInput = document.getElementById('searchInput');
+  var searchTimer;
+  searchInput.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      document.getElementById('filterForm').submit();
+    }, 450);
+  });
+</script>
+{% endblock %}

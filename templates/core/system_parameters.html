@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Paramètres système{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Paramètres système</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .settings-nav {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .settings-nav-item {
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s, color 0.15s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .settings-nav-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .settings-nav-item.active {
+    background: var(--bg-surface);
+    color: var(--accent);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  /* Category color tags */
+  .cat-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .cat-financial  { background: #dcfce7; color: #15803d; }
+  .cat-stock      { background: #dbeafe; color: #1d4ed8; }
+  .cat-production { background: #ede9fe; color: #7c3aed; }
+  .cat-alert      { background: #ffedd5; color: #c2410c; }
+  .cat-document   { background: var(--bg-raised); color: var(--text-secondary); border: 1px solid var(--border); }
+
+  /* Inline edit row */
+  .param-key {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-weight: 600;
+    font-size: 12.5px;
+    color: var(--accent);
+  }
+  .param-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .param-value-display {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+  .param-value-display.inactive {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+
+  .edit-form-row {
+    display: none;
+    background: var(--accent-dim);
+    padding: 12px 16px;
+    border-top: 1px solid var(--accent-glow);
+  }
+  .edit-form-row.open { display: table-row; }
+
+  /* New parameter section */
+  .new-param-panel {
+    background: var(--bg-raised);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    transition: border-color 0.15s;
+  }
+  .new-param-panel:focus-within {
+    border-color: var(--accent-light);
+    border-style: solid;
+  }
+
+  .status-active   { color: #16a34a; font-size: 14px; }
+  .status-inactive { color: var(--text-muted); font-size: 14px; }
+
+  /* Group separators in table */
+  .group-header-row td {
+    background: var(--bg-raised) !important;
+    padding: 8px 16px !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .group-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Paramètres système</h1>
+    <p class="page-subtitle">Configuration des seuils, délais et paramètres métier</p>
+  </div>
+  <div class="page-actions">
+    <button class="btn-primary-app" onclick="document.getElementById('newParamSection').scrollIntoView({behavior:'smooth'})">
+      <i class="bx bx-plus"></i> Nouveau paramètre
+    </button>
+  </div>
+</div>
+
+<!-- Settings sub-nav -->
+<nav class="settings-nav">
+  <a href="{% url 'core:company_settings' %}" class="settings-nav-item">
+    <i class="bx bx-building"></i> Société
+  </a>
+  <a href="{% url 'core:system_parameters' %}" class="settings-nav-item active">
+    <i class="bx bx-slider-alt"></i> Paramètres système
+  </a>
+  <a href="{% url 'accounts:user_management' %}" class="settings-nav-item">
+    <i class="bx bx-group"></i> Utilisateurs
+  </a>
+  <a href="{% url 'accounts:audit_log' %}" class="settings-nav-item">
+    <i class="bx bx-shield-quarter"></i> Journal d'audit
+  </a>
+</nav>
+
+<!-- Info banner -->
+<div class="alert-banner info mb-4">
+  <i class="bx bx-info-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <span>
+    Les modifications sont appliquées immédiatement. Les seuils financiers (tolérance, litige,
+    délégation) s'appliquent à toutes les nouvelles opérations. Les opérations existantes
+    déjà validées ne sont pas affectées.
+  </span>
+</div>
+
+<!-- Parameters table -->
+<div class="card-app mb-4">
+  <div class="card-app-header">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="card-app-title">Paramètres actifs</span>
+      <span style="background:var(--accent-dim);color:var(--accent);font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;font-family:'Plus Jakarta Sans',sans-serif;">
+        {{ parameters.count }}
+      </span>
+    </div>
+    <div class="card-header-actions">
+      <div style="position:relative;">
+        <i class="bx bx-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none;"></i>
+        <input type="text" id="paramSearch" class="form-control-app" placeholder="Filtrer..." style="padding-left:32px;width:200px;" />
+      </div>
+    </div>
+  </div>
+
+  <div class="table-container" style="border:none;border-radius:0;">
+    <table class="table table-hover" id="paramTable">
+      <thead>
+        <tr>
+          <th>Clé</th>
+          <th>Catégorie</th>
+          <th>Valeur actuelle</th>
+          <th>Description</th>
+          <th>Statut</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% regroup parameters by category as category_groups %}
+        {% for group in category_groups %}
+        <tr class="group-header-row">
+          <td colspan="6">
+            <div class="group-label">
+              {% if group.grouper == 'financial' %}
+                <i class="bx bx-dollar-circle"></i> Paramètres financiers
+              {% elif group.grouper == 'stock' %}
+                <i class="bx bx-package"></i> Paramètres stock
+              {% elif group.grouper == 'production' %}
+                <i class="bx bx-cog"></i> Paramètres production
+              {% elif group.grouper == 'alert' %}
+                <i class="bx bx-bell"></i> Paramètres alertes
+              {% else %}
+                <i class="bx bx-file-blank"></i> Paramètres documents
+              {% endif %}
+              <span style="font-size:11.5px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0;">
+                {{ group.list|length }} paramètre{{ group.list|length|pluralize }}
+              </span>
+            </div>
+          </td>
+        </tr>
+        {% for param in group.list %}
+        <tr class="param-row" id="row-{{ param.id }}">
+          <td>
+            <span class="param-key">{{ param.key }}</span>
+          </td>
+          <td>
+            <span class="cat-tag cat-{{ param.category }}">
+              {{ param.get_category_display }}
+            </span>
+          </td>
+          <td>
+            <span class="param-value-display {% if not param.is_active %}inactive{% endif %}">
+              {{ param.value }}
+            </span>
+          </td>
+          <td style="max-width:280px;">
+            <span class="param-desc">{{ param.description }}</span>
+          </td>
+          <td>
+            {% if param.is_active %}
+            <i class="bx bx-check-circle status-active" data-bs-toggle="tooltip" title="Actif"></i>
+            {% else %}
+            <i class="bx bx-x-circle status-inactive" data-bs-toggle="tooltip" title="Inactif"></i>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <button
+              class="btn-icon"
+              onclick="toggleEditRow({{ param.id }})"
+              title="Modifier la valeur"
+              data-bs-toggle="tooltip"
+            >
+              <i class="bx bx-edit-alt"></i>
+            </button>
+          </td>
+        </tr>
+        <!-- Inline edit row -->
+        <tr class="edit-form-row" id="edit-{{ param.id }}">
+          <td colspan="6" style="background:var(--accent-dim);padding:14px 20px;border-top:none;">
+            <form method="post" action="{% url 'core:system_parameters' %}">
+              {% csrf_token %}
+              <input type="hidden" name="param_id" value="{{ param.id }}" />
+              <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:200px;">
+                  <label class="form-label-app" style="color:var(--accent);">
+                    Nouvelle valeur pour <strong>{{ param.key }}</strong>
+                  </label>
+                  <input
+                    type="text"
+                    name="value"
+                    value="{{ param.value }}"
+                    class="form-control-app"
+                    style="border-color:var(--accent-light);"
+                    placeholder="Nouvelle valeur..."
+                  />
+                  <div class="form-hint">{{ param.description }}</div>
+                </div>
+                <div style="display:flex;gap:8px;padding-bottom:20px;">
+                  <button type="submit" class="btn-validate">
+                    <i class="bx bx-check"></i> Appliquer
+                  </button>
+                  <button type="button" class="btn-secondary-app" onclick="toggleEditRow({{ param.id }})">
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        {% empty %}
+        <tr>
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="empty-icon"><i class="bx bx-slider-alt"></i></div>
+              <div class="empty-title">Aucun paramètre configuré</div>
+              <div class="empty-desc">Ajoutez les paramètres système ci-dessous ou exécutez la migration de données de démarrage.</div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── New Parameter Form ───────────────────────────────────────── -->
+<div id="newParamSection">
+  <div class="section-label" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+    Ajouter un paramètre
+    <span style="flex:1;height:1px;background:var(--border);"></span>
+  </div>
+  <div class="new-param-panel">
+    <form method="post" action="{% url 'core:system_parameters' %}" id="newParamForm">
+      {% csrf_token %}
+      <!-- No param_id → create branch -->
+
+      {% if form.non_field_errors %}
+      <div class="alert-banner error mb-3">
+        <i class="bx bx-error-circle"></i>
+        {% for e in form.non_field_errors %}{{ e }}{% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="row g-3">
+
+        <div class="col-md-3">
+          <label class="form-label-app" for="{{ form.category.id_for_label }}">
+            Catégorie <span class="required">*</span>
+          </label>
+          <select id="{{ form.category.id_for_label }}" name="{{ form.category.html_name }}"
+            class="form-control-app {% if form.category.errors %}is-invalid{% endif %}" required>
+            {% for value, label in form.fields.category.choices %}
+            <option value="{{ value }}" {% if form.category.value == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% for e in form.category.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label-app" for="{{ form.key.id_for_label }}">
+            Clé (snake_case) <span class="required">*</span>
+          </label>
+          <input type="text" id="{{ form.key.id_for_label }}" name="{{ form.key.html_name }}"
+            value="{{ form.key.value|default:'' }}"
+            class="form-control-app {{ form.key.errors|yesno:'is-invalid,' }}"
+            placeholder="ex: my_threshold"
+            pattern="[a-z_0-9]+" required />
+          {% for e in form.key.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label-app" for="{{ form.value.id_for_label }}">
+            Valeur <span class="required">*</span>
+          </label>
+          <textarea id="{{ form.value.id_for_label }}" name="{{ form.value.html_name }}"
+            class="form-control-app {% if form.value.errors %}is-invalid{% endif %}"
+            rows="1" placeholder="Valeur" required>{{ form.value.value|default:'' }}</textarea>
+          {% for e in form.value.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label-app" for="{{ form.description.id_for_label }}">
+            Description <span class="required">*</span>
+          </label>
+          <textarea id="{{ form.description.id_for_label }}" name="{{ form.description.html_name }}"
+            class="form-control-app {% if form.description.errors %}is-invalid{% endif %}"
+            rows="1" placeholder="Description du paramètre" required>{{ form.description.value|default:'' }}</textarea>
+          {% for e in form.description.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+        </div>
+
+        <div class="col-md-1 d-flex align-items-end">
+          <label class="form-check-label d-flex align-items-center gap-6 pb-1" style="gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" name="{{ form.is_active.html_name }}"
+              {% if form.is_active.value != False %}checked{% endif %}
+              style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;" />
+            Actif
+          </label>
+        </div>
+
+      </div>
+
+      <div style="margin-top:16px;display:flex;align-items:center;gap:10px;">
+        <button type="submit" class="btn-primary-app">
+          <i class="bx bx-plus-circle"></i>
+          Ajouter le paramètre
+        </button>
+        <button type="reset" class="btn-secondary-app" onclick="this.form.reset()">
+          Effacer
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<!-- Spec hint box -->
+<div class="card-app mt-4" style="background:var(--bg-raised);">
+  <div class="card-app-header" style="background:transparent;">
+    <span class="card-app-title" style="font-size:12px;text-transform:uppercase;letter-spacing:0.05em;">
+      <i class="bx bx-key" style="color:var(--accent);margin-right:6px;"></i>
+      Clés système requises (spec S2)
+    </span>
+  </div>
+  <div class="card-app-body" style="padding:0;">
+    <table class="table" style="margin:0;font-size:12.5px;">
+      <thead>
+        <tr>
+          <th style="background:transparent;padding:10px 16px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Clé</th>
+          <th style="background:transparent;padding:10px 16px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Défaut</th>
+          <th style="background:transparent;padding:10px 16px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Usage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in spec_keys %}
+        <tr>
+          <td style="padding:9px 16px;border-bottom:1px solid var(--border);">
+            <span class="param-key">{{ row.key }}</span>
+          </td>
+          <td style="padding:9px 16px;border-bottom:1px solid var(--border);font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;color:var(--text-secondary);">
+            {{ row.default }}
+          </td>
+          <td style="padding:9px 16px;border-bottom:1px solid var(--border);color:var(--text-muted);">
+            {{ row.usage }}
+          </td>
+        </tr>
+        {% empty %}
+        {% for row in default_spec_keys %}
+        <tr>
+          <td style="padding:9px 16px;border-bottom:1px solid var(--border);"><span class="param-key">{{ row.0 }}</span></td>
+          <td style="padding:9px 16px;border-bottom:1px solid var(--border);font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;color:var(--text-secondary);">{{ row.1 }}</td>
+          <td style="padding:9px 16px;border-bottom:1px solid var(--border);color:var(--text-muted);">{{ row.2 }}</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* ---------------------------------------------------------
+     Toggle inline edit row
+  --------------------------------------------------------- */
+  function toggleEditRow(paramId) {
+    var editRow = document.getElementById('edit-' + paramId);
+    if (!editRow) return;
+    var isOpen = editRow.style.display !== 'none' && editRow.style.display !== '';
+    // Close all
+    document.querySelectorAll('.edit-form-row').forEach(function (r) {
+      r.style.display = 'none';
+    });
+    if (!isOpen) {
+      editRow.style.display = 'table-row';
+      editRow.querySelector('input[name="value"]').focus();
+    }
+  }
+
+  /* ---------------------------------------------------------
+     Live search / filter
+  --------------------------------------------------------- */
+  document.getElementById('paramSearch').addEventListener('input', function () {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#paramTable tbody tr.param-row').forEach(function (row) {
+      var next = row.nextElementSibling;
+      var match = row.textContent.toLowerCase().includes(q);
+      row.style.display = match ? '' : 'none';
+      if (next && next.classList.contains('edit-form-row')) {
+        next.style.display = 'none'; // always close edit row on search
+      }
+    });
+    // Show/hide group headers
+    document.querySelectorAll('#paramTable tbody tr.group-header-row').forEach(function (hdr) {
+      var anyVisible = false;
+      var sib = hdr.nextElementSibling;
+      while (sib && !sib.classList.contains('group-header-row')) {
+        if (sib.classList.contains('param-row') && sib.style.display !== 'none') {
+          anyVisible = true;
+        }
+        sib = sib.nextElementSibling;
+      }
+      hdr.style.display = anyVisible ? '' : 'none';
+    });
+  });
+
+  /* ---------------------------------------------------------
+     Re-open new param form if it has errors (form came back invalid)
+  --------------------------------------------------------- */
+  {% if form.errors %}
+  document.getElementById('newParamSection').scrollIntoView({ behavior: 'smooth' });
+  {% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,379 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}Journal d'audit{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Journal d'audit</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* Action type icons */
+  .action-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .action-create   { background: #dcfce7; color: #15803d; }
+  .action-update   { background: #dbeafe; color: #1d4ed8; }
+  .action-validate { background: var(--accent-dim); color: var(--accent); }
+  .action-pay      { background: #dcfce7; color: #15803d; }
+  .action-cancel   { background: #f1f5f9; color: #94a3b8; }
+  .action-login    { background: #ede9fe; color: #7c3aed; }
+  .action-failed_login { background: #fee2e2; color: #dc2626; }
+
+  .module-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--bg-raised);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .entity-ref {
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .detail-toggle {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--radius-xs);
+    font-size: 13px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .detail-toggle:hover {
+    background: var(--bg-raised);
+    color: var(--text-primary);
+  }
+
+  .detail-json {
+    display: none;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-family: 'Plus Jakarta Sans', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 6px;
+  }
+
+  .detail-json.open { display: block; }
+
+  .ip-addr {
+    font-family: 'Inter', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .ts-cell {
+    white-space: nowrap;
+  }
+  .ts-date {
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .ts-time {
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+
+  .log-count-badge {
+    background: #fee2e2;
+    color: #dc2626;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 99px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  .filter-bar select.form-control-app {
+    max-width: 170px;
+  }
+
+  @media (max-width: 768px) {
+    .col-ip, .col-entity { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Journal d'audit</h1>
+    <p class="page-subtitle">Traçabilité complète de toutes les actions système</p>
+  </div>
+  <div class="page-actions">
+    <span style="font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+      <i class="bx bx-shield-quarter" style="color:var(--accent);"></i>
+      Lecture seule — enregistrements immuables
+    </span>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<form method="get" action="{% url 'accounts:audit_log' %}" id="filterForm">
+  <div class="filter-bar">
+    <!-- Module filter -->
+    <select name="module" class="form-control-app" onchange="this.form.submit()">
+      <option value="">Tous les modules</option>
+      {% for value, label in modules %}
+        <option value="{{ value }}" {% if request.GET.module == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <!-- Action type filter -->
+    <select name="action" class="form-control-app" onchange="this.form.submit()">
+      <option value="">Toutes les actions</option>
+      {% for value, label in actions %}
+        <option value="{{ value }}" {% if request.GET.action == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <!-- User filter -->
+    <select name="user" class="form-control-app" onchange="this.form.submit()">
+      <option value="">Tous les utilisateurs</option>
+      {% for u in users %}
+        <option value="{{ u.id }}" {% if request.GET.user == u.id|stringformat:"s" %}selected{% endif %}>
+          {{ u.get_full_name|default:u.username }}
+        </option>
+      {% endfor %}
+    </select>
+
+    {% if request.GET.module or request.GET.action or request.GET.user %}
+    <a href="{% url 'accounts:audit_log' %}" class="filter-reset">
+      <i class="bx bx-x"></i> Réinitialiser
+    </a>
+    {% endif %}
+
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+      <span style="font-size:12.5px;color:var(--text-muted);">
+        {{ logs|length }} entr{% if logs|length == 1 %}ée{% else %}ées{% endif %} affichées
+      </span>
+      {% if logs|length >= 1000 %}
+      <span class="log-count-badge">Limite 1000</span>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<!-- Audit log table -->
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title">Entrées du journal</span>
+    <div class="card-header-actions">
+      <div style="position:relative;">
+        <i class="bx bx-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:16px;pointer-events:none;"></i>
+        <input
+          type="text"
+          id="logSearch"
+          class="form-control-app"
+          placeholder="Filtrer les résultats..."
+          style="padding-left:34px;width:240px;"
+        />
+      </div>
+    </div>
+  </div>
+
+  <div class="table-container" style="border:none;border-radius:0;">
+    <table class="table table-hover" id="auditTable">
+      <thead>
+        <tr>
+          <th style="width:130px;">Horodatage</th>
+          <th>Utilisateur</th>
+          <th>Action</th>
+          <th>Module</th>
+          <th class="col-entity">Entité</th>
+          <th class="col-ip">Adresse IP</th>
+          <th style="width:60px;text-align:center;">Détails</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="log-row">
+          <td class="ts-cell">
+            <div class="ts-date">{{ log.timestamp|date:"d/m/Y" }}</div>
+            <div class="ts-time">{{ log.timestamp|date:"H:i:s" }}</div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="
+                width:26px;height:26px;border-radius:50%;
+                background:var(--accent-dim);
+                display:flex;align-items:center;justify-content:center;
+                font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:10px;
+                color:var(--accent);text-transform:uppercase;flex-shrink:0;
+              ">{{ log.user.first_name|first|upper }}{{ log.user.last_name|first|upper }}</div>
+              <div>
+                <div style="font-size:13px;font-weight:500;color:var(--text-primary);white-space:nowrap;">
+                  {{ log.user.get_full_name|default:log.user.username }}
+                </div>
+                <div style="font-size:11.5px;color:var(--text-muted);">@{{ log.user.username }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="action-icon action-{{ log.action_type }}">
+                {% if log.action_type == 'create' %}<i class="bx bx-plus"></i>
+                {% elif log.action_type == 'update' %}<i class="bx bx-edit-alt"></i>
+                {% elif log.action_type == 'validate' %}<i class="bx bx-check-double"></i>
+                {% elif log.action_type == 'pay' %}<i class="bx bx-credit-card"></i>
+                {% elif log.action_type == 'cancel' %}<i class="bx bx-x"></i>
+                {% elif log.action_type == 'login' %}<i class="bx bx-log-in"></i>
+                {% elif log.action_type == 'failed_login' %}<i class="bx bx-lock-open-alt"></i>
+                {% endif %}
+              </div>
+              <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">
+                {{ log.get_action_type_display }}
+              </span>
+            </div>
+          </td>
+          <td>
+            <span class="module-tag">{{ log.get_module_display }}</span>
+          </td>
+          <td class="col-entity">
+            <div>
+              <div style="font-size:12.5px;color:var(--text-secondary);">{{ log.entity_type }}</div>
+              {% if log.entity_reference %}
+              <div class="entity-ref">#{{ log.entity_reference }}</div>
+              {% else %}
+              <div class="entity-ref">#{{ log.entity_id }}</div>
+              {% endif %}
+            </div>
+          </td>
+          <td class="col-ip">
+            <span class="ip-addr">{{ log.ip_address|default:"—" }}</span>
+          </td>
+          <td style="text-align:center;">
+            <button
+              class="detail-toggle"
+              onclick="toggleDetail(this)"
+              title="Voir les détails JSON"
+              data-details="{{ log.detail_json|escapejs }}"
+            >
+              <i class="bx bx-code-alt"></i>
+            </button>
+          </td>
+        </tr>
+        <!-- Detail row -->
+        <tr class="detail-row" style="display:none;">
+          <td colspan="7" style="padding:0 16px 12px;background:var(--bg-raised);border-top:none;">
+            <div class="detail-json open" id=""></div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7">
+            <div class="empty-state">
+              <div class="empty-icon"><i class="bx bx-shield-quarter"></i></div>
+              <div class="empty-title">Aucune entrée dans le journal</div>
+              <div class="empty-desc">
+                {% if request.GET.module or request.GET.action or request.GET.user %}
+                Aucun résultat pour les filtres sélectionnés. Essayez de les réinitialiser.
+                {% else %}
+                Le journal d'audit enregistrera automatiquement toutes les actions système.
+                {% endif %}
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Footer info -->
+  {% if logs %}
+  <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <span style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+      <i class="bx bx-info-circle" style="color:var(--accent-light);"></i>
+      Les enregistrements d'audit sont immuables et ne peuvent pas être supprimés.
+      Les comptes désactivés apparaissent avec le statut <strong>is_active=False</strong>.
+    </span>
+    <span style="font-size:12px;color:var(--text-muted);">
+      Affichage limité à 1 000 entrées les plus récentes
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* ---------------------------------------------------------
+     Live client-side search
+  --------------------------------------------------------- */
+  document.getElementById('logSearch').addEventListener('input', function () {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#auditTable tbody tr.log-row').forEach(function (row) {
+      var next = row.nextElementSibling; // detail row
+      var match = row.textContent.toLowerCase().includes(q);
+      row.style.display = match ? '' : 'none';
+      if (next && next.classList.contains('detail-row')) {
+        next.style.display = 'none'; // always hide detail on filter
+      }
+    });
+  });
+
+  /* ---------------------------------------------------------
+     Toggle JSON detail row
+  --------------------------------------------------------- */
+  function toggleDetail(btn) {
+    var row      = btn.closest('tr');
+    var nextRow  = row.nextElementSibling;
+    var jsonDiv  = nextRow ? nextRow.querySelector('.detail-json') : null;
+
+    if (!nextRow || !jsonDiv) return;
+
+    var isOpen = nextRow.style.display !== 'none';
+
+    if (isOpen) {
+      nextRow.style.display = 'none';
+      btn.querySelector('i').className = 'bx bx-code-alt';
+    } else {
+      // Populate JSON once
+      if (!jsonDiv.textContent.trim()) {
+        var raw = btn.getAttribute('data-details') || '{}';
+        try {
+          jsonDiv.textContent = JSON.stringify(JSON.parse(raw), null, 2);
+        } catch (e) {
+          jsonDiv.textContent = raw;
+        }
+      }
+      nextRow.style.display = '';
+      btn.querySelector('i').className = 'bx bx-x';
+    }
+  }
+</script>
+{% endblock %}

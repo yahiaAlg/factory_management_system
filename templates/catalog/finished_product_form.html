@@ -1,0 +1,164 @@
+{% load static %}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'catalog:finished_products_list' %}">Produits finis</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Nouveau</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-subtitle">La référence PF-NNN sera générée automatiquement à la création.</p>
+  </div>
+  <div class="page-actions">
+    <a href="{% url 'catalog:finished_products_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour
+    </a>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-4">
+
+    <div class="col-lg-8">
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-box" style="color:var(--accent);margin-right:7px;"></i>Identification</span>
+        </div>
+        <div class="card-app-body">
+          {% if form.non_field_errors %}
+          <div class="alert-banner error mb-3">
+            <i class="bx bx-error-circle"></i>
+            {% for e in form.non_field_errors %}{{ e }}{% endfor %}
+          </div>
+          {% endif %}
+          <div class="row g-3">
+
+            <div class="col-12">
+              <label class="form-label-app" for="{{ form.designation.id_for_label }}">
+                Désignation <span class="required">*</span>
+              </label>
+              <input
+                type="text"
+                id="{{ form.designation.id_for_label }}"
+                name="{{ form.designation.html_name }}"
+                value="{{ form.designation.value|default:'' }}"
+                class="form-control-app {% if form.designation.errors %}is-invalid{% endif %}"
+                placeholder="Nom complet du produit fini"
+                required
+              />
+              {% for e in form.designation.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.sales_unit.id_for_label }}">
+                Unité de vente <span class="required">*</span>
+              </label>
+              <select id="{{ form.sales_unit.id_for_label }}" name="{{ form.sales_unit.html_name }}"
+                class="form-control-app {% if form.sales_unit.errors %}is-invalid{% endif %}" required>
+                <option value="">— Sélectionner —</option>
+                {% for uom in form.fields.sales_unit.queryset %}
+                <option value="{{ uom.id }}" {% if form.sales_unit.value|stringformat:"s" == uom.id|stringformat:"s" %}selected{% endif %}>
+                  {{ uom.name }} ({{ uom.symbol }})
+                </option>
+                {% endfor %}
+              </select>
+              {% for e in form.sales_unit.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.reference_selling_price.id_for_label }}">
+                Prix de vente de référence (DA)
+              </label>
+              <input
+                type="number" step="0.01" min="0"
+                id="{{ form.reference_selling_price.id_for_label }}"
+                name="{{ form.reference_selling_price.html_name }}"
+                value="{{ form.reference_selling_price.value|default:'0.00' }}"
+                class="form-control-app {% if form.reference_selling_price.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Prix indicatif pour calculs de marge. Modifiable sur les BL.</div>
+              {% for e in form.reference_selling_price.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.alert_threshold.id_for_label }}">
+                Seuil d'alerte stock
+              </label>
+              <input
+                type="number" step="0.001" min="0"
+                id="{{ form.alert_threshold.id_for_label }}"
+                name="{{ form.alert_threshold.html_name }}"
+                value="{{ form.alert_threshold.value|default:'0.000' }}"
+                class="form-control-app {% if form.alert_threshold.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Déclenche une alerte stock <span class="badge-presque" style="font-size:10px;">Alerte</span> en dessous de ce niveau.</div>
+              {% for e in form.alert_threshold.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6 d-flex align-items-end">
+              <div class="card-app w-100" style="background:var(--accent-dim);border-color:var(--accent-glow);padding:0;">
+                <div style="padding:14px 16px;display:flex;align-items:flex-start;gap:10px;">
+                  <i class="bx bx-info-circle" style="color:var(--accent);font-size:18px;flex-shrink:0;margin-top:1px;"></i>
+                  <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">
+                    <strong style="color:var(--accent);">CMP non saisi ici.</strong>
+                    Le Coût Moyen Pondéré est calculé automatiquement après clôture de chaque ordre de production (spec S3).
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right -->
+    <div class="col-lg-4">
+
+      <div class="card-app mb-4">
+        <div class="card-app-header"><span class="card-app-title">Statut</span></div>
+        <div class="card-app-body">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input
+              type="checkbox"
+              name="{{ form.is_active.html_name }}"
+              {% if form.is_active.value != False %}checked{% endif %}
+              style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;"
+            />
+            <div>
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:14px;">Produit actif</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Les produits inactifs n'apparaissent plus dans les BL clients.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="card-app">
+        <div class="card-app-body" style="padding:14px 16px;">
+          {% if form.errors %}
+          <div class="alert-banner error mb-3" style="padding:9px 12px;font-size:13px;">
+            <i class="bx bx-error-circle"></i> Corrigez les erreurs.
+          </div>
+          {% endif %}
+          <button type="submit" class="btn-primary-app w-100" style="justify-content:center;">
+            <i class="bx bx-save"></i> Créer le produit
+          </button>
+          <a href="{% url 'catalog:finished_products_list' %}" class="btn-secondary-app w-100 mt-2" style="justify-content:center;">
+            Annuler
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</form>
+{% endblock %}

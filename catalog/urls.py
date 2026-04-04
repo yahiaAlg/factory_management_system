@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views
 
+app_name = "catalog"
+
 urlpatterns = [
     # Raw Materials
     path("raw-materials/", views.raw_materials_list, name="raw_materials_list"),

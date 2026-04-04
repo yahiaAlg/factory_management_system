@@ -29,7 +29,6 @@ def expenses_list(request):
 
     category_filter = request.GET.get("category")
     if category_filter:
-        # FIX: category is a FK to ExpenseCategory, not a char-choice field.
         expenses = expenses.filter(category_id=category_filter)
 
     status_filter = request.GET.get("status")
@@ -54,7 +53,6 @@ def expenses_list(request):
         "total"
     ] or Decimal("0.00")
 
-    # FIX: Expense.CATEGORY_CHOICES does not exist — category is now a FK model.
     categories = ExpenseCategory.objects.filter(is_active=True).order_by(
         "order", "label"
     )
@@ -91,7 +89,7 @@ def expense_create(request):
                 request=request,
             )
             messages.success(request, f"Dépense {expense.reference} créée avec succès")
-            return redirect("expense_detail", expense_id=expense.id)
+            return redirect("expenses:expense_detail", expense_id=expense.id)
     else:
         form = ExpenseForm()
 
@@ -131,13 +129,6 @@ def expense_detail(request, expense_id):
 @login_required
 @role_required(["manager", "accountant"])
 def expense_validate(request, expense_id):
-    """
-    Validate or reject an expense.
-
-    FIX: original code only caught ValueError.  Expense.validate() raises
-    PermissionError (BR-EXP-01 threshold exceeded, non-manager) and
-    ValidationError (wrong status or missing SD-EXP).  Both are now caught.
-    """
     expense = get_object_or_404(Expense, id=expense_id)
 
     if request.method == "POST":
@@ -155,8 +146,6 @@ def expense_validate(request, expense_id):
                 )
                 messages.success(request, f"Dépense {expense.reference} validée")
             except PermissionError as e:
-                # BR-EXP-01: amount above threshold, user is not Manager —
-                # status stays 'recorded'; show informational message.
                 messages.warning(request, str(e))
             except ValidationError as e:
                 messages.error(request, e.message if hasattr(e, "message") else str(e))
@@ -165,7 +154,7 @@ def expense_validate(request, expense_id):
             reason = request.POST.get("rejection_reason", "").strip()
             if not reason:
                 messages.error(request, "Le motif de rejet est obligatoire")
-                return redirect("expense_detail", expense_id=expense.id)
+                return redirect("expenses:expense_detail", expense_id=expense.id)
             try:
                 expense.reject(request.user, reason)
                 AuditLog.log_action(
@@ -180,7 +169,7 @@ def expense_validate(request, expense_id):
             except ValidationError as e:
                 messages.error(request, e.message if hasattr(e, "message") else str(e))
 
-    return redirect("expense_detail", expense_id=expense.id)
+    return redirect("expenses:expense_detail", expense_id=expense.id)
 
 
 @login_required
@@ -194,7 +183,7 @@ def expense_mark_paid(request, expense_id):
 
         if not payment_date_str or not payment_method:
             messages.error(request, "Date et mode de paiement sont obligatoires")
-            return redirect("expense_detail", expense_id=expense.id)
+            return redirect("expenses:expense_detail", expense_id=expense.id)
 
         try:
             payment_date = datetime.strptime(payment_date_str, "%Y-%m-%d").date()
@@ -218,7 +207,7 @@ def expense_mark_paid(request, expense_id):
         except Exception as e:
             messages.error(request, f"Erreur : {e}")
 
-    return redirect("expense_detail", expense_id=expense.id)
+    return redirect("expenses:expense_detail", expense_id=expense.id)
 
 
 @login_required
@@ -235,7 +224,7 @@ def supporting_document_create(request, expense_id):
             doc.registered_by = request.user
             doc.save()
             messages.success(request, "Document justificatif ajouté avec succès")
-            return redirect("expense_detail", expense_id=expense.id)
+            return redirect("expenses:expense_detail", expense_id=expense.id)
     else:
         form = SupportingDocumentForm(initial={"doc_type": "SD-EXP"})
 
@@ -270,7 +259,6 @@ def expenses_dashboard(request):
         "total"
     ] or Decimal("0.00")
 
-    # FIX: Expense.CATEGORY_CHOICES does not exist.  Use ExpenseCategory FK objects.
     category_breakdown = {}
     for category in ExpenseCategory.objects.filter(is_active=True):
         amount = Expense.objects.filter(
@@ -316,7 +304,6 @@ def expenses_report(request):
     if date_to:
         expenses = expenses.filter(expense_date__lte=date_to)
 
-    # FIX: Expense.CATEGORY_CHOICES does not exist — query ExpenseCategory FK objects.
     category_totals = {}
     for category in ExpenseCategory.objects.filter(is_active=True):
         total = expenses.filter(category=category).aggregate(total=Sum("amount"))[

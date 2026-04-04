@@ -67,7 +67,7 @@ def raw_material_create(request):
             messages.success(
                 request, f"Matière première {material.reference} créée avec succès"
             )
-            return redirect("raw_materials_list")
+            return redirect("catalog:raw_materials_list")
     else:
         form = RawMaterialForm()
 
@@ -140,7 +140,7 @@ def raw_material_edit(request, material_id):
             messages.success(
                 request, f"Matière première {material.reference} modifiée avec succès"
             )
-            return redirect("raw_material_detail", material_id=material.id)
+            return redirect("catalog:raw_material_detail", material_id=material.id)
     else:
         form = RawMaterialForm(instance=material)
 
@@ -203,7 +203,7 @@ def finished_product_create(request):
             messages.success(
                 request, f"Produit fini {product.reference} créé avec succès"
             )
-            return redirect("finished_products_list")
+            return redirect("catalog:finished_products_list")
     else:
         form = FinishedProductForm()
 
@@ -228,8 +228,6 @@ def finished_product_detail(request, product_id):
         formulation__finished_product=product
     ).order_by("-created_at")[:10]
 
-    # FIX: product.wac is a @property on FinishedProduct (reads from stock_balance);
-    # the method get_weighted_average_cost() does not exist on this model.
     return render(
         request,
         "catalog/finished_product_detail.html",
@@ -244,13 +242,3 @@ def finished_product_detail(request, product_id):
             "title": f"Produit fini - {product.reference}",
         },
     )
-
-
-# FIX: check_stock_availability AJAX endpoint REMOVED.
-# The spec (S5) permits AJAX only for:
-#   1. Real-time reconciliation delta (supplier_ops/reconciliation_ajax)
-#   2. Live FG stock check as ClientDN lines are entered  (stock/stock_availability_ajax)
-#   3. Formulation scaling preview on PO form              (production/formulation_scaling_ajax)
-#   4. Live balance_due update on payment form             (not yet implemented)
-# A generic raw-material stock check endpoint in the catalog app is outside that list.
-# The FG stock availability check lives in stock/views.py (stock_availability_ajax).

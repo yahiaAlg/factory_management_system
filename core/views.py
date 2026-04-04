@@ -28,7 +28,7 @@ def company_settings(request):
         if form.is_valid():
             form.save()
             messages.success(request, "Informations société mises à jour avec succès")
-            return redirect("company_settings")
+            return redirect("core:company_settings")
     else:
         form = CompanyInformationForm(instance=company)
 
@@ -77,7 +77,7 @@ def system_parameters(request):
                         "title": "Paramètres système",
                     },
                 )
-        return redirect("system_parameters")
+        return redirect("core:system_parameters")
 
     form = SystemParameterForm()
     parameters = SystemParameter.objects.all().order_by("category", "key")

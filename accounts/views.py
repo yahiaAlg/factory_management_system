@@ -12,7 +12,7 @@ from .forms import LoginForm, UserForm, UserProfileForm
 def login_view(request):
     """User login view"""
     if request.user.is_authenticated:
-        return redirect("dashboard")
+        return redirect("core:dashboard")
 
     if request.method == "POST":
         form = LoginForm(request.POST)
@@ -24,14 +24,9 @@ def login_view(request):
             if user is not None:
                 if hasattr(user, "userprofile") and user.userprofile.is_active:
                     login(request, user)
-                    # FIX: do NOT manually call AuditLog here for successful login.
-                    # accounts/models.py on_user_logged_in signal (user_logged_in)
-                    # already logs it — calling it here would create a duplicate entry.
-                    return redirect("dashboard")
+                    return redirect("core:dashboard")
                 else:
                     messages.error(request, "Votre compte est désactivé")
-                    # Failed login due to disabled account — signal won't fire for
-                    # inactive profiles since authenticate() succeeds.  Log manually.
                     AuditLog.log_action(
                         user=user,
                         action_type="failed_login",
@@ -42,8 +37,6 @@ def login_view(request):
                     )
             else:
                 messages.error(request, "Nom d'utilisateur ou mot de passe incorrect")
-                # on_user_login_failed signal handles audit for unknown/wrong-password
-                # attempts, so no manual call is needed here.
     else:
         form = LoginForm()
 
@@ -55,7 +48,7 @@ def logout_view(request):
     """User logout view"""
     logout(request)
     messages.success(request, "Vous avez été déconnecté avec succès")
-    return redirect("login")
+    return redirect("accounts:login")
 
 
 @login_required
@@ -68,8 +61,6 @@ def user_management(request):
 
         if user_form.is_valid() and profile_form.is_valid():
             user = user_form.save()
-            # FIX: auto-created profile (via post_save signal) must be updated,
-            # not saved as a new record, to avoid duplicate OneToOne violation.
             profile = user.userprofile
             profile.role = profile_form.cleaned_data["role"]
             profile.is_active = profile_form.cleaned_data["is_active"]
@@ -85,7 +76,7 @@ def user_management(request):
             )
 
             messages.success(request, f"Utilisateur {user.username} créé avec succès")
-            return redirect("user_management")
+            return redirect("accounts:user_management")
     else:
         user_form = UserForm()
         profile_form = UserProfileForm()
@@ -107,12 +98,6 @@ def user_management(request):
 @login_required
 @role_required(["manager"])
 def toggle_user_status(request, user_id):
-    """
-    Toggle user active status.
-
-    FIX: was a JsonResponse / AJAX endpoint — outside the 4 permitted AJAX
-    cases (S5).  Converted to a standard POST-Redirect-GET view.
-    """
     if request.method == "POST":
         user = get_object_or_404(User, id=user_id)
         user.userprofile.is_active = not user.userprofile.is_active
@@ -130,16 +115,13 @@ def toggle_user_status(request, user_id):
         status_label = "activé" if user.userprofile.is_active else "désactivé"
         messages.success(request, f"Utilisateur {user.username} {status_label}")
 
-    return redirect("user_management")
+    return redirect("accounts:user_management")
 
 
 @login_required
 @role_required(["manager"])
 def audit_log(request):
     """Audit log view — Manager only (S9)"""
-    # FIX: apply filters BEFORE slicing; original code sliced first then filtered,
-    # which silently returned wrong (or empty) results.
-    # FIX: removed 'content_type' from select_related — AuditLog has no such field.
     logs = AuditLog.objects.select_related("user").all()
 
     module_filter = request.GET.get("module")

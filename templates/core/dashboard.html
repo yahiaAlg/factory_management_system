@@ -239,7 +239,7 @@
   </div>
   <div class="d-flex gap-2 flex-wrap">
     {% if request.user.userprofile.role in 'manager,sales' %}
-    <a href="{% url 'sales:client_dns_list' %}" class="btn-primary-app">
+    <a href="{% url 'sales:client_dn_create' %}" class="btn-primary-app">
       <i class="bx bx-plus"></i> Nouveau BL Client
     </a>
     {% endif %}
@@ -355,7 +355,7 @@
       {% endif %}
 
       {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'sales' %}
-      <a href="{% url 'sales:client_dns_list' %}" class="quick-action">
+      <a href="{% url 'sales:client_dn_create' %}" class="quick-action">
         <div class="quick-action-icon ic-green"><i class="bx bx-send"></i></div>
         <div>
           <div class="quick-action-label">Créer un BL Client</div>
@@ -366,7 +366,7 @@
       {% endif %}
 
       {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'accountant' %}
-      <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="quick-action">
+      <a href="{% url 'supplier_ops:supplier_invoice_create' %}" class="quick-action">
         <div class="quick-action-icon ic-blue"><i class="bx bx-file"></i></div>
         <div>
           <div class="quick-action-label">Saisir une facture</div>
@@ -374,7 +374,7 @@
         </div>
         <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);font-size:18px;"></i>
       </a>
-      <a href="{% url 'expenses:expenses_list' %}" class="quick-action">
+      <a href="{% url 'expenses:expense_create' %}" class="quick-action">
         <div class="quick-action-icon ic-amber"><i class="bx bx-wallet"></i></div>
         <div>
           <div class="quick-action-label">Enregistrer une dépense</div>
@@ -407,7 +407,7 @@
               <i class="bx bx-package" style="color:var(--accent);margin-right:6px;"></i>
               Alertes stock matières premières
             </span>
-            <a href="{% url 'stock:raw_materials_stock_list' %}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
+            <a href="{% url 'stock:stock_alerts_dashboard' %}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
               Tout voir
             </a>
           </div>

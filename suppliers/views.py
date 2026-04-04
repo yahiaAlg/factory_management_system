@@ -3,7 +3,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q
-from django.utils import timezone  # FIX: was missing; used in supplier_detail
+from django.utils import timezone
 from accounts.utils import role_required
 from accounts.models import AuditLog
 from .models import Supplier
@@ -13,7 +13,6 @@ from .forms import SupplierForm
 @login_required
 def suppliers_list(request):
     suppliers = Supplier.objects.all()
-
     search = request.GET.get("search")
     if search:
         suppliers = suppliers.filter(
@@ -22,24 +21,19 @@ def suppliers_list(request):
             | Q(nif__icontains=search)
             | Q(nis__icontains=search)
         )
-
     currency_filter = request.GET.get("currency")
     if currency_filter:
         suppliers = suppliers.filter(currency=currency_filter)
-
     wilaya_filter = request.GET.get("wilaya")
     if wilaya_filter:
         suppliers = suppliers.filter(wilaya=wilaya_filter)
-
     if request.GET.get("active") == "false":
         suppliers = suppliers.filter(is_active=False)
     elif request.GET.get("active") != "all":
         suppliers = suppliers.filter(is_active=True)
-
     wilayas = (
         Supplier.objects.values_list("wilaya", flat=True).distinct().exclude(wilaya="")
     )
-
     return render(
         request,
         "suppliers/suppliers_list.html",
@@ -69,17 +63,13 @@ def supplier_create(request):
                 request=request,
             )
             messages.success(request, f"Fournisseur {supplier.code} créé avec succès")
-            return redirect("suppliers_list")
+            return redirect("suppliers:suppliers_list")
     else:
         form = SupplierForm()
-
     return render(
         request,
         "suppliers/supplier_form.html",
-        {
-            "form": form,
-            "title": "Nouveau fournisseur",
-        },
+        {"form": form, "title": "Nouveau fournisseur"},
     )
 
 
@@ -139,28 +129,19 @@ def supplier_edit(request, supplier_id):
             messages.success(
                 request, f"Fournisseur {supplier.code} modifié avec succès"
             )
-            return redirect("supplier_detail", supplier_id=supplier.id)
+            return redirect("suppliers:supplier_detail", supplier_id=supplier.id)
     else:
         form = SupplierForm(instance=supplier)
-
     return render(
         request,
         "suppliers/supplier_form.html",
-        {
-            "form": form,
-            "supplier": supplier,
-            "title": f"Modifier - {supplier.code}",
-        },
+        {"form": form, "supplier": supplier, "title": f"Modifier - {supplier.code}"},
     )
 
 
 @login_required
 @role_required(["manager", "accountant"])
 def supplier_toggle_active(request, supplier_id):
-    """
-    FIX: was a JsonResponse/AJAX endpoint — outside the 4 permitted AJAX cases (S5).
-    Converted to a standard POST-Redirect-GET view.
-    """
     if request.method == "POST":
         supplier = get_object_or_404(Supplier, id=supplier_id)
         old_status = supplier.is_active
@@ -180,11 +161,4 @@ def supplier_toggle_active(request, supplier_id):
         )
         status_label = "activé" if supplier.is_active else "désactivé"
         messages.success(request, f"Fournisseur {supplier.code} {status_label}")
-
-    return redirect("supplier_detail", supplier_id=supplier_id)
-
-
-# FIX: supplier_search_ajax REMOVED.
-# A generic JSON autocomplete endpoint is not among the 4 permitted AJAX cases (S5).
-# Supplier dropdowns in forms are populated server-side via queryset in SupplierDNForm
-# and SupplierInvoiceForm __init__().
+    return redirect("suppliers:supplier_detail", supplier_id=supplier_id)

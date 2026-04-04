@@ -24,26 +24,21 @@ def raw_materials_stock_list(request):
     balances = RawMaterialStockBalance.objects.select_related(
         "raw_material", "raw_material__category", "raw_material__unit_of_measure"
     ).all()
-
     search = request.GET.get("search")
     if search:
         balances = balances.filter(
             Q(raw_material__reference__icontains=search)
             | Q(raw_material__designation__icontains=search)
         )
-
     category_filter = request.GET.get("category")
     if category_filter:
         balances = balances.filter(raw_material__category_id=category_filter)
-
     status_filter = request.GET.get("status")
     if status_filter:
         balances = [b for b in balances if b.get_stock_status() == status_filter]
-
     total_value = sum(b.get_stock_value() for b in balances)
     stockout_count = sum(1 for b in balances if b.get_stock_status() == "stockout")
     low_stock_count = sum(1 for b in balances if b.get_stock_status() == "running_low")
-
     return render(
         request,
         "stock/raw_materials_stock_list.html",
@@ -62,22 +57,18 @@ def finished_products_stock_list(request):
     balances = FinishedProductStockBalance.objects.select_related(
         "finished_product", "finished_product__sales_unit"
     ).all()
-
     search = request.GET.get("search")
     if search:
         balances = balances.filter(
             Q(finished_product__reference__icontains=search)
             | Q(finished_product__designation__icontains=search)
         )
-
     status_filter = request.GET.get("status")
     if status_filter:
         balances = [b for b in balances if b.get_stock_status() == status_filter]
-
     total_value = sum(b.get_stock_value() for b in balances)
     stockout_count = sum(1 for b in balances if b.get_stock_status() == "stockout")
     low_stock_count = sum(1 for b in balances if b.get_stock_status() == "running_low")
-
     return render(
         request,
         "stock/finished_products_stock_list.html",
@@ -96,25 +87,21 @@ def stock_movements_list(request):
     movements = StockMovement.objects.select_related(
         "raw_material", "finished_product", "created_by"
     ).all()
-
     material_type = request.GET.get("material_type")
     material_id = request.GET.get("material_id")
     if material_type == "raw_material" and material_id:
         movements = movements.filter(raw_material_id=material_id)
     elif material_type == "finished_product" and material_id:
         movements = movements.filter(finished_product_id=material_id)
-
     movement_type_filter = request.GET.get("movement_type")
     if movement_type_filter:
         movements = movements.filter(movement_type=movement_type_filter)
-
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
     if date_from:
         movements = movements.filter(movement_date__gte=date_from)
     if date_to:
         movements = movements.filter(movement_date__lte=date_to)
-
     return render(
         request,
         "stock/stock_movements_list.html",
@@ -131,19 +118,13 @@ def raw_material_stock_detail(request, material_id):
     from catalog.models import RawMaterial
 
     material = get_object_or_404(RawMaterial, id=material_id)
-
-    # FIX: do NOT create a RawMaterialStockBalance directly from a view.
-    # BR-RM-05: the only permitted write paths for stock balances are via signals.
-    # If no balance record exists yet, display with quantity=0 (no DB write).
     try:
         balance = material.stock_balance
     except RawMaterialStockBalance.DoesNotExist:
         balance = None
-
     movements = StockMovement.objects.filter(raw_material=material).order_by(
         "-movement_date", "-created_at"
     )[:50]
-
     return render(
         request,
         "stock/raw_material_stock_detail.html",
@@ -164,17 +145,13 @@ def finished_product_stock_detail(request, product_id):
     from catalog.models import FinishedProduct
 
     product = get_object_or_404(FinishedProduct, id=product_id)
-
-    # FIX: same BR-RM-05 fix — no direct creation of balance records from views.
     try:
         balance = product.stock_balance
     except FinishedProductStockBalance.DoesNotExist:
         balance = None
-
     movements = StockMovement.objects.filter(finished_product=product).order_by(
         "-movement_date", "-created_at"
     )[:50]
-
     wac = balance.weighted_average_cost if balance else Decimal("0.00")
     qty = balance.quantity if balance else Decimal("0.000")
     unit_margin = product.reference_selling_price - wac
@@ -183,7 +160,6 @@ def finished_product_stock_detail(request, product_id):
         if product.reference_selling_price > 0
         else Decimal("0.00")
     )
-
     return render(
         request,
         "stock/finished_product_stock_detail.html",
@@ -206,17 +182,14 @@ def stock_adjustments_list(request):
     adjustments = StockAdjustment.objects.select_related(
         "created_by", "approved_by"
     ).all()
-
     type_filter = request.GET.get("adjustment_type")
     if type_filter:
         adjustments = adjustments.filter(adjustment_type=type_filter)
-
     approval_filter = request.GET.get("approval_status")
     if approval_filter == "pending":
         adjustments = adjustments.filter(approved_by__isnull=True)
     elif approval_filter == "approved":
         adjustments = adjustments.filter(approved_by__isnull=False)
-
     return render(
         request,
         "stock/stock_adjustments_list.html",
@@ -250,19 +223,16 @@ def stock_adjustment_create(request):
             messages.success(
                 request, f"Ajustement {adjustment.reference} créé avec succès"
             )
-            return redirect("stock_adjustment_detail", adjustment_id=adjustment.id)
+            return redirect(
+                "stock:stock_adjustment_detail", adjustment_id=adjustment.id
+            )
     else:
         form = StockAdjustmentForm()
         formset = StockAdjustmentLineFormSet()
-
     return render(
         request,
         "stock/stock_adjustment_form.html",
-        {
-            "form": form,
-            "formset": formset,
-            "title": "Nouvel ajustement de stock",
-        },
+        {"form": form, "formset": formset, "title": "Nouvel ajustement de stock"},
     )
 
 
@@ -302,26 +272,18 @@ def stock_adjustment_approve(request, adjustment_id):
                 messages.success(request, f"Ajustement {adjustment.reference} approuvé")
             except ValueError as e:
                 messages.error(request, str(e))
-
-    return redirect("stock_adjustment_detail", adjustment_id=adjustment.id)
+    return redirect("stock:stock_adjustment_detail", adjustment_id=adjustment.id)
 
 
 @login_required
 def stock_availability_ajax(request):
-    """
-    AJAX endpoint — permitted by S5 (live FG stock availability check as
-    ClientDN lines are entered).  Raw-material checks are also served here
-    for the PO scaling preview (which has its own endpoint in production app).
-    """
     if request.method == "GET":
         material_type = request.GET.get("material_type")
         material_id = request.GET.get("material_id")
         required_qty = request.GET.get("required_qty")
-
         if material_type and material_id and required_qty:
             try:
                 required_qty = Decimal(required_qty)
-
                 if material_type == "finished_product":
                     from catalog.models import FinishedProduct
 
@@ -330,7 +292,6 @@ def stock_availability_ajax(request):
                         current_stock = material.stock_balance.quantity
                     except FinishedProductStockBalance.DoesNotExist:
                         current_stock = Decimal("0.000")
-
                 elif material_type == "raw_material":
                     from catalog.models import RawMaterial
 
@@ -341,7 +302,6 @@ def stock_availability_ajax(request):
                         current_stock = Decimal("0.000")
                 else:
                     return JsonResponse({"success": False, "error": "Type invalide"})
-
                 return JsonResponse(
                     {
                         "success": True,
@@ -356,16 +316,11 @@ def stock_availability_ajax(request):
                 )
             except Exception as e:
                 return JsonResponse({"success": False, "error": str(e)})
-
     return JsonResponse({"success": False, "error": "Paramètres invalides"})
 
 
 @login_required
 def stock_alerts_dashboard(request):
-    """
-    FIX: original code used `models.F(...)` without importing `models`.
-    Fixed by importing F directly from django.db.models (done at top of file).
-    """
     rm_stockouts = RawMaterialStockBalance.objects.select_related(
         "raw_material"
     ).filter(quantity__lte=F("raw_material__stockout_threshold"))
@@ -381,7 +336,6 @@ def stock_alerts_dashboard(request):
     fp_low_stock = FinishedProductStockBalance.objects.select_related(
         "finished_product"
     ).filter(quantity__gt=0, quantity__lte=F("finished_product__alert_threshold"))
-
     return render(
         request,
         "stock/stock_alerts_dashboard.html",

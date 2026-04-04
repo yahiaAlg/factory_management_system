@@ -21,28 +21,23 @@ from .forms import (
 @login_required
 def client_dns_list(request):
     dns = ClientDN.objects.select_related("client", "validated_by").all()
-
     search = request.GET.get("search")
     if search:
         dns = dns.filter(
             Q(reference__icontains=search) | Q(client__raison_sociale__icontains=search)
         )
-
     status_filter = request.GET.get("status")
     if status_filter:
         dns = dns.filter(status=status_filter)
-
     client_filter = request.GET.get("client")
     if client_filter:
         dns = dns.filter(client_id=client_filter)
-
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
     if date_from:
         dns = dns.filter(delivery_date__gte=date_from)
     if date_to:
         dns = dns.filter(delivery_date__lte=date_to)
-
     return render(
         request,
         "sales/client_dns_list.html",
@@ -74,19 +69,14 @@ def client_dn_create(request):
                 request=request,
             )
             messages.success(request, f"BL Client {dn.reference} créé avec succès")
-            return redirect("client_dn_detail", dn_id=dn.id)
+            return redirect("sales:client_dn_detail", dn_id=dn.id)
     else:
         form = ClientDNForm()
         formset = ClientDNLineFormSet()
-
     return render(
         request,
         "sales/client_dn_form.html",
-        {
-            "form": form,
-            "formset": formset,
-            "title": "Nouveau BL Client",
-        },
+        {"form": form, "formset": formset, "title": "Nouveau BL Client"},
     )
 
 
@@ -113,12 +103,7 @@ def client_dn_detail(request, dn_id):
 @login_required
 @role_required(["manager", "sales"])
 def client_dn_validate(request, dn_id):
-    """
-    FIX: original code only caught ValueError; ClientDN.validate() raises
-    ValidationError (blocked client, insufficient stock, wrong status).
-    """
     dn = get_object_or_404(ClientDN, id=dn_id)
-
     if request.method == "POST":
         try:
             dn.validate(request.user)
@@ -132,33 +117,27 @@ def client_dn_validate(request, dn_id):
             messages.success(request, f"BL {dn.reference} validé avec succès")
         except ValidationError as e:
             messages.error(request, e.message if hasattr(e, "message") else str(e))
-
-    return redirect("client_dn_detail", dn_id=dn.id)
+    return redirect("sales:client_dn_detail", dn_id=dn.id)
 
 
 @login_required
 def client_invoices_list(request):
     invoices = ClientInvoice.objects.select_related("client").all()
-
     search = request.GET.get("search")
     if search:
         invoices = invoices.filter(
             Q(reference__icontains=search) | Q(client__raison_sociale__icontains=search)
         )
-
     status_filter = request.GET.get("status")
     if status_filter:
         invoices = invoices.filter(status=status_filter)
-
     if request.GET.get("overdue") == "true":
         invoices = invoices.filter(
             due_date__lt=timezone.now().date(), balance_due__gt=0
         )
-
     client_filter = request.GET.get("client")
     if client_filter:
         invoices = invoices.filter(client_id=client_filter)
-
     return render(
         request,
         "sales/client_invoices_list.html",
@@ -173,19 +152,12 @@ def client_invoices_list(request):
 @login_required
 @role_required(["manager", "sales", "accountant"])
 def client_invoice_create(request):
-    """
-    FIX: removed redundant due_date calculation — ClientInvoice.save() already
-    auto-calculates due_date from invoice_date + client.payment_terms (S2).
-    The manual recalculation used timezone.timedelta which is not a valid
-    shortcut for datetime.timedelta.
-    """
     if request.method == "POST":
         form = ClientInvoiceForm(request.POST)
         if form.is_valid():
             invoice = form.save(commit=False)
             invoice.created_by = request.user
             invoice.save()
-
             linked_dn_ids = request.POST.getlist("linked_dns")
             for dn_id in linked_dn_ids:
                 try:
@@ -198,11 +170,8 @@ def client_invoice_create(request):
                     dn.save()
                 except ClientDN.DoesNotExist:
                     pass
-
-            # Recalculate totals after linking DNs
             if linked_dn_ids:
                 invoice.save()
-
             AuditLog.log_action(
                 user=request.user,
                 action_type="create",
@@ -211,17 +180,13 @@ def client_invoice_create(request):
                 request=request,
             )
             messages.success(request, f"Facture {invoice.reference} créée avec succès")
-            return redirect("client_invoice_detail", invoice_id=invoice.id)
+            return redirect("sales:client_invoice_detail", invoice_id=invoice.id)
     else:
         form = ClientInvoiceForm()
-
     return render(
         request,
         "sales/client_invoice_form.html",
-        {
-            "form": form,
-            "title": "Nouvelle facture client",
-        },
+        {"form": form, "title": "Nouvelle facture client"},
     )
 
 
@@ -250,11 +215,9 @@ def client_invoice_detail(request, invoice_id):
 @role_required(["manager", "accountant"])
 def client_payment_create(request, invoice_id):
     invoice = get_object_or_404(ClientInvoice, id=invoice_id)
-
     if invoice.balance_due <= 0:
         messages.error(request, "Cette facture est déjà entièrement payée")
-        return redirect("client_invoice_detail", invoice_id=invoice.id)
-
+        return redirect("sales:client_invoice_detail", invoice_id=invoice.id)
     if request.method == "POST":
         form = ClientPaymentForm(request.POST)
         if form.is_valid():
@@ -262,7 +225,6 @@ def client_payment_create(request, invoice_id):
             payment.client_invoice = invoice
             payment.client = invoice.client
             payment.recorded_by = request.user
-
             if payment.amount > invoice.balance_due:
                 messages.error(request, "Le montant ne peut pas dépasser le solde dû")
                 return render(
@@ -274,7 +236,6 @@ def client_payment_create(request, invoice_id):
                         "title": f"Encaissement - {invoice.reference}",
                     },
                 )
-
             payment.save()
             AuditLog.log_action(
                 user=request.user,
@@ -285,10 +246,9 @@ def client_payment_create(request, invoice_id):
                 request=request,
             )
             messages.success(request, f"Encaissement {payment.reference} enregistré")
-            return redirect("client_invoice_detail", invoice_id=invoice.id)
+            return redirect("sales:client_invoice_detail", invoice_id=invoice.id)
     else:
         form = ClientPaymentForm(initial={"amount": invoice.balance_due})
-
     return render(
         request,
         "sales/client_payment_form.html",
@@ -321,10 +281,7 @@ def client_invoice_print(request, invoice_id):
     return render(
         request,
         "sales/client_invoice_print.html",
-        {
-            "invoice": invoice,
-            "linked_dns": invoice.linked_dns.all(),
-        },
+        {"invoice": invoice, "linked_dns": invoice.linked_dns.all()},
     )
 
 
@@ -340,23 +297,18 @@ def client_payment_receipt_print(request, payment_id):
 def sales_dashboard(request):
     current_month = timezone.now().replace(day=1)
     next_month = (current_month + timezone.timedelta(days=32)).replace(day=1)
-
     monthly_invoiced = ClientInvoice.objects.filter(
         invoice_date__gte=current_month, invoice_date__lt=next_month
     ).aggregate(total=Sum("total_ttc"))["total"] or Decimal("0.00")
-
     monthly_collected = ClientPayment.objects.filter(
         payment_date__gte=current_month, payment_date__lt=next_month
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-
     outstanding_receivables = ClientInvoice.objects.filter(balance_due__gt=0).aggregate(
         total=Sum("balance_due")
     )["total"] or Decimal("0.00")
-
     overdue_invoices = ClientInvoice.objects.filter(
         due_date__lt=timezone.now().date(), balance_due__gt=0
     )
-
     return render(
         request,
         "sales/sales_dashboard.html",

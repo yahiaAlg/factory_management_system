@@ -1,13 +1,13 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}Analyse des rendements — UsineERP{% endblock %}
 
 {% block breadcrumb %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
     <li class="breadcrumb-item active">Analyse des rendements</li>
   </ol>
 </nav>

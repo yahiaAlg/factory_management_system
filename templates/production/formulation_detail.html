@@ -1,13 +1,13 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}{{ formulation.reference }} — UsineERP{% endblock %}
 
 {% block breadcrumb %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
     <li class="breadcrumb-item"><a href="{% url 'production:formulations_list' %}">Formulations</a></li>
     <li class="breadcrumb-item active">{{ formulation.reference }}</li>
   </ol>
@@ -55,11 +55,11 @@
     <form method="post" action="{% url 'production:formulation_edit' formulation.id %}" id="new-version-form">
       {% csrf_token %}
       <button type="button" class="btn-secondary-app" id="new-version-btn">
-        <i class="bi bi-journal-plus me-1"></i> Nouvelle version
+        <i class="bx bx-book-add me-1"></i> Nouvelle version
       </button>
     </form>
     <a href="{% url 'production:production_order_create' %}?formulation={{ formulation.id }}" class="btn-primary-app">
-      <i class="bi bi-play-circle me-1"></i> Lancer un OP
+      <i class="bx bx-play-circle me-1"></i> Lancer un OP
     </a>
   </div>
   {% endif %}
@@ -153,7 +153,7 @@
           </table>
         </div>
         {% else %}
-        <div class="empty-state"><i class="bi bi-list-ul"></i><p>Aucune matière première définie</p></div>
+        <div class="empty-state"><i class="bx bx-list-ul"></i><p>Aucune matière première définie</p></div>
         {% endif %}
       </div>
     </div>
@@ -205,7 +205,7 @@
                   {% elif po.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
                   {% endif %}
                 </td>
-                <td><a href="{% url 'production:production_order_detail' po.id %}" class="btn-icon"><i class="bi bi-eye"></i></a></td>
+                <td><a href="{% url 'production:production_order_detail' po.id %}" class="btn-icon"><i class="bx bx-show"></i></a></td>
               </tr>
               {% endfor %}
             </tbody>
@@ -213,7 +213,7 @@
         </div>
         {% else %}
         <div class="empty-state" style="padding:24px;">
-          <i class="bi bi-box-seam"></i>
+          <i class="bx bx-box"></i>
           <p class="mb-0">Aucun ordre de production pour cette formulation</p>
         </div>
         {% endif %}

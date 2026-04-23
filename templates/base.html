@@ -1176,6 +1176,10 @@
         <i class="bx bx-cog nav-icon"></i>
         <span class="nav-label">Ordres de Production</span>
       </a>
+      <a href="{% url 'catalog:finished_products_list' %}" class="nav-link-app" data-path="/catalog/finished-products/">
+        <i class="bx bx-package nav-icon"></i>
+        <span class="nav-label">Produits finis</span>
+      </a>
       <a href="{% url 'stock:finished_products_stock_list' %}" class="nav-link-app" data-path="/stock/finished-products/">
         <i class="bx bx-box nav-icon"></i>
         <span class="nav-label">Stock PF</span>
@@ -1198,7 +1202,7 @@
 
       <!-- FINANCE -->
       <div class="nav-section-label">Finance</div>
-      <a href="#" class="nav-link-app" data-path="/supplier-ops/supplier-invoices/">
+      <a href="{% url "sales:sales_dashboard" %}" class="nav-link-app" data-path="/supplier-ops/supplier-invoices/">
         <i class="bx bx-credit-card nav-icon"></i>
         <span class="nav-label">Paiements</span>
       </a>

@@ -1,6 +1,5 @@
-{% load static %}
-{% load factory_filters %}
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Tableau de bord dépenses{% endblock %}
 
@@ -101,17 +100,17 @@
 <div class="metrics-grid">
   <div class="metric-card teal">
     <div class="metric-label">Enregistré ce mois</div>
-    <div class="metric-value">{{ monthly_recorded|da_format }}</div>
+    <div class="metric-value">{{ monthly_recorded|floatformat:2 }} DA</div>
     <div class="metric-sub">Toutes dépenses actives</div>
   </div>
   <div class="metric-card green">
     <div class="metric-label">Payé ce mois</div>
-    <div class="metric-value">{{ monthly_paid|da_format }}</div>
+    <div class="metric-value">{{ monthly_paid|floatformat:2 }} DA</div>
     <div class="metric-sub">Statut : payée</div>
   </div>
   <div class="metric-card amber">
     <div class="metric-label">En attente validation</div>
-    <div class="metric-value">{{ pending_amount|da_format }}</div>
+    <div class="metric-value">{{ pending_amount|floatformat:2 }} DA</div>
     <div class="metric-sub">{{ pending_count }} dépense{{ pending_count|pluralize }}</div>
   </div>
   <div class="metric-card blue">
@@ -140,7 +139,7 @@
               <span id="legend-dot-{{ forloop.counter }}" style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--accent);"></span>
               <span style="font-size:13px; color:var(--text-secondary);">{{ label }}</span>
             </div>
-            <span style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:13px;">{{ amount|da_format }}</span>
+            <span style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:13px;">{{ amount|floatformat:2 }} DA</span>
           </div>
           {% endfor %}
         </div>
@@ -180,7 +179,7 @@
             </span>
           </div>
           <span style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:13px; white-space:nowrap;">
-            {{ exp.amount|da_format }}
+            {{ exp.amount|floatformat:2 }} DA
           </span>
           <span class="badge-en-retard">En retard</span>
         </div>
@@ -223,7 +222,7 @@
                   {{ exp.description }}
                 </td>
                 <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:12px; white-space:nowrap;">
-                  {{ exp.amount|da_format }}
+                  {{ exp.amount|floatformat:2 }} DA
                 </td>
                 <td>
                   {% if exp.status == 'recorded' %}<span class="badge-en-attente">Enregistrée</span>

@@ -4,17 +4,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django.utils import timezone
 from accounts.utils import role_required
 from accounts.models import AuditLog
 from .models import (
     SupplierDN,
-    SupplierDNLine,
     SupplierInvoice,
-    SupplierInvoiceLine,
-    SupplierPayment,
-    ReconciliationLine,
 )
 from .forms import (
     SupplierDNForm,
@@ -211,7 +207,9 @@ def supplier_invoice_create(request):
                 request=request,
             )
             messages.success(request, f"Facture {invoice.reference} créée avec succès")
-            return redirect("supplier_ops:supplier_invoice_detail", invoice_id=invoice.id)
+            return redirect(
+                "supplier_ops:supplier_invoice_detail", invoice_id=invoice.id
+            )
     else:
         form = SupplierInvoiceForm()
         formset = SupplierInvoiceLineFormSet()
@@ -322,7 +320,9 @@ def supplier_payment_create(request, invoice_id):
             messages.success(
                 request, f"Paiement {payment.reference} enregistré avec succès"
             )
-            return redirect("supplier_ops:supplier_invoice_detail", invoice_id=invoice.id)
+            return redirect(
+                "supplier_ops:supplier_invoice_detail", invoice_id=invoice.id
+            )
     else:
         form = SupplierPaymentForm(initial={"amount": invoice.balance_due})
 

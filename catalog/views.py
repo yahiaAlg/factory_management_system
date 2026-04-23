@@ -3,11 +3,10 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q
-from decimal import Decimal
 from accounts.utils import role_required
 from accounts.models import AuditLog
-from .models import RawMaterial, FinishedProduct, RawMaterialCategory, UnitOfMeasure
-from .forms import RawMaterialForm, FinishedProductForm, RawMaterialCategoryForm
+from .models import RawMaterial, FinishedProduct, RawMaterialCategory
+from .forms import RawMaterialForm, FinishedProductForm
 
 
 @login_required
@@ -242,3 +241,239 @@ def finished_product_detail(request, product_id):
             "title": f"Produit fini - {product.reference}",
         },
     )
+
+
+# catalog/views.py  — add this view
+
+# catalog/views.py — FinishedProduct CRUD views
+# Add these to your existing catalog/views.py
+
+import json
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.views.decorators.http import require_POST
+from django.http import JsonResponse
+from django.core.exceptions import ValidationError
+from django.forms import ModelForm
+from decimal import Decimal, InvalidOperation
+from accounts.utils import role_required
+from accounts.models import AuditLog
+from .models import FinishedProduct, UnitOfMeasure
+
+
+# ─── Form ────────────────────────────────────────────────────────────────────
+
+
+class FinishedProductForm(ModelForm):
+    class Meta:
+        model = FinishedProduct
+        fields = [
+            "designation",
+            "sales_unit",
+            "reference_selling_price",
+            "alert_threshold",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sales_unit"].queryset = UnitOfMeasure.objects.filter(
+            is_active=True
+        )
+
+
+# ─── List ─────────────────────────────────────────────────────────────────────
+
+
+@login_required
+def finished_products_list(request):
+    products = FinishedProduct.objects.select_related("sales_unit").all()
+
+    search = request.GET.get("search", "").strip()
+    if search:
+        from django.db.models import Q
+
+        products = products.filter(
+            Q(reference__icontains=search) | Q(designation__icontains=search)
+        )
+
+    active = request.GET.get("active", "true")
+    if active == "false":
+        products = products.filter(is_active=False)
+    elif active != "all":
+        products = products.filter(is_active=True)
+
+    products = products.order_by("reference")
+    return render(
+        request,
+        "catalog/finished_product_list.html",
+        {
+            "products": products,
+            "total_count": products.count(),
+            "title": "Produits finis",
+        },
+    )
+
+
+# ─── Create ───────────────────────────────────────────────────────────────────
+
+
+@login_required
+@role_required(["manager"])
+def finished_product_create(request):
+    if request.method == "POST":
+        form = FinishedProductForm(request.POST)
+        if form.is_valid():
+            product = form.save(commit=False)
+            product.created_by = request.user
+            product.save()
+            AuditLog.log_action(
+                user=request.user,
+                action_type="create",
+                module="catalog",
+                instance=product,
+                request=request,
+            )
+            messages.success(request, f"Produit {product.reference} créé avec succès.")
+            return redirect("catalog:finished_products_list")
+    else:
+        form = FinishedProductForm()
+
+    return render(
+        request,
+        "catalog/finished_product_form.html",
+        {
+            "form": form,
+            "title": "Nouveau produit fini",
+        },
+    )
+
+
+# ─── Edit ─────────────────────────────────────────────────────────────────────
+
+
+@login_required
+@role_required(["manager"])
+def finished_product_edit(request, product_id):
+    product = get_object_or_404(FinishedProduct, pk=product_id)
+
+    if request.method == "POST":
+        form = FinishedProductForm(request.POST, instance=product)
+        if form.is_valid():
+            before = {f: str(getattr(product, f)) for f in form.changed_data}
+            product = form.save()
+            after = {f: str(getattr(product, f)) for f in form.changed_data}
+            AuditLog.log_action(
+                user=request.user,
+                action_type="update",
+                module="catalog",
+                instance=product,
+                details={"before": before, "after": after},
+                request=request,
+            )
+            messages.success(request, f"{product.reference} mis à jour.")
+            return redirect("catalog:finished_products_list")
+    else:
+        form = FinishedProductForm(instance=product)
+
+    return render(
+        request,
+        "catalog/finished_product_form.html",
+        {
+            "form": form,
+            "product": product,
+            "title": f"Modifier {product.reference}",
+        },
+    )
+
+
+# ─── Toggle active/inactive (replaces hard delete) ───────────────────────────
+
+
+@login_required
+@role_required(["manager"])
+@require_POST
+def finished_product_deactivate(request, product_id):
+    product = get_object_or_404(FinishedProduct, pk=product_id)
+    product.is_active = False
+    product.save()
+    AuditLog.log_action(
+        user=request.user,
+        action_type="cancel",
+        module="catalog",
+        instance=product,
+        details={"is_active": False},
+        request=request,
+    )
+    messages.success(request, f"{product.reference} désactivé.")
+    return redirect("catalog:finished_products_list")
+
+
+@login_required
+@role_required(["manager"])
+@require_POST
+def finished_product_activate(request, product_id):
+    product = get_object_or_404(FinishedProduct, pk=product_id)
+    product.is_active = True
+    product.save()
+    AuditLog.log_action(
+        user=request.user,
+        action_type="update",
+        module="catalog",
+        instance=product,
+        details={"is_active": True},
+        request=request,
+    )
+    messages.success(request, f"{product.reference} réactivé.")
+    return redirect("catalog:finished_products_list")
+
+
+# ─── Quick-create AJAX (used from formulation form) ───────────────────────────
+
+
+@login_required
+@require_POST
+def finished_product_quick_create(request):
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Requête invalide."}, status=400
+        )
+
+    designation = payload.get("designation", "").strip()
+    sales_unit_id = payload.get("sales_unit", "")
+
+    if not designation:
+        return JsonResponse(
+            {"success": False, "error": "La désignation est obligatoire."}
+        )
+    if not sales_unit_id:
+        return JsonResponse(
+            {"success": False, "error": "L'unité de vente est obligatoire."}
+        )
+
+    try:
+        sales_unit = UnitOfMeasure.objects.get(pk=sales_unit_id, is_active=True)
+    except UnitOfMeasure.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Unité de vente introuvable."})
+
+    try:
+        price = Decimal(str(payload.get("reference_selling_price", "0")))
+    except InvalidOperation:
+        price = Decimal("0.00")
+
+    try:
+        threshold = Decimal(str(payload.get("alert_threshold", "0")))
+    except InvalidOperation:
+        threshold = Decimal("0.000")
+
+    product = FinishedProduct.objects.create(
+        designation=designation,
+        sales_unit=sales_unit,
+        reference_selling_price=price,
+        alert_threshold=threshold,
+        created_by=request.user,
+    )
+
+    return JsonResponse({"success": True, "id": product.pk, "label": str(product)})

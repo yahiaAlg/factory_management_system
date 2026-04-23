@@ -1,128 +1,97 @@
-{% extends "reporting/base_report.html" %}
+{% extends "base.html" %}
+{% load static l10n %}
+{% block title %}Répartition des dépenses{% endblock %}
 
-{% block topbar_actions %}
-  {% if report_data %}
-  <a href="{% url 'reporting:export_report_csv' 'expense_breakdown' %}?date_from={{ date_from }}&date_to={{ date_to }}"
-     class="btn-outline-sm ms-3"><i class="bi bi-download"></i> CSV</a>
-  {% endif %}
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a><span class="bc-sep">/</span>
+<a href="{% url 'reporting:reporting_dashboard' %}">Rapports</a><span class="bc-sep">/</span>
+<span class="bc-current">Répartition dépenses</span>
 {% endblock %}
 
+{% block extra_css %}{% include "reporting/_shared_css.html" %}{% endblock %}
+
 {% block content %}
+<div class="rpt-page-header">
+  <div><p class="rpt-page-title">Répartition des dépenses</p><p class="rpt-page-sub">Analyse par catégorie et bénéficiaire</p></div>
+  {% if report_data %}<a href="{% url 'reporting:export_report_csv' 'expense_breakdown' %}?date_from={{ date_from }}&date_to={{ date_to }}" class="btn-secondary-app"><i class="bx bx-download"></i> CSV</a>{% endif %}
+</div>
+
 <div class="filter-panel">
-  <div class="filter-panel-title"><i class="bi bi-funnel me-1"></i>Période</div>
+  <div class="filter-panel-label"><i class="bx bx-filter-alt me-1"></i>Période</div>
   <form method="get" class="row g-3 align-items-end">
     <div class="col-sm-4">
-      <label class="form-label" style="font-size:12px;font-weight:600">Début</label>
-      {{ form.date_from }}
+      <label>Début</label>
+      <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 12px;width:100%;">
     </div>
     <div class="col-sm-4">
-      <label class="form-label" style="font-size:12px;font-weight:600">Fin</label>
-      {{ form.date_to }}
+      <label>Fin</label>
+      <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 12px;width:100%;">
     </div>
-    <div class="col-sm-4">
-      <button type="submit" class="btn-primary-sm w-100 justify-content-center">
-        <i class="bi bi-arrow-clockwise"></i> Actualiser
-      </button>
-    </div>
+    <div class="col-sm-4"><button type="submit" class="btn-primary-app w-100 justify-content-center"><i class="bx bx-refresh"></i> Actualiser</button></div>
   </form>
 </div>
 
-{% if report_data %}
-{% with d=report_data %}
+{% if report_data %}{% with d=report_data %}
 
-<!-- KPIs -->
-<div class="row g-3 section-gap">
-  <div class="col-sm-6 col-lg-4">
-    <div class="kpi-card">
-      <span class="kpi-label">Total dépenses</span>
-      <span class="kpi-value mono">{{ d.total_amount|floatformat:0 }}</span>
-      <span class="kpi-sub">DZD — validées et payées</span>
-    </div>
+<div class="row g-3 mb-4">
+  <div class="col-xl-4 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-red"><i class="bx bx-wallet"></i></div>
+      <div><div class="metric-label">Total dépenses</div><div class="metric-value">{{ d.total_amount|floatformat:0 }}</div><div class="metric-sub">DA — validées et payées</div></div></div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="kpi-card">
-      <span class="kpi-label">Nombre de dépenses</span>
-      <span class="kpi-value">{{ d.total_count }}</span>
-      <span class="kpi-sub">transactions sur la période</span>
-    </div>
+  <div class="col-xl-4 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-teal"><i class="bx bx-receipt"></i></div>
+      <div><div class="metric-label">Nombre de dépenses</div><div class="metric-value">{{ d.total_count }}</div><div class="metric-sub">transactions</div></div></div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="kpi-card">
-      <span class="kpi-label">Montant moyen</span>
-      <span class="kpi-value mono">
-        {% if d.total_count %}{{ d.total_amount|floatformat:0 }}{% else %}0{% endif %}
-      </span>
-      <span class="kpi-sub">DZD / dépense</span>
-    </div>
+  <div class="col-xl-4 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-blue"><i class="bx bx-category"></i></div>
+      <div><div class="metric-label">Catégories actives</div><div class="metric-value">{{ d.category_breakdown|length }}</div><div class="metric-sub">avec dépenses</div></div></div>
   </div>
 </div>
 
-<!-- Charts -->
-<div class="row g-3 section-gap">
+<div class="row g-3 mb-4">
   <div class="col-lg-5">
     <div class="chart-card">
-      <div class="chart-card-title">Répartition par catégorie</div>
-      <canvas id="catDonut" height="260"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Répartition par catégorie</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:260px"><canvas id="catDonut"></canvas></div></div>
     </div>
   </div>
   <div class="col-lg-7">
     <div class="chart-card">
-      <div class="chart-card-title">Évolution mensuelle des dépenses</div>
-      <canvas id="monthlyTrend" height="260"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Évolution mensuelle</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:260px"><canvas id="monthlyLine"></canvas></div></div>
     </div>
   </div>
 </div>
 
-<div class="row g-3 section-gap">
-  <div class="col-12">
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
     <div class="chart-card">
-      <div class="chart-card-title">Montant par catégorie</div>
-      <canvas id="catBar" height="160"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Montant par catégorie</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:200px"><canvas id="catBar"></canvas></div></div>
     </div>
   </div>
-</div>
-
-<!-- Top beneficiaries -->
-{% if d.top_beneficiaries %}
-<div class="row g-3 section-gap">
-  <div class="col-12">
+  <div class="col-lg-6">
     <div class="chart-card">
-      <div class="chart-card-title">Top 10 bénéficiaires</div>
-      <canvas id="benefChart" height="160"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Top 10 bénéficiaires</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:200px"><canvas id="benefBar"></canvas></div></div>
     </div>
   </div>
 </div>
-{% endif %}
 
-<!-- Category breakdown table -->
 {% if d.category_breakdown %}
-<div class="table-card section-gap">
-  <div class="table-card-header">
-    <h6><i class="bi bi-pie-chart me-2"></i>Détail par catégorie</h6>
-  </div>
+<div class="table-container mb-4">
+  <div class="table-container-header"><span class="table-container-title"><i class="bx bx-pie-chart me-2"></i>Détail par catégorie</span></div>
   <div class="p-3">
-    <table id="catTable" class="table table-hover w-100">
-      <thead>
-        <tr>
-          <th>Catégorie</th>
-          <th class="text-end">Montant (DZD)</th>
-          <th class="text-end">% du total</th>
-          <th class="text-end">Nb dépenses</th>
-          <th>Répartition visuelle</th>
-        </tr>
-      </thead>
+    <table id="catTable" class="table rpt-table w-100">
+      <thead><tr><th>Catégorie</th><th class="text-end">Montant (DA)</th><th class="text-end">% du total</th><th class="text-end">Nb</th><th style="width:150px">Répartition</th></tr></thead>
       <tbody>
         {% for label, info in d.category_breakdown.items %}
         <tr>
-          <td><strong>{{ label }}</strong></td>
-          <td class="text-end mono">{{ info.amount|floatformat:2 }}</td>
-          <td class="text-end mono">{{ info.percentage|floatformat:1 }}%</td>
-          <td class="text-end">{{ info.count }}</td>
-          <td style="min-width:120px">
-            <div class="progress" style="height:6px;border-radius:3px">
-              <div class="progress-bar" style="width:{{ info.percentage|floatformat:0 }}%;background:var(--accent)"></div>
-            </div>
-          </td>
+          <td style="font-weight:600;color:var(--text-primary)">{{ label }}</td>
+          <td class="num-cell">{{ info.amount|floatformat:2 }}</td>
+          <td class="num-cell">{{ info.percentage|floatformat:1 }}%</td>
+          <td class="num-cell">{{ info.count }}</td>
+          <td><div class="progress" style="height:5px;border-radius:3px;background:#f1f5f9"><div class="progress-bar" style="width:{{ info.percentage|floatformat:0 }}%;background:var(--accent)"></div></div></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -131,37 +100,24 @@
 </div>
 {% endif %}
 
-<!-- Expenses table -->
-<div class="table-card">
-  <div class="table-card-header">
-    <h6><i class="bi bi-receipt me-2"></i>Liste des dépenses</h6>
-  </div>
+<div class="table-container">
+  <div class="table-container-header"><span class="table-container-title"><i class="bx bx-table me-2"></i>Liste des dépenses</span></div>
   <div class="p-3">
-    <table id="expensesTable" class="table table-hover w-100">
-      <thead>
-        <tr>
-          <th>Référence</th>
-          <th>Date</th>
-          <th>Catégorie</th>
-          <th>Description</th>
-          <th>Bénéficiaire</th>
-          <th class="text-end">Montant (DZD)</th>
-          <th>Statut</th>
-        </tr>
-      </thead>
+    <table id="expTable" class="table rpt-table w-100">
+      <thead><tr><th>Référence</th><th>Date</th><th>Catégorie</th><th>Description</th><th>Bénéficiaire</th><th class="text-end">Montant (DA)</th><th>Statut</th></tr></thead>
       <tbody>
         {% for exp in d.expenses %}
         <tr>
-          <td class="mono fw-semibold">{{ exp.reference }}</td>
-          <td>{{ exp.expense_date|date:"d/m/Y" }}</td>
+          <td class="ref-cell">{{ exp.reference }}</td>
+          <td style="font-size:12px;color:var(--text-muted)">{{ exp.expense_date|date:"d/m/Y" }}</td>
           <td>{{ exp.category.label }}</td>
-          <td>{{ exp.description|truncatechars:45 }}</td>
+          <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ exp.description|truncatechars:45 }}</td>
           <td>{{ exp.beneficiary }}</td>
-          <td class="text-end mono">{{ exp.amount|floatformat:2 }}</td>
+          <td class="num-cell">{{ exp.amount|floatformat:2 }}</td>
           <td>
-            <span class="badge-status {% if exp.status == 'paid' %}available{% elif exp.status == 'validated' %}normal{% else %}warning{% endif %}">
-              {{ exp.get_status_display }}
-            </span>
+            {% if exp.status == 'paid' %}<span class="badge-status badge-paid">Payée</span>
+            {% elif exp.status == 'validated' %}<span class="badge-status badge-validated">Validée</span>
+            {% else %}<span class="badge-status badge-recorded">{{ exp.get_status_display }}</span>{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -170,96 +126,46 @@
   </div>
 </div>
 
-{% endwith %}
-{% else %}
-<div class="chart-card text-center py-5">
-  <i class="bi bi-receipt" style="font-size:2.5rem;color:var(--border)"></i>
-  <p class="mt-3 text-muted">Aucune dépense sur cette période.</p>
-</div>
+{% endwith %}{% else %}
+<div class="empty-state"><i class="bx bx-receipt"></i><div class="empty-state-title">Aucune dépense</div><div class="empty-state-text">Aucune dépense validée ou payée sur cette période.</div></div>
 {% endif %}
 {% endblock %}
 
-{% block extra_scripts %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 {% if report_data %}
+{% localize off %}
 <script>
+Chart.defaults.font.family="'Inter',sans-serif"; Chart.defaults.font.size=12; Chart.defaults.color='#94a3b8';
+const DT_FR={decimal:",",thousands:" ",lengthMenu:"Afficher _MENU_ lignes",zeroRecords:"Aucun résultat",info:"_START_ à _END_ sur _TOTAL_",infoEmpty:"0",search:"Rechercher :",paginate:{first:"«",last:"»",next:"›",previous:"‹"}};
+
 $(document).ready(function(){
-  $('#expensesTable').DataTable({
-    language:DT_LANG_FR, pageLength:20, order:[[1,'desc']],
-    dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"
-  });
-  $('#catTable').DataTable({language:DT_LANG_FR,paging:false,searching:false,info:false,order:[[1,'desc']]});
+  $('#expTable').DataTable({language:DT_FR,pageLength:20,order:[[1,'desc']],dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"});
+  $('#catTable').DataTable({language:DT_FR,paging:false,searching:false,info:false,order:[[1,'desc']]});
 });
 
-const COLORS = ['#1a56db','#0d9488','#d97706','#7c3aed','#dc2626','#059669','#0284c7','#9333ea','#db2777','#16a34a'];
+// Design system chart palette
+const PAL=['#0f766e','#3b82f6','#16a34a','#d97706','#7c3aed','#ef4444','#0891b2','#ea580c','#db2777'];
+const catL  =[{% for k,_ in report_data.category_breakdown.items %}"{{ k|escapejs }}",{% endfor %}];
+const catA  =[{% for _,v in report_data.category_breakdown.items %}{{ v.amount|floatformat:2 }},{% endfor %}];
+const monthL=[{% for m in report_data.monthly_trend %}"{{ m.month|escapejs }}",{% endfor %}];
+const monthV=[{% for m in report_data.monthly_trend %}{{ m.total|floatformat:2 }},{% endfor %}];
+const benefL=[{% for b in report_data.top_beneficiaries %}"{{ b.beneficiary|truncatechars:25|escapejs }}",{% endfor %}];
+const benefA=[{% for b in report_data.top_beneficiaries %}{{ b.total|floatformat:2 }},{% endfor %}];
 
-{% with d=report_data %}
-const catLabels  = [{% for label,_ in d.category_breakdown.items %}"{{ label }}",{% endfor %}];
-const catAmounts = [{% for _,info in d.category_breakdown.items %}{{ info.amount|floatformat:2 }},{% endfor %}];
-const monthLabels = [{% for m in d.monthly_trend %}"{{ m.month }}",{% endfor %}];
-const monthTotals = [{% for m in d.monthly_trend %}{{ m.total|floatformat:2 }},{% endfor %}];
-const benefLabels = [{% for b in d.top_beneficiaries %}"{{ b.beneficiary|truncatechars:25 }}",{% endfor %}];
-const benefAmts   = [{% for b in d.top_beneficiaries %}{{ b.total|floatformat:2 }},{% endfor %}];
-{% endwith %}
+document.addEventListener('DOMContentLoaded',()=>{
+  new Chart(document.getElementById('catDonut'),{type:'doughnut',data:{labels:catL,datasets:[{data:catA,backgroundColor:PAL,borderWidth:0,hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Category donut
-  new Chart(document.getElementById('catDonut'), {
-    type:'doughnut',
-    data:{ labels:catLabels, datasets:[{data:catAmounts,backgroundColor:COLORS,borderWidth:0,hoverOffset:6}] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ position:'bottom', labels:{font:{size:11}} } } }
-  });
+  new Chart(document.getElementById('catBar'),{type:'bar',data:{labels:catL,datasets:[{label:'Montant (DA)',data:catA,backgroundColor:PAL,borderRadius:5}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'},border:{display:false},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false},border:{display:false},ticks:{font:{size:11}}}}}});
 
-  // Category bar (horizontal)
-  new Chart(document.getElementById('catBar'), {
-    type:'bar',
-    data:{
-      labels:catLabels,
-      datasets:[{label:'Montant (DZD)',data:catAmounts,backgroundColor:COLORS,borderRadius:5}]
-    },
-    options:{
-      indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{x:{grid:{color:'#f3f4f6'},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false}}}
-    }
-  });
+  new Chart(document.getElementById('monthlyLine'),{type:'line',data:{labels:monthL,datasets:[{label:'Dépenses (DA)',data:monthV,borderColor:'#0f766e',backgroundColor:'rgba(15,118,110,.08)',borderWidth:2,fill:true,tension:.35,pointRadius:4,pointHoverRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},border:{display:false}},y:{grid:{color:'#f1f5f9'},border:{display:false},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}}}}});
 
-  // Monthly trend
-  new Chart(document.getElementById('monthlyTrend'), {
-    type:'line',
-    data:{
-      labels:monthLabels,
-      datasets:[{
-        label:'Dépenses (DZD)', data:monthTotals,
-        borderColor:'#1a56db', backgroundColor:'rgba(26,86,219,.08)',
-        borderWidth:2, fill:true, tension:.35, pointRadius:5, pointHoverRadius:7
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{grid:{display:false}},
-        y:{grid:{color:'#f3f4f6'},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}}
-      }
-    }
-  });
-
-  // Beneficiaries bar
-  if(benefLabels.length){
-    new Chart(document.getElementById('benefChart'), {
-      type:'bar',
-      data:{
-        labels:benefLabels,
-        datasets:[{label:'Montant (DZD)',data:benefAmts,backgroundColor:'rgba(13,148,136,.7)',borderColor:'#0d9488',borderWidth:1,borderRadius:5}]
-      },
-      options:{
-        indexAxis:'y', responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{display:false}},
-        scales:{x:{grid:{color:'#f3f4f6'},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false}}}
-      }
-    });
-  }
+  if(benefL.length) new Chart(document.getElementById('benefBar'),{type:'bar',data:{labels:benefL,datasets:[{label:'Montant (DA)',data:benefA,backgroundColor:'rgba(59,130,246,.65)',borderColor:'#3b82f6',borderWidth:1,borderRadius:5}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'},border:{display:false},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false},border:{display:false},ticks:{font:{size:11}}}}}});
 });
 </script>
+{% endlocalize %}
 {% endif %}
 {% endblock %}

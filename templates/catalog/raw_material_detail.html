@@ -214,7 +214,7 @@
         </div>
         <div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);">
           <span style="color:var(--text-muted);">Référencé dans BL</span>
-          <span>{% if material._is_referenced %}<i class="bx bx-check" style="color:var(--accent);"></i> Oui{% else %}Non{% endif %}</span>
+          <span>{% if material.is_referenced %}<i class="bx bx-check" style="color:var(--accent);"></i> Oui{% else %}Non{% endif %}</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);">
           <span style="color:var(--text-muted);">Créé le</span>

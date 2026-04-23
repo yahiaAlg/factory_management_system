@@ -1,13 +1,13 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}{{ title }} — UsineERP{% endblock %}
 
 {% block breadcrumb %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
     <li class="breadcrumb-item"><a href="{% url 'production:formulations_list' %}">Formulations</a></li>
     <li class="breadcrumb-item active">{{ title }}</li>
   </ol>
@@ -37,9 +37,9 @@
   {% endfor %}
 {% endif %}
 
-{% if form._br_prod_03_locked %}
+{% if form.br_prod_03_locked %}
 <div class="alert-banner alert-banner-warning mb-3">
-  <i class="bi bi-lock-fill me-1"></i>
+  <i class="bx bx-lock-alt me-1"></i>
   <strong>BR-PROD-03 :</strong> Cette formulation est verrouillée car des ordres de production sont en cours.
 </div>
 {% endif %}
@@ -63,8 +63,15 @@
             </div>
             <div class="col-md-4">
               <label class="form-label-app">Produit fini <span class="text-danger">*</span></label>
-              {{ form.finished_product }}
-              {% if form.finished_product.errors %}<div class="form-error">{{ form.finished_product.errors.0 }}</div>{% endif %}
+              <div class="d-flex gap-2 align-items-start">
+                <div style="flex:1;">
+                  {{ form.finished_product }}
+                  {% if form.finished_product.errors %}<div class="form-error">{{ form.finished_product.errors.0 }}</div>{% endif %}
+                </div>
+                <button type="button" class="btn-secondary-app" style="white-space:nowrap;flex-shrink:0;padding:7px 10px;" title="Créer un nouveau produit fini" data-bs-toggle="modal" data-bs-target="#newProductModal">
+                  <i class="bx bx-plus" style="font-size:16px;"></i>
+                </button>
+              </div>
             </div>
             <div class="col-md-3">
               <label class="form-label-app">Quantité de référence par lot <span class="text-danger">*</span></label>
@@ -126,11 +133,11 @@
                     {% if lf.instance.pk %}
                       <div style="display:none;">{{ lf.DELETE }}</div>
                       <button type="button" class="btn-icon btn-danger-line-toggle" title="Supprimer la ligne">
-                        <i class="bi bi-trash"></i>
+                        <i class="bx bx-trash"></i>
                       </button>
                     {% else %}
                       <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer">
-                        <i class="bi bi-x-lg"></i>
+                        <i class="bx bx-x"></i>
                       </button>
                     {% endif %}
                     {% for hidden in lf.hidden_fields %}{{ hidden }}{% endfor %}
@@ -150,7 +157,7 @@
                 <td>{{ ef.unit_of_measure }}</td>
                 <td>{{ ef.tolerance_pct }}</td>
                 <td class="delete-col">
-                  <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer"><i class="bi bi-x-lg"></i></button>
+                  <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer"><i class="bx bx-x"></i></button>
                   {% for hidden in ef.hidden_fields %}{{ hidden }}{% endfor %}
                 </td>
                 {% endwith %}
@@ -159,7 +166,7 @@
           </div>
           <div class="px-3 pb-3 pt-2">
             <button type="button" id="add-line-btn" class="add-line-btn">
-              <i class="bi bi-plus-circle me-1"></i> Ajouter une matière première
+              <i class="bx bx-plus-circle me-1"></i> Ajouter une matière première
             </button>
           </div>
         </div>
@@ -169,12 +176,88 @@
     {# ─── Actions ─── #}
     <div class="col-12 d-flex gap-2 justify-content-end pb-4">
       <a href="{% url 'production:formulations_list' %}" class="btn-secondary-app">Annuler</a>
-      <button type="submit" class="btn-primary-app" {% if form._br_prod_03_locked %}disabled{% endif %}>
-        <i class="bi bi-check2 me-1"></i> Enregistrer la formulation
+      <button type="submit" class="btn-primary-app" {% if form.br_prod_03_locked %}disabled{% endif %}>
+        <i class="bx bx-check me-1"></i> Enregistrer la formulation
       </button>
     </div>
   </div>
 </form>
+
+{# ─── Quick-create Produit Fini modal ─── #}
+<div class="modal fade" id="newProductModal" tabindex="-1" aria-labelledby="newProductModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-600" id="newProductModalLabel">
+          <i class="bx bx-package me-1" style="color:var(--accent);"></i>
+          Nouveau produit fini
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div id="new-product-alert" style="display:none;" class="alert-banner alert-banner-error mb-3"></div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label-app">Désignation <span class="text-danger">*</span></label>
+            <input type="text" id="np-designation" class="form-control-app" placeholder="Ex: Bidon PEHD 20L rouge" maxlength="200">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label-app">Unité de vente <span class="text-danger">*</span></label>
+            <select id="np-sales-unit" class="form-control-app">
+              <option value="">---------</option>
+              {% for unit in units_of_measure %}
+              <option value="{{ unit.id }}">{{ unit.name }} ({{ unit.symbol }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label-app">Prix de vente de référence (DA)</label>
+            <input type="number" id="np-price" class="form-control-app" step="0.01" min="0" value="0.00">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label-app">Seuil d'alerte stock</label>
+            <input type="number" id="np-alert-threshold" class="form-control-app" step="0.001" min="0" value="0.000">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" id="btn-save-product" class="btn-primary-app">
+          <i class="bx bx-check me-1"></i> Créer le produit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  {# RM → unit mapping for auto-population #}
+  <script>
+  const RM_UNIT_MAP = {{ rm_unit_map_json|safe }};
+
+  function applyRmUnit(rmSelect) {
+    const row = rmSelect.closest('tr');
+    if (!row) return;
+    const unitSelect = row.querySelector('select[name$="-unit_of_measure"]');
+    if (!unitSelect) return;
+    const unitId = RM_UNIT_MAP[rmSelect.value];
+    if (unitId !== undefined) {
+      unitSelect.value = unitId;
+    }
+  }
+
+  function bindRmUnitListener(row) {
+    const rmSelect = row.querySelector('select[name$="-raw_material"]');
+    if (rmSelect) {
+      rmSelect.addEventListener('change', () => applyRmUnit(rmSelect));
+      // Pre-populate on load for existing rows that have no unit set
+      if (rmSelect.value && (!row.querySelector('select[name$="-unit_of_measure"]').value)) {
+        applyRmUnit(rmSelect);
+      }
+    }
+  }
+  </script>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -204,6 +287,7 @@
     tbody.appendChild(newRow);
     totalForms.value = currentCount + 1;
     bindRowActions(newRow);
+    bindRmUnitListener(newRow);
   });
 
   function bindRowActions(row) {
@@ -219,13 +303,90 @@
         const marked = row.classList.toggle('marked-delete');
         if (deleteInput) deleteInput.checked = marked;
         deleteBtn.innerHTML = marked
-          ? '<i class="bi bi-arrow-counterclockwise"></i>'
-          : '<i class="bi bi-trash"></i>';
+          ? '<i class="bx bx-undo"></i>'
+          : '<i class="bx bx-trash"></i>';
       });
     }
   }
 
-  tbody.querySelectorAll('tr.line-row').forEach(bindRowActions);
+  tbody.querySelectorAll('tr.line-row').forEach(row => {
+    bindRowActions(row);
+    bindRmUnitListener(row);
+  });
 })();
 </script>
+
+<script>
+(function () {
+  const modal     = document.getElementById('newProductModal');
+  const saveBtn   = document.getElementById('btn-save-product');
+  const alertBox  = document.getElementById('new-product-alert');
+  const select    = document.getElementById('id_finished_product');
+
+  function showAlert(msg) {
+    alertBox.textContent = msg;
+    alertBox.style.display = '';
+  }
+  function clearAlert() { alertBox.style.display = 'none'; alertBox.textContent = ''; }
+
+  // Clear form when modal opens
+  modal.addEventListener('show.bs.modal', function () {
+    clearAlert();
+    document.getElementById('np-designation').value = '';
+    document.getElementById('np-sales-unit').value  = '';
+    document.getElementById('np-price').value       = '0.00';
+    document.getElementById('np-alert-threshold').value = '0.000';
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer le produit';
+  });
+
+  saveBtn.addEventListener('click', function () {
+    clearAlert();
+    const designation = document.getElementById('np-designation').value.trim();
+    const salesUnit   = document.getElementById('np-sales-unit').value;
+    const price       = document.getElementById('np-price').value;
+    const threshold   = document.getElementById('np-alert-threshold').value;
+
+    if (!designation) { showAlert('La désignation est obligatoire.'); return; }
+    if (!salesUnit)    { showAlert("L'unité de vente est obligatoire."); return; }
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin me-1"></i> Création…';
+
+    fetch("{% url 'catalog:finished_product_quick_create' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      },
+      body: JSON.stringify({
+        designation:     designation,
+        sales_unit:      salesUnit,
+        reference_selling_price: price,
+        alert_threshold: threshold,
+      }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        // Inject the new option and select it
+        const opt = new Option(data.label, data.id, true, true);
+        select.appendChild(opt);
+        select.value = data.id;
+        bootstrap.Modal.getInstance(modal).hide();
+      } else {
+        showAlert(data.error || 'Erreur lors de la création.');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer le produit';
+      }
+    })
+    .catch(() => {
+      showAlert('Erreur réseau — veuillez réessayer.');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer le produit';
+    });
+  });
+})();
+</script>
+
 {% endblock %}

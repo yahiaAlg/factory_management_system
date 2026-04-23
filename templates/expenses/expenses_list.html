@@ -1,6 +1,5 @@
-{% load static %}
-{% load factory_filters %}
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Dépenses{% endblock %}
 
@@ -71,21 +70,21 @@
     <div class="ic-box ic-slate"><i class="bx bx-wallet"></i></div>
     <div class="stat-mini-body">
       <div class="stat-mini-label">Total filtré</div>
-      <div class="stat-mini-value">{{ total_amount|da_format }}</div>
+      <div class="stat-mini-value">{{ total_amount|floatformat:2 }} DA</div>
     </div>
   </div>
   <div class="stat-mini">
     <div class="ic-box ic-teal"><i class="bx bx-check-circle"></i></div>
     <div class="stat-mini-body">
       <div class="stat-mini-label">Validé / Payé</div>
-      <div class="stat-mini-value">{{ validated_amount|da_format }}</div>
+      <div class="stat-mini-value">{{ validated_amount|floatformat:2 }} DA</div>
     </div>
   </div>
   <div class="stat-mini">
     <div class="ic-box ic-green"><i class="bx bx-money"></i></div>
     <div class="stat-mini-body">
       <div class="stat-mini-label">Payé</div>
-      <div class="stat-mini-value">{{ paid_amount|da_format }}</div>
+      <div class="stat-mini-value">{{ paid_amount|floatformat:2 }} DA</div>
     </div>
   </div>
 </div>
@@ -177,7 +176,7 @@
             </td>
             <td style="color:var(--text-secondary);">{{ expense.beneficiary }}</td>
             <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; white-space:nowrap;">
-              {{ expense.amount|da_format }}
+              {{ expense.amount|floatformat:2 }} DA
             </td>
             <td>
               {% if expense.status == 'recorded' %}

@@ -1,13 +1,13 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}{{ title }} — UsineERP{% endblock %}
 
 {% block breadcrumb %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
     <li class="breadcrumb-item"><a href="{% url 'production:production_orders_list' %}">Ordres de production</a></li>
     <li class="breadcrumb-item"><a href="{% url 'production:production_order_detail' order.id %}">{{ order.reference }}</a></li>
     <li class="breadcrumb-item active">Clôture</li>

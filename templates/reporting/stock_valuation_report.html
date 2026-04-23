@@ -1,238 +1,178 @@
-{% extends "reporting/base_report.html" %}
+{% extends "base.html" %}
+{% load static l10n %}
+{% block title %}Valorisation des stocks{% endblock %}
 
-{% block topbar_actions %}
-  <a href="{% url 'reporting:export_report_csv' 'stock_valuation' %}"
-     class="btn-outline-sm ms-3"><i class="bi bi-download"></i> CSV</a>
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a><span class="bc-sep">/</span>
+<a href="{% url 'reporting:reporting_dashboard' %}">Rapports</a><span class="bc-sep">/</span>
+<span class="bc-current">Valorisation stocks</span>
 {% endblock %}
 
+{% block extra_css %}{% include "reporting/_shared_css.html" %}{% endblock %}
+
 {% block content %}
+<div class="rpt-page-header">
+  <div><p class="rpt-page-title">Valorisation des stocks</p><p class="rpt-page-sub">Matières premières et produits finis</p></div>
+  <a href="{% url 'reporting:export_report_csv' 'stock_valuation' %}" class="btn-secondary-app"><i class="bx bx-download"></i> CSV</a>
+</div>
+
 <div class="filter-panel">
-  <div class="filter-panel-title"><i class="bi bi-funnel me-1"></i>Filtres</div>
+  <div class="filter-panel-label"><i class="bx bx-filter-alt me-1"></i>Filtres — Situation en temps réel</div>
   <form method="get" class="row g-3 align-items-end">
-    <div class="col-sm-4">
-      <label class="form-label" style="font-size:12px;font-weight:600">Type de stock</label>
-      {{ form.stock_type }}
-    </div>
-    <div class="col-sm-3 d-flex align-items-center gap-2 pt-3">
+    <div class="col-sm-4"><label>Type de stock</label>{{ form.stock_type }}</div>
+    <div class="col-sm-3 d-flex align-items-center gap-2 pt-4">
       {{ form.include_zero_stock }}
-      <label class="form-check-label" style="font-size:13px">{{ form.include_zero_stock.label }}</label>
+      <label style="margin:0;font-size:13px;color:var(--text-secondary)">{{ form.include_zero_stock.label }}</label>
     </div>
-    <div class="col-sm-3">
-      <button type="submit" class="btn-primary-sm w-100 justify-content-center">
-        <i class="bi bi-arrow-clockwise"></i> Actualiser
-      </button>
-    </div>
+    <div class="col-sm-3"><button type="submit" class="btn-primary-app w-100 justify-content-center"><i class="bx bx-refresh"></i> Actualiser</button></div>
   </form>
 </div>
 
 <!-- KPIs -->
-<div class="row g-3 section-gap">
-  <div class="col-sm-6 col-lg-4">
-    <div class="kpi-card">
-      <span class="kpi-label">Valeur totale stocks</span>
-      <span class="kpi-value mono">{{ total_stock_value|floatformat:0 }}</span>
-      <span class="kpi-sub">DZD</span>
-    </div>
+<div class="row g-3 mb-4">
+  <div class="col-xl-4 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-teal"><i class="bx bx-package"></i></div>
+      <div><div class="metric-label">Valeur totale stocks</div><div class="metric-value">{{ total_stock_value|floatformat:0 }}</div><div class="metric-sub">DA</div></div></div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="kpi-card">
-      <span class="kpi-label">Matières premières</span>
-      <span class="kpi-value mono">{{ rm_total_value|floatformat:0 }}</span>
-      <span class="kpi-sub">DZD</span>
-    </div>
+  <div class="col-xl-4 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-blue"><i class="bx bx-layer"></i></div>
+      <div><div class="metric-label">Matières premières</div><div class="metric-value">{{ rm_total_value|floatformat:0 }}</div><div class="metric-sub">DA — {{ rm_data|length }} référence(s)</div></div></div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="kpi-card">
-      <span class="kpi-label">Produits finis</span>
-      <span class="kpi-value mono">{{ fp_total_value|floatformat:0 }}</span>
-      <span class="kpi-sub">DZD</span>
-    </div>
+  <div class="col-xl-4 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-green"><i class="bx bx-box"></i></div>
+      <div><div class="metric-label">Produits finis</div><div class="metric-value">{{ fp_total_value|floatformat:0 }}</div><div class="metric-sub">DA — {{ fp_data|length }} référence(s)</div></div></div>
   </div>
 </div>
 
 <!-- Charts -->
-<div class="row g-3 section-gap">
-  <div class="col-lg-5">
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
     <div class="chart-card">
-      <div class="chart-card-title">Répartition MP vs PF</div>
-      <canvas id="stockSplitDonut" height="220"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Répartition MP vs PF</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:220px"><canvas id="splitDonut"></canvas></div></div>
     </div>
   </div>
-  <div class="col-lg-7">
+  <div class="col-lg-8">
     <div class="chart-card">
-      <div class="chart-card-title">Top 10 matières premières par valeur</div>
-      <canvas id="topRmBar" height="220"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Top 10 matières premières par valeur</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:220px"><canvas id="topRmBar"></canvas></div></div>
     </div>
   </div>
 </div>
 
 {% if rm_data %}
-<!-- Raw materials table -->
-<div class="table-card section-gap">
-  <div class="table-card-header">
-    <h6><i class="bi bi-boxes me-2"></i>Matières premières</h6>
-    <small class="text-muted">{{ rm_data|length }} référence(s)</small>
+<div class="table-container mb-4">
+  <div class="table-container-header">
+    <span class="table-container-title"><i class="bx bx-layer me-2"></i>Matières premières</span>
+    <span style="font-size:12px;color:var(--text-muted)">{{ rm_data|length }} référence(s) · Total : {{ rm_total_value|floatformat:2 }} DA</span>
   </div>
   <div class="p-3">
-    <table id="rmTable" class="table table-hover w-100">
-      <thead>
-        <tr>
-          <th>Référence</th>
-          <th>Désignation</th>
-          <th>Catégorie</th>
-          <th class="text-end">Quantité</th>
-          <th class="text-end">Prix unit. (DZD)</th>
-          <th class="text-end">Valeur (DZD)</th>
-          <th class="text-center">Statut</th>
-        </tr>
-      </thead>
+    <table id="rmTable" class="table rpt-table w-100">
+      <thead><tr>
+        <th>Référence</th><th>Désignation</th><th>Catégorie</th>
+        <th class="text-end">Quantité</th><th class="text-end">Prix unit. (DA)</th>
+        <th class="text-end">Valeur (DA)</th><th class="text-center">Statut</th>
+      </tr></thead>
       <tbody>
         {% for item in rm_data %}
-        <tr>
-          <td class="mono fw-semibold">{{ item.material.reference }}</td>
-          <td>{{ item.material.designation }}</td>
-          <td>{{ item.material.category.name }}</td>
-          <td class="text-end mono">{{ item.quantity|floatformat:3 }} {{ item.material.unit_of_measure.symbol }}</td>
-          <td class="text-end mono">{{ item.unit_price|floatformat:2 }}</td>
-          <td class="text-end mono fw-bold">{{ item.value|floatformat:2 }}</td>
+        <tr class="{% if item.status == 'stockout' %}row-critical{% elif item.status == 'running_low' %}row-warning{% endif %}">
+          <td class="ref-cell">{{ item.material.reference }}</td>
+          <td style="font-weight:600;color:var(--text-primary)">{{ item.material.designation }}</td>
+          <td style="color:var(--text-muted)">{{ item.material.category.name }}</td>
+          <td class="num-cell">{{ item.quantity|floatformat:3 }} <span style="font-size:11px;color:var(--text-muted)">{{ item.material.unit_of_measure.symbol }}</span></td>
+          <td class="num-cell">{{ item.unit_price|floatformat:2 }}</td>
+          <td class="num-cell">{{ item.value|floatformat:2 }}</td>
           <td class="text-center">
-            <span class="badge-status {{ item.status }}">
-              {% if item.status == 'available' %}Disponible
-              {% elif item.status == 'running_low' %}Bas
-              {% elif item.status == 'stockout' %}Rupture
-              {% elif item.status == 'on_order' %}En commande
-              {% else %}{{ item.status }}{% endif %}
-            </span>
+            {% if item.status == 'available' %}<span class="badge-status badge-disponible">Disponible</span>
+            {% elif item.status == 'running_low' %}<span class="badge-status badge-warning">Bas</span>
+            {% elif item.status == 'stockout' %}<span class="badge-status badge-critical">Rupture</span>
+            {% elif item.status == 'on_order' %}<span class="badge-status badge-on-order">En commande</span>
+            {% else %}—{% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
-      <tfoot>
-        <tr class="fw-bold table-secondary">
-          <td colspan="5">Total matières premières</td>
-          <td class="text-end mono">{{ rm_total_value|floatformat:2 }}</td>
-          <td></td>
-        </tr>
-      </tfoot>
+      <tfoot><tr><td colspan="5">Total matières premières</td><td class="text-end">{{ rm_total_value|floatformat:2 }}</td><td></td></tr></tfoot>
     </table>
   </div>
 </div>
 {% endif %}
 
 {% if fp_data %}
-<!-- Finished products table -->
-<div class="table-card">
-  <div class="table-card-header">
-    <h6><i class="bi bi-box-seam me-2"></i>Produits finis</h6>
-    <small class="text-muted">{{ fp_data|length }} référence(s)</small>
+<div class="table-container">
+  <div class="table-container-header">
+    <span class="table-container-title"><i class="bx bx-box me-2"></i>Produits finis</span>
+    <span style="font-size:12px;color:var(--text-muted)">{{ fp_data|length }} référence(s) · Total : {{ fp_total_value|floatformat:2 }} DA</span>
   </div>
   <div class="p-3">
-    <table id="fpTable" class="table table-hover w-100">
-      <thead>
-        <tr>
-          <th>Référence</th>
-          <th>Désignation</th>
-          <th class="text-end">Quantité</th>
-          <th class="text-end">CMP (DZD)</th>
-          <th class="text-end">Valeur (DZD)</th>
-          <th class="text-center">Statut</th>
-        </tr>
-      </thead>
+    <table id="fpTable" class="table rpt-table w-100">
+      <thead><tr>
+        <th>Référence</th><th>Désignation</th>
+        <th class="text-end">Quantité</th><th class="text-end">CMP (DA)</th>
+        <th class="text-end">Valeur (DA)</th><th class="text-center">Statut</th>
+      </tr></thead>
       <tbody>
         {% for item in fp_data %}
-        <tr>
-          <td class="mono fw-semibold">{{ item.product.reference }}</td>
-          <td>{{ item.product.designation }}</td>
-          <td class="text-end mono">{{ item.quantity|floatformat:3 }} {{ item.product.sales_unit.symbol }}</td>
-          <td class="text-end mono">{{ item.unit_cost|floatformat:2 }}</td>
-          <td class="text-end mono fw-bold">{{ item.value|floatformat:2 }}</td>
+        <tr class="{% if item.status == 'stockout' %}row-critical{% elif item.status == 'running_low' %}row-warning{% endif %}">
+          <td class="ref-cell">{{ item.product.reference }}</td>
+          <td style="font-weight:600;color:var(--text-primary)">{{ item.product.designation }}</td>
+          <td class="num-cell">{{ item.quantity|floatformat:3 }} <span style="font-size:11px;color:var(--text-muted)">{{ item.product.sales_unit.symbol }}</span></td>
+          <td class="num-cell">{{ item.unit_cost|floatformat:2 }}</td>
+          <td class="num-cell">{{ item.value|floatformat:2 }}</td>
           <td class="text-center">
-            <span class="badge-status {{ item.status }}">
-              {% if item.status == 'available' %}Disponible
-              {% elif item.status == 'running_low' %}Bas
-              {% elif item.status == 'stockout' %}Rupture
-              {% else %}{{ item.status }}{% endif %}
-            </span>
+            {% if item.status == 'available' %}<span class="badge-status badge-disponible">Disponible</span>
+            {% elif item.status == 'running_low' %}<span class="badge-status badge-warning">Bas</span>
+            {% elif item.status == 'stockout' %}<span class="badge-status badge-critical">Rupture</span>
+            {% else %}—{% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
-      <tfoot>
-        <tr class="fw-bold table-secondary">
-          <td colspan="4">Total produits finis</td>
-          <td class="text-end mono">{{ fp_total_value|floatformat:2 }}</td>
-          <td></td>
-        </tr>
-      </tfoot>
+      <tfoot><tr><td colspan="4">Total produits finis</td><td class="text-end">{{ fp_total_value|floatformat:2 }}</td><td></td></tr></tfoot>
     </table>
   </div>
 </div>
 {% endif %}
 
 {% if not rm_data and not fp_data %}
-<div class="chart-card text-center py-5">
-  <i class="bi bi-boxes" style="font-size:2.5rem;color:var(--border)"></i>
-  <p class="mt-3 text-muted">Aucun stock à valoriser avec les filtres sélectionnés.</p>
-</div>
+<div class="empty-state"><i class="bx bx-package"></i><div class="empty-state-title">Aucun stock</div><div class="empty-state-text">Aucun stock à valoriser avec les filtres sélectionnés.</div></div>
 {% endif %}
 {% endblock %}
 
-{% block extra_scripts %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+{% localize off %}
 <script>
+Chart.defaults.font.family="'Inter',sans-serif"; Chart.defaults.font.size=12; Chart.defaults.color='#94a3b8';
+const DT_FR={decimal:",",thousands:" ",lengthMenu:"Afficher _MENU_ lignes",zeroRecords:"Aucun résultat",info:"_START_ à _END_ sur _TOTAL_",infoEmpty:"0",search:"Rechercher :",paginate:{first:"«",last:"»",next:"›",previous:"‹"}};
+
 $(document).ready(function(){
-  {% if rm_data %}
-  $('#rmTable').DataTable({
-    language:DT_LANG_FR, pageLength:20, order:[[5,'desc']],
-    dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"
-  });
-  {% endif %}
-  {% if fp_data %}
-  $('#fpTable').DataTable({
-    language:DT_LANG_FR, pageLength:20, order:[[4,'desc']],
-    dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"
-  });
-  {% endif %}
+  {% if rm_data %}$('#rmTable').DataTable({language:DT_FR,pageLength:20,order:[[5,'desc']],dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"});{% endif %}
+  {% if fp_data %}$('#fpTable').DataTable({language:DT_FR,pageLength:20,order:[[4,'desc']],dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"});{% endif %}
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Split donut
-  new Chart(document.getElementById('stockSplitDonut'), {
+document.addEventListener('DOMContentLoaded',()=>{
+  // Split donut — only if both values present
+  new Chart(document.getElementById('splitDonut'),{
     type:'doughnut',
-    data:{
-      labels:['Matières premières','Produits finis'],
-      datasets:[{
-        data:[{{ rm_total_value|floatformat:2 }},{{ fp_total_value|floatformat:2 }}],
-        backgroundColor:['#1a56db','#0d9488'], borderWidth:0, hoverOffset:6
-      }]
-    },
+    data:{labels:['Matières premières','Produits finis'],datasets:[{data:[{{ rm_total_value|floatformat:2 }},{{ fp_total_value|floatformat:2 }}],backgroundColor:['#0f766e','#3b82f6'],borderWidth:0,hoverOffset:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom'}}}
   });
 
-  // Top RM by value - sort and take first 10
-  const rmRaw = [
-    {% for item in rm_data %}
-    { label: "{{ item.material.designation|truncatechars:30 }}", value: {{ item.value|floatformat:2 }} },
-    {% endfor %}
-  ];
-  const topRm = rmRaw.sort((a,b)=>b.value-a.value).slice(0,10);
-
-  if(topRm.length){
-    new Chart(document.getElementById('topRmBar'), {
+  // Top RM by value — sort in JS, take 10
+  const rmRaw=[{% for item in rm_data %}{l:"{{ item.material.designation|truncatechars:28|escapejs }}",v:{{ item.value|floatformat:2 }}},{% endfor %}];
+  const top10 = rmRaw.sort((a,b)=>b.v-a.v).slice(0,10);
+  if(top10.length){
+    new Chart(document.getElementById('topRmBar'),{
       type:'bar',
-      data:{
-        labels: topRm.map(r=>r.label),
-        datasets:[{
-          label:'Valeur (DZD)', data:topRm.map(r=>r.value),
-          backgroundColor:'rgba(26,86,219,.65)',borderColor:'#1a56db',borderWidth:1,borderRadius:5
-        }]
-      },
-      options:{
-        indexAxis:'y', responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{display:false}},
-        scales:{x:{grid:{color:'#f3f4f6'},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false},ticks:{font:{size:11}}}}
-      }
+      data:{labels:top10.map(r=>r.l),datasets:[{label:'Valeur (DA)',data:top10.map(r=>r.v),backgroundColor:'rgba(15,118,110,.65)',borderColor:'#0f766e',borderWidth:1,borderRadius:5}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'},border:{display:false},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false},border:{display:false},ticks:{font:{size:11}}}}}
     });
   }
 });
 </script>
+{% endlocalize %}
 {% endblock %}

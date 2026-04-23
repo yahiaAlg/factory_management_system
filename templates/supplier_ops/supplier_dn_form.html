@@ -1,6 +1,6 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}Nouveau BL Fournisseur{% endblock %}
 
@@ -15,11 +15,41 @@
 {% block extra_css %}
 <style>
 .line-row td { vertical-align: middle; padding: 8px 10px; }
-.line-row .form-control-app { font-size: 13px; }
 .delete-line-btn { color: #dc2626; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-xs); }
 .delete-line-btn:hover { background: #fef2f2; }
 .line-total-cell { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; text-align: right; font-size: 13px; }
 #line-total-ht { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700; color: var(--accent); }
+
+/* Style Django-rendered form fields without waiting for JS */
+#dn-form input[type="text"],
+#dn-form input[type="date"],
+#dn-form input[type="number"],
+#dn-form select,
+#dn-form textarea,
+#lines-body input[type="text"],
+#lines-body input[type="number"],
+#lines-body select {
+  display: block; width: 100%; padding: 8px 12px; font-size: 13px;
+  font-family: 'Inter', sans-serif; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none; line-height: 1.5;
+}
+#dn-form input[type="text"]:focus,
+#dn-form input[type="date"]:focus,
+#dn-form input[type="number"]:focus,
+#dn-form select:focus,
+#dn-form textarea:focus,
+#lines-body input:focus,
+#lines-body select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+#lines-body input[type="checkbox"] {
+  width: 15px; height: 15px; accent-color: var(--accent);
+  cursor: pointer; display: inline;
+}
+.field-error { color: #dc2626; font-size: 12px; margin-top: 3px; }
 </style>
 {% endblock %}
 
@@ -154,23 +184,18 @@
 (function () {
   'use strict';
 
-  /* ── Apply form-control-app to all inputs/selects in formset ── */
-  document.querySelectorAll('#lines-body input, #lines-body select').forEach(function (el) {
-    el.classList.add('form-control-app');
-  });
+  /* ── Store a clone template from the first row before any interaction ── */
+  var linesBody = document.getElementById('lines-body');
+  var firstRow = linesBody.querySelector('.line-row');
+  var rowTemplate = firstRow ? firstRow.cloneNode(true) : null;
 
   /* ── Line total computation ── */
-  function getFloat(el) { return parseFloat(el.value) || 0; }
+  function getFloat(el) { return parseFloat(el ? el.value : '') || 0; }
 
   function recomputeLineTotals() {
     var grandTotal = 0;
-    document.querySelectorAll('.line-row').forEach(function (row) {
-      var deleteCheck = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-      if (deleteCheck && deleteCheck.checked) {
-        row.style.opacity = '0.4';
-        return;
-      }
-      row.style.opacity = '1';
+    linesBody.querySelectorAll('.line-row').forEach(function (row) {
+      if (row.style.display === 'none') return;
       var qty = getFloat(row.querySelector('input[name$="-quantity_received"]'));
       var price = getFloat(row.querySelector('input[name$="-agreed_unit_price"]'));
       var amount = qty * price;
@@ -182,21 +207,24 @@
       grandTotal.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA';
   }
 
-  document.getElementById('lines-body').addEventListener('input', recomputeLineTotals);
-  document.getElementById('lines-body').addEventListener('change', recomputeLineTotals);
+  linesBody.addEventListener('input', recomputeLineTotals);
+  linesBody.addEventListener('change', recomputeLineTotals);
   recomputeLineTotals();
 
-  /* ── Delete line toggle ── */
-  document.getElementById('lines-body').addEventListener('click', function (e) {
+  /* ── Delete line ── */
+  linesBody.addEventListener('click', function (e) {
     var btn = e.target.closest('.delete-line-btn');
     if (!btn) return;
     var row = btn.closest('.line-row');
     var chk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-    if (chk) {
-      chk.checked = !chk.checked;
-      btn.querySelector('i').className = chk.checked ? 'bx bx-undo' : 'bx bx-trash';
-      btn.style.background = chk.checked ? '#fef2f2' : '';
+    var hiddenId = row.querySelector('input[name$="-id"]');
+    var isExisting = hiddenId && hiddenId.value;
+    if (chk && isExisting) {
+      // Existing DB row: mark for deletion, hide visually
+      chk.checked = true;
+      row.style.display = 'none';
     } else {
+      // New unsaved row: remove from DOM
       row.remove();
     }
     recomputeLineTotals();
@@ -204,51 +232,32 @@
 
   /* ── Add new line ── */
   document.getElementById('add-line-btn').addEventListener('click', function () {
+    if (!rowTemplate) { console.error('No row template available.'); return; }
     var totalFormsEl = document.getElementById('id_lines-TOTAL_FORMS');
     var formCount = parseInt(totalFormsEl.value, 10);
 
-    var existingRow = document.querySelector('.line-row');
-    if (!existingRow) { alert('Erreur: impossible de cloner une ligne.'); return; }
-
-    var clone = existingRow.cloneNode(true);
+    var clone = rowTemplate.cloneNode(true);
     clone.id = 'line-row-' + formCount;
-    clone.style.opacity = '1';
+    clone.style.display = '';
 
-    // Update all name/id/for attributes
     clone.querySelectorAll('[name],[id],[for]').forEach(function (el) {
       ['name', 'id', 'for'].forEach(function (attr) {
-        if (el.getAttribute(attr)) {
-          el.setAttribute(attr, el.getAttribute(attr).replace(/-\d+-/, '-' + formCount + '-'));
-        }
+        var val = el.getAttribute(attr);
+        if (val) el.setAttribute(attr, val.replace(/-\d+-/, '-' + formCount + '-'));
       });
-      // Clear values
       if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.value = '';
       if (el.tagName === 'SELECT') el.selectedIndex = 0;
       if (el.type === 'checkbox') el.checked = false;
-      if (el.type === 'hidden' && el.name.endsWith('-id')) el.value = '';
+      if (el.type === 'hidden' && el.name && el.name.endsWith('-id')) el.value = '';
     });
 
-    // Reset delete button icon
-    var delBtn = clone.querySelector('.delete-line-btn i');
-    if (delBtn) delBtn.className = 'bx bx-trash';
-    var delBtnEl = clone.querySelector('.delete-line-btn');
-    if (delBtnEl) delBtnEl.style.background = '';
-
-    // Reset line total cell
     var totalCell = clone.querySelector('.line-total-cell');
     if (totalCell) { totalCell.textContent = '—'; totalCell.setAttribute('data-line', formCount); }
 
-    document.getElementById('lines-body').appendChild(clone);
+    linesBody.appendChild(clone);
     totalFormsEl.value = formCount + 1;
     recomputeLineTotals();
   });
-
-  /* ── Apply class to dynamically added inputs ── */
-  new MutationObserver(function () {
-    document.querySelectorAll('#lines-body input, #lines-body select').forEach(function (el) {
-      el.classList.add('form-control-app');
-    });
-  }).observe(document.getElementById('lines-body'), { childList: true, subtree: true });
 
 })();
 </script>

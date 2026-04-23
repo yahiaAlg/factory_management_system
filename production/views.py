@@ -80,6 +80,15 @@ def formulation_create(request):
         form = FormulationForm()
         formset = FormulationLineFormSet()
 
+    from catalog.models import UnitOfMeasure, RawMaterial
+    import json as _json
+
+    rm_unit_map = {
+        str(rm.pk): rm.unit_of_measure_id
+        for rm in RawMaterial.objects.filter(is_active=True).select_related(
+            "unit_of_measure"
+        )
+    }
     return render(
         request,
         "production/formulation_form.html",
@@ -87,6 +96,8 @@ def formulation_create(request):
             "form": form,
             "formset": formset,
             "title": "Nouvelle formulation",
+            "units_of_measure": UnitOfMeasure.objects.filter(is_active=True),
+            "rm_unit_map_json": _json.dumps(rm_unit_map),
         },
     )
 
@@ -218,12 +229,22 @@ def production_order_create(request):
     else:
         form = ProductionOrderForm()
 
+    import json as _json
+    from .models import Formulation
+
+    formulation_unit_map = {
+        str(f.pk): f.reference_batch_unit_id
+        for f in Formulation.objects.filter(is_active=True).select_related(
+            "reference_batch_unit"
+        )
+    }
     return render(
         request,
         "production/production_order_form.html",
         {
             "form": form,
             "title": "Nouvel ordre de production",
+            "formulation_unit_map_json": _json.dumps(formulation_unit_map),
         },
     )
 

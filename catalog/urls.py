@@ -35,4 +35,35 @@ urlpatterns = [
         views.finished_product_detail,
         name="finished_product_detail",
     ),
+    # Finished Products
+    path(
+        "finished-products/",
+        views.finished_products_list,
+        name="finished_products_list",
+    ),
+    path(
+        "finished-products/create/",
+        views.finished_product_create,
+        name="finished_product_create",
+    ),
+    path(
+        "finished-products/<int:product_id>/edit/",
+        views.finished_product_edit,
+        name="finished_product_edit",
+    ),
+    path(
+        "finished-products/<int:product_id>/deactivate/",
+        views.finished_product_deactivate,
+        name="finished_product_deactivate",
+    ),
+    path(
+        "finished-products/<int:product_id>/activate/",
+        views.finished_product_activate,
+        name="finished_product_activate",
+    ),
+    path(
+        "finished-products/quick-create/",
+        views.finished_product_quick_create,
+        name="finished_product_quick_create",
+    ),
 ]

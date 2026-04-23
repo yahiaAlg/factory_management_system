@@ -1,13 +1,13 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}Formulations — UsineERP{% endblock %}
 
 {% block breadcrumb %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
     <li class="breadcrumb-item active">Formulations</li>
   </ol>
 </nav>
@@ -17,13 +17,19 @@
 <style>
 .version-badge {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 7px;
+  font-size: 11px; font-weight: 600; padding: 2px 7px;
   border-radius: var(--radius-xs);
-  background: var(--accent-dim);
-  color: var(--accent);
+  background: var(--accent-dim); color: var(--accent);
 }
+.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filter-search-wrap { position: relative; flex: 1 1 200px; min-width: 160px; max-width: 300px; }
+.filter-search-wrap .filter-search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); font-size: 15px; pointer-events: none;
+}
+.filter-search-wrap input { padding-left: 32px !important; width: 100%; }
+.filter-bar select.form-control-app { flex: 0 1 180px; min-width: 140px; }
+.filter-bar .btn-primary-app, .filter-bar .btn-secondary-app { flex-shrink: 0; }
 </style>
 {% endblock %}
 
@@ -35,16 +41,16 @@
   </div>
   {% if request.user.userprofile.role == 'manager' %}
   <a href="{% url 'production:formulation_create' %}" class="btn-primary-app">
-    <i class="bi bi-plus-lg me-1"></i> Nouvelle formulation
+    <i class="bx bx-plus me-1"></i> Nouvelle formulation
   </a>
   {% endif %}
 </div>
 
 {# Filter bar #}
 <form method="get" class="filter-bar mb-3">
-  <div class="position-relative">
-    <i class="bi bi-search position-absolute" style="left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);"></i>
-    <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, désignation, produit fini…" class="form-control-app ps-4" style="min-width:260px;">
+  <div class="filter-search-wrap">
+    <i class="bx bx-search filter-search-icon"></i>
+    <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, désignation, produit fini…" class="form-control-app">
   </div>
   <select name="active" class="form-control-app">
     <option value="">Actives seulement</option>
@@ -101,11 +107,11 @@
             <td class="text-muted small">{{ f.created_at|date:"d/m/Y" }}</td>
             <td class="text-end">
               <a href="{% url 'production:formulation_detail' f.id %}" class="btn-icon" title="Voir détail">
-                <i class="bi bi-eye"></i>
+                <i class="bx bx-show"></i>
               </a>
               {% if request.user.userprofile.role == 'manager' %}
               <a href="{% url 'production:formulation_edit' f.id %}" class="btn-icon" title="Nouvelle version">
-                <i class="bi bi-pencil"></i>
+                <i class="bx bx-edit"></i>
               </a>
               {% endif %}
             </td>
@@ -116,7 +122,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-      <i class="bi bi-journals"></i>
+      <i class="bx bx-book-content"></i>
       <p>Aucune formulation trouvée</p>
       {% if request.user.userprofile.role == 'manager' %}
       <a href="{% url 'production:formulation_create' %}" class="btn-primary-app">Créer la première formulation</a>

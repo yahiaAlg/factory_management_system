@@ -1,13 +1,13 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}{{ title }} — UsineERP{% endblock %}
 
 {% block breadcrumb %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
     <li class="breadcrumb-item"><a href="{% url 'production:production_orders_list' %}">Ordres de production</a></li>
     <li class="breadcrumb-item active">{{ title }}</li>
   </ol>
@@ -81,11 +81,11 @@
       <div class="card-app">
         <div class="card-app-header">
           <span class="card-app-title">Besoins théoriques en MP</span>
-          <span class="scaling-loading text-muted small"><i class="bi bi-arrow-repeat spin me-1"></i>Calcul…</span>
+          <span class="scaling-loading text-muted small"><i class="bx bx-loader-alt bx-spin me-1"></i>Calcul…</span>
         </div>
         <div class="card-app-body p-0">
           <div id="scaling-placeholder" class="empty-state" style="padding:28px 16px;">
-            <i class="bi bi-calculator"></i>
+            <i class="bx bx-calculator"></i>
             <p class="mb-0 small">Sélectionnez une formulation et une quantité cible pour prévisualiser les besoins matières</p>
           </div>
           <div id="scaling-result" style="display:none;">
@@ -107,7 +107,7 @@
             </div>
             <div id="scaling-warning" class="px-3 pb-3" style="display:none;">
               <div class="alert-banner alert-banner-warning mt-2">
-                <i class="bi bi-exclamation-triangle me-1"></i> Stock insuffisant pour certaines matières — l'OP peut quand même être créé.
+                <i class="bx bx-error me-1"></i> Stock insuffisant pour certaines matières — l'OP peut quand même être créé.
               </div>
             </div>
           </div>
@@ -118,7 +118,7 @@
     <div class="col-12 d-flex gap-2 justify-content-end pb-4">
       <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app">Annuler</a>
       <button type="submit" class="btn-primary-app">
-        <i class="bi bi-check2 me-1"></i> Créer l'ordre
+        <i class="bx bx-check me-1"></i> Créer l'ordre
       </button>
     </div>
   </div>
@@ -127,11 +127,12 @@
 
 {% block extra_js %}
 <script>
-(function () {
-  // Apply design-system class to all inputs
+  // Apply design-system class to all inputs — outside IIFE so a JS error never kills this
   document.querySelectorAll('#po-form input:not([type=hidden]), #po-form select, #po-form textarea')
     .forEach(el => el.classList.add('form-control-app'));
-
+</script>
+<script>
+(function () {
   const formulationSel = document.getElementById('id_formulation');
   const targetQtyInput = document.getElementById('id_target_qty');
   const placeholder    = document.getElementById('scaling-placeholder');
@@ -167,7 +168,7 @@
           scalingTbody.innerHTML = data.lines.map(l => {
             if (!l.sufficient) hasShortage = true;
             const cls = l.sufficient ? 'stock-ok' : 'stock-ko';
-            const icon = l.sufficient ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger"></i>';
+            const icon = l.sufficient ? '<i class="bx bx-check-circle" style="color:#16a34a;"></i>' : '<i class="bx bx-x-circle" style="color:#dc2626;"></i>';
             return `<tr>
               <td>${l.material_name}</td>
               <td class="text-end fw-500">${parseFloat(l.theoretical_qty).toFixed(3)} ${l.unit}</td>
@@ -189,6 +190,24 @@
   if (params.get('formulation') && formulationSel) {
     formulationSel.value = params.get('formulation');
     fetchScaling();
+  }
+
+})();
+
+// ── Auto-populate target_unit from selected formulation ──
+(function () {
+  const FORM_UNIT_MAP = {{ formulation_unit_map_json|default:'{}'|safe }};
+  const formulationSel = document.getElementById('id_formulation');
+  const targetUnitSel  = document.getElementById('id_target_unit');
+
+  function applyFormulationUnit(val) {
+    const unitId = FORM_UNIT_MAP[val];
+    if (unitId !== undefined && targetUnitSel) targetUnitSel.value = unitId;
+  }
+
+  if (formulationSel) {
+    formulationSel.addEventListener('change', () => applyFormulationUnit(formulationSel.value));
+    if (formulationSel.value) applyFormulationUnit(formulationSel.value);
   }
 })();
 </script>

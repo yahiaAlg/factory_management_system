@@ -1,0 +1,215 @@
+{% comment %}Shared styles for all reporting templates — included via {% include %}{% endcomment %}
+<link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+<style>
+  /* ── Metric card ── */
+  .metric-card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 20px;
+    display: flex; align-items: flex-start; gap: 14px;
+    box-shadow: 0 1px 3px rgba(15,23,42,.04);
+  }
+  .metric-icon {
+    width: 40px; height: 40px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px; flex-shrink: 0;
+  }
+  .ic-teal  { background: rgba(15,118,110,.1);  color: var(--accent); }
+  .ic-blue  { background: rgba(29,78,216,.08);  color: #3b82f6; }
+  .ic-green { background: rgba(21,128,61,.08);  color: #16a34a; }
+  .ic-amber { background: rgba(180,83,9,.08);   color: #d97706; }
+  .ic-red   { background: rgba(220,38,38,.08);  color: #ef4444; }
+  .ic-purple{ background: rgba(124,58,237,.08); color: #7c3aed; }
+  .metric-label {
+    font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin-bottom: 4px;
+  }
+  .metric-value {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+    font-size: 24px; color: var(--text-primary); letter-spacing: -0.02em; line-height: 1.1;
+  }
+  .metric-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .metric-delta {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 11px; font-weight: 600; padding: 2px 7px;
+    border-radius: 20px; margin-top: 6px;
+  }
+  .metric-delta.pos { background: rgba(21,128,61,.1);  color: #15803d; }
+  .metric-delta.neg { background: rgba(220,38,38,.1);  color: #dc2626; }
+  .metric-delta.neu { background: rgba(71,85,105,.08); color: #475569; }
+
+  /* ── Chart card ── */
+  .chart-card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); box-shadow: 0 1px 3px rgba(15,23,42,.04);
+    overflow: hidden;
+  }
+  .chart-card-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chart-card-title {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+    font-size: 13.5px; color: var(--text-primary);
+  }
+  .chart-card-sub { font-size: 11px; color: var(--text-muted); }
+  .chart-card-body { padding: 16px 20px; }
+
+  /* ── Chart fix: wrapper with fixed height stops infinite growth ── */
+  .chart-wrap { position: relative; }
+
+  /* ── Filter panel ── */
+  .filter-panel {
+    background: var(--bg-raised); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 16px 20px;
+    margin-bottom: 20px;
+  }
+  .filter-panel-label {
+    font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+  .filter-panel .form-control, .filter-panel select, .filter-panel input[type="date"] {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text-primary);
+    font-family: 'Inter', sans-serif; font-size: 13.5px; padding: 8px 12px;
+    width: 100%;
+  }
+  .filter-panel .form-control:focus, .filter-panel select:focus, .filter-panel input[type="date"]:focus {
+    border-color: var(--accent); outline: none;
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  /* Style the date picker icon to match the theme */
+  .filter-panel input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: opacity(0.5);
+    cursor: pointer;
+  }
+  .filter-panel label {
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+    color: var(--text-secondary); letter-spacing: .02em; margin-bottom: 5px; display: block;
+  }
+
+  /* ── Buttons ── */
+  .btn-primary-app {
+    background: var(--accent); color: #fff;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 13.5px;
+    border-radius: var(--radius-sm); padding: 9px 18px; border: none;
+    display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none; cursor: pointer; transition: background .15s;
+  }
+  .btn-primary-app:hover { background: var(--accent-light); color: #fff; }
+  .btn-secondary-app {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); font-family: 'Inter', sans-serif;
+    font-weight: 500; font-size: 13px;
+    border-radius: var(--radius-sm); padding: 8px 16px;
+    display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none; cursor: pointer; transition: all .15s;
+  }
+  .btn-secondary-app:hover { background: var(--bg-raised); border-color: var(--border-strong); color: var(--text-primary); }
+
+  /* ── Tables ── */
+  .table-container {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden;
+    box-shadow: 0 1px 3px rgba(15,23,42,.04);
+  }
+  .table-container-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-container-title {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+    font-size: 13.5px; color: var(--text-primary);
+  }
+  table.rpt-table thead th {
+    background: var(--bg-raised) !important;
+    font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted) !important;
+    padding: 11px 14px; border-bottom: 1px solid var(--border) !important;
+  }
+  table.rpt-table tbody td {
+    font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-secondary);
+    padding: 11px 14px; border-bottom: 1px solid var(--border) !important;
+    vertical-align: middle;
+  }
+  table.rpt-table tbody tr:last-child td { border-bottom: none !important; }
+  table.rpt-table tbody tr:hover td { background: var(--bg-hover) !important; }
+  table.rpt-table tfoot td {
+    background: var(--bg-raised) !important;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700;
+    font-size: 13px; color: var(--text-primary); padding: 11px 14px;
+    border-top: 2px solid var(--border-strong) !important;
+  }
+  .num-cell {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600;
+    color: var(--text-primary); text-align: right;
+  }
+  .ref-cell {
+    font-family: 'Inter', monospace; font-weight: 500;
+    color: var(--text-primary); letter-spacing: .02em;
+  }
+  .text-pos { color: #15803d !important; font-weight: 600; }
+  .text-neg { color: #dc2626 !important; font-weight: 600; }
+  .text-warn { color: #b45309 !important; font-weight: 600; }
+
+  /* DataTables overrides */
+  .dataTables_wrapper .dataTables_filter input,
+  .dataTables_wrapper .dataTables_length select {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 6px 10px; font-size: 13px;
+    font-family: 'Inter', sans-serif; color: var(--text-primary);
+  }
+  .dataTables_wrapper .dataTables_filter input:focus { border-color: var(--accent); outline: none; }
+  .dataTables_wrapper .dataTables_info,
+  .dataTables_wrapper .dataTables_paginate .paginate_button { font-size: 12px; font-family: 'Inter', sans-serif; }
+  .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+    background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important;
+    border-radius: var(--radius-sm) !important;
+  }
+
+  /* ── Status badges ── */
+  .badge-status {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 20px;
+    font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500;
+    border: 1px solid transparent;
+  }
+  .badge-disponible  { background: rgba(21,128,61,.08);  color: #15803d; border-color: rgba(21,128,61,.2); }
+  .badge-running-low { background: rgba(180,83,9,.08);   color: #b45309; border-color: rgba(180,83,9,.2); }
+  .badge-stockout    { background: rgba(220,38,38,.08);  color: #dc2626; border-color: rgba(220,38,38,.2); }
+  .badge-on-order    { background: rgba(29,78,216,.08);  color: #1d4ed8; border-color: rgba(29,78,216,.2); }
+  .badge-normal      { background: rgba(21,128,61,.08);  color: #15803d; border-color: rgba(21,128,61,.2); }
+  .badge-warning     { background: rgba(180,83,9,.08);   color: #b45309; border-color: rgba(180,83,9,.2); }
+  .badge-critical    { background: rgba(220,38,38,.08);  color: #dc2626; border-color: rgba(220,38,38,.2); }
+  .badge-paid        { background: rgba(21,128,61,.08);  color: #15803d; border-color: rgba(21,128,61,.2); }
+  .badge-validated   { background: rgba(21,128,61,.08);  color: #15803d; border-color: rgba(21,128,61,.2); }
+  .badge-recorded    { background: rgba(71,85,105,.08);  color: #475569; border-color: rgba(71,85,105,.2); }
+
+  /* ── Aging heat cells ── */
+  .heat-0 { background: rgba(21,128,61,.07);  color: #15803d; }
+  .heat-1 { background: rgba(234,179,8,.09);  color: #854d0e; }
+  .heat-2 { background: rgba(234,88,12,.09);  color: #9a3412; }
+  .heat-3 { background: rgba(220,38,38,.09);  color: #991b1b; }
+  .heat-4 { background: rgba(127,29,29,.85);  color: #fff; font-weight: 700; }
+
+  /* ── Empty state ── */
+  .empty-state {
+    padding: 56px 20px; text-align: center;
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+  }
+  .empty-state .bx { font-size: 48px; color: var(--text-muted); margin-bottom: 12px; display: block; }
+  .empty-state-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 16px; color: var(--text-primary); margin-bottom: 6px; }
+  .empty-state-text  { font-size: 13px; color: var(--text-muted); }
+
+  /* ── Page header ── */
+  .rpt-page-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+  }
+  .rpt-page-title {
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800;
+    font-size: 22px; color: var(--text-primary); letter-spacing: -0.02em; margin: 0 0 2px;
+  }
+  .rpt-page-sub { font-size: 12px; color: var(--text-muted); }
+</style>

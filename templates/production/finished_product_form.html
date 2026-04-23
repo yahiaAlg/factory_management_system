@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'catalog:finished_products_list' %}">Produits finis</a></li>
+    <li class="breadcrumb-item active">{{ title }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="page-title mb-0">{{ title }}</h1>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<form method="post" id="product-form">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    {# ─── Identification ─── #}
+    <div class="col-12">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Identification</span>
+          {% if product %}
+          <span class="card-header-actions">
+            <span style="font-family:monospace;font-size:13px;color:var(--text-muted);">{{ product.reference }}</span>
+            <span style="font-size:11px;background:var(--accent-dim);color:var(--accent);padding:2px 7px;border-radius:var(--radius-xs);font-weight:600;margin-left:6px;">
+              {% if product.is_active %}Actif{% else %}Inactif{% endif %}
+            </span>
+          </span>
+          {% endif %}
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label-app">Désignation <span class="text-danger">*</span></label>
+              {{ form.designation }}
+              {% if form.designation.errors %}<div class="form-error">{{ form.designation.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label-app">Unité de vente <span class="text-danger">*</span></label>
+              {{ form.sales_unit }}
+              {% if form.sales_unit.errors %}<div class="form-error">{{ form.sales_unit.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+          {% if form.non_field_errors %}
+          <div class="form-error mt-2">{{ form.non_field_errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─── Pricing & Stock ─── #}
+    <div class="col-12">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Prix et seuils de stock</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label-app">Prix de vente de référence (DA)</label>
+              {{ form.reference_selling_price }}
+              {% if form.reference_selling_price.errors %}<div class="form-error">{{ form.reference_selling_price.errors.0 }}</div>{% endif %}
+              <p class="text-muted small mt-1 mb-0">Prix de base suggéré pour les ventes.</p>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label-app">Seuil d'alerte stock</label>
+              {{ form.alert_threshold }}
+              {% if form.alert_threshold.errors %}<div class="form-error">{{ form.alert_threshold.errors.0 }}</div>{% endif %}
+              <p class="text-muted small mt-1 mb-0">Déclenche une alerte dans le tableau de bord.</p>
+            </div>
+            {% if product %}
+            <div class="col-md-4">
+              <label class="form-label-app">Coût moyen pondéré (CMP)</label>
+              <div class="form-control-app" style="background:var(--bg-raised);color:var(--text-secondary);cursor:default;">
+                {{ product.wac|floatformat:2 }} DA
+              </div>
+              <p class="text-muted small mt-1 mb-0">Calculé automatiquement après chaque production.</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── Actions ─── #}
+    <div class="col-12 d-flex gap-2 justify-content-end pb-4">
+      <a href="{% url 'catalog:finished_products_list' %}" class="btn-secondary-app">Annuler</a>
+      <button type="submit" class="btn-primary-app">
+        <i class="bx bx-check me-1"></i>
+        {% if product %}Enregistrer les modifications{% else %}Créer le produit fini{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Apply form-control-app styling to all inputs
+  document.querySelectorAll('#product-form input:not([type=hidden]), #product-form select, #product-form textarea').forEach(el => {
+    el.classList.add('form-control-app');
+  });
+</script>
+{% endblock %}

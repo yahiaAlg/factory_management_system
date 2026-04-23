@@ -1,6 +1,6 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}Nouvelle Facture Fournisseur{% endblock %}
 
@@ -25,6 +25,37 @@
 .recon-status-badge.warning { background:#fef9c3; color:#854d0e; }
 .recon-status-badge.danger  { background:#fee2e2; color:#991b1b; }
 .delta-val { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:15px; }
+
+/* Style Django-rendered form fields without waiting for JS */
+#invoice-form input[type="text"],
+#invoice-form input[type="date"],
+#invoice-form input[type="number"],
+#invoice-form select,
+#invoice-form textarea,
+#inv-lines-body input[type="text"],
+#inv-lines-body input[type="number"],
+#inv-lines-body select {
+  display: block; width: 100%; padding: 8px 12px; font-size: 13px;
+  font-family: 'Inter', sans-serif; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none; line-height: 1.5;
+}
+#invoice-form input[type="text"]:focus,
+#invoice-form input[type="date"]:focus,
+#invoice-form input[type="number"]:focus,
+#invoice-form select:focus,
+#invoice-form textarea:focus,
+#inv-lines-body input:focus,
+#inv-lines-body select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+#inv-lines-body input[type="checkbox"] {
+  width: 15px; height: 15px; accent-color: var(--accent);
+  cursor: pointer; display: inline;
+}
+.field-error { color: #dc2626; font-size: 12px; margin-top: 3px; }
 </style>
 {% endblock %}
 
@@ -163,9 +194,14 @@
 (function () {
   'use strict';
 
+  var invLinesBody = document.getElementById('inv-lines-body');
+  /* ── Store template from first row before any interaction ── */
+  var firstRow = invLinesBody.querySelector('.line-row');
+  var rowTemplate = firstRow ? firstRow.cloneNode(true) : null;
+
   /* ── Apply classes to all formset inputs ── */
   function applyInputClasses() {
-    document.querySelectorAll('#inv-lines-body input, #inv-lines-body select').forEach(function (el) {
+    invLinesBody.querySelectorAll('input, select').forEach(function (el) {
       el.classList.add('form-control-app');
     });
   }
@@ -176,10 +212,8 @@
 
   function recomputeLineTotals() {
     var grand = 0;
-    document.querySelectorAll('.line-row').forEach(function (row) {
-      var del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-      if (del && del.checked) { row.style.opacity = '0.4'; return; }
-      row.style.opacity = '1';
+    invLinesBody.querySelectorAll('.line-row').forEach(function (row) {
+      if (row.style.display === 'none') return;
       var qty = getFloat(row.querySelector('input[name$="-quantity_invoiced"]'));
       var price = getFloat(row.querySelector('input[name$="-unit_price_invoiced"]'));
       var amt = qty * price;
@@ -199,18 +233,13 @@
   }
 
   function fetchReconPreview() {
-    var formData = new FormData(document.getElementById('invoice-form'));
-    // We need the invoice_id — only works on an existing invoice.
-    // On create page we show a static info note instead.
     var indicator = document.getElementById('recon-status-indicator');
     indicator.style.display = 'flex';
     indicator.innerHTML = '<span style="font-size:12px;color:var(--text-muted);"><i class="bx bx-loader-alt bx-spin" style="font-size:14px;margin-right:4px;"></i>Calcul…</span>';
 
-    // Simulate live delta from form data (client-side pre-calc, no invoice_id needed for create)
     var lines = [];
-    document.querySelectorAll('.line-row').forEach(function (row) {
-      var del = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-      if (del && del.checked) return;
+    invLinesBody.querySelectorAll('.line-row').forEach(function (row) {
+      if (row.style.display === 'none') return;
       var mat = row.querySelector('select[name$="-raw_material"]');
       var qty = getFloat(row.querySelector('input[name$="-quantity_invoiced"]'));
       var price = getFloat(row.querySelector('input[name$="-unit_price_invoiced"]'));
@@ -245,60 +274,55 @@
     indicator.innerHTML = '<span style="font-size:12px;color:#166534;background:#dcfce7;padding:3px 10px;border-radius:99px;"><i class="bx bx-check" style="margin-right:3px;"></i>' + lines.length + ' ligne' + (lines.length > 1 ? 's' : '') + '</span>';
   }
 
-  document.getElementById('inv-lines-body').addEventListener('input', function () {
-    recomputeLineTotals();
-    triggerReconPreview();
-  });
-  document.getElementById('inv-lines-body').addEventListener('change', function () {
-    recomputeLineTotals();
-    triggerReconPreview();
-  });
+  invLinesBody.addEventListener('input', function () { recomputeLineTotals(); triggerReconPreview(); });
+  invLinesBody.addEventListener('change', function () { recomputeLineTotals(); triggerReconPreview(); });
 
   /* ── Delete line ── */
-  document.getElementById('inv-lines-body').addEventListener('click', function (e) {
+  invLinesBody.addEventListener('click', function (e) {
     var btn = e.target.closest('.delete-line-btn');
     if (!btn) return;
     var row = btn.closest('.line-row');
     var chk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-    if (chk) {
-      chk.checked = !chk.checked;
-      btn.querySelector('i').className = chk.checked ? 'bx bx-undo' : 'bx bx-trash';
-    } else { row.remove(); }
+    var hiddenId = row.querySelector('input[name$="-id"]');
+    var isExisting = hiddenId && hiddenId.value;
+    if (chk && isExisting) {
+      chk.checked = true;
+      row.style.display = 'none';
+    } else {
+      row.remove();
+    }
     recomputeLineTotals();
     triggerReconPreview();
   });
 
   /* ── Add line ── */
   document.getElementById('add-inv-line-btn').addEventListener('click', function () {
+    if (!rowTemplate) { console.error('No row template available.'); return; }
     var totalFormsEl = document.getElementById('id_lines-TOTAL_FORMS');
     var count = parseInt(totalFormsEl.value, 10);
-    var existing = document.querySelector('.line-row');
-    if (!existing) return;
-    var clone = existing.cloneNode(true);
+
+    var clone = rowTemplate.cloneNode(true);
     clone.id = 'inv-line-row-' + count;
-    clone.style.opacity = '1';
+    clone.style.display = '';
+
     clone.querySelectorAll('[name],[id],[for]').forEach(function (el) {
       ['name','id','for'].forEach(function (attr) {
-        if (el.getAttribute(attr)) {
-          el.setAttribute(attr, el.getAttribute(attr).replace(/-\d+-/, '-' + count + '-'));
-        }
+        var val = el.getAttribute(attr);
+        if (val) el.setAttribute(attr, val.replace(/-\d+-/, '-' + count + '-'));
       });
       if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.value = '';
       if (el.tagName === 'SELECT') el.selectedIndex = 0;
       if (el.type === 'checkbox') el.checked = false;
-      if (el.type === 'hidden' && el.name.endsWith('-id')) el.value = '';
+      if (el.type === 'hidden' && el.name && el.name.endsWith('-id')) el.value = '';
     });
-    var delBtn = clone.querySelector('.delete-line-btn i');
-    if (delBtn) delBtn.className = 'bx bx-trash';
+
     var tc = clone.querySelector('.line-total-cell');
     if (tc) tc.textContent = '—';
-    document.getElementById('inv-lines-body').appendChild(clone);
+    invLinesBody.appendChild(clone);
     totalFormsEl.value = count + 1;
     applyInputClasses();
     recomputeLineTotals();
   });
-
-  new MutationObserver(applyInputClasses).observe(document.getElementById('inv-lines-body'), { childList: true, subtree: true });
 
   recomputeLineTotals();
 })();

@@ -42,9 +42,9 @@ class FormulationForm(forms.ModelForm):
         if self.instance.pk and self.instance.has_active_production_orders():
             for field in self.fields.values():
                 field.disabled = True
-            self._br_prod_03_locked = True
+            self.br_prod_03_locked = True
         else:
-            self._br_prod_03_locked = False
+            self.br_prod_03_locked = False
 
     def clean(self):
         cleaned_data = super().clean()

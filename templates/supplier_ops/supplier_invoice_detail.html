@@ -1,6 +1,6 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}{{ invoice.reference }}{% endblock %}
 
@@ -234,7 +234,7 @@
                 <td style="text-align:right;">
                   {% if rl.delta_qty == 0 %}
                     <span class="delta-ok">—</span>
-                  {% elif rl.delta_qty|abs < 10 %}
+                  {% elif rl.delta_qty > -10 and rl.delta_qty < 10 %}
                     <span class="delta-minor">{{ rl.delta_qty|floatformat:3 }}</span>
                   {% else %}
                     <span class="delta-alert">{{ rl.delta_qty|floatformat:3 }}</span>
@@ -245,7 +245,7 @@
                 <td style="text-align:right;">
                   {% if rl.delta_amount == 0 %}
                     <span class="delta-ok">—</span>
-                  {% elif rl.delta_amount|abs < 500 %}
+                  {% elif rl.delta_amount > -500 and rl.delta_amount < 500 %}
                     <span class="delta-minor">{{ rl.delta_amount|floatformat:0 }} DA</span>
                   {% else %}
                     <span class="delta-alert">{{ rl.delta_amount|floatformat:0 }} DA</span>

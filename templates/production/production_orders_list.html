@@ -1,13 +1,13 @@
+{% extends "base.html" %}
 {% load static %}
 {% load factory_filters %}
-{% extends "base.html" %}
 
 {% block title %}Ordres de production — UsineERP{% endblock %}
 
 {% block breadcrumb %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb mb-0">
-    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
     <li class="breadcrumb-item active">Ordres de production</li>
   </ol>
 </nav>
@@ -21,6 +21,16 @@
 .dot-in_progress { background:#f59e0b; }
 .dot-completed { background:#16a34a; }
 .dot-cancelled { background:#94a3b8; }
+.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.filter-search-wrap { position: relative; flex: 1 1 180px; min-width: 150px; max-width: 260px; }
+.filter-search-wrap .filter-search-icon {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); font-size: 15px; pointer-events: none;
+}
+.filter-search-wrap input { padding-left: 32px !important; width: 100%; }
+.filter-bar select.form-control-app { flex: 0 1 170px; min-width: 140px; }
+.filter-bar input[type="date"].form-control-app { flex: 0 1 145px; min-width: 130px; max-width: 155px; }
+.filter-bar .btn-primary-app, .filter-bar .btn-secondary-app { flex-shrink: 0; }
 </style>
 {% endblock %}
 
@@ -32,16 +42,16 @@
   </div>
   {% if request.user.userprofile.role in 'manager,stock_prod' %}
   <a href="{% url 'production:production_order_create' %}" class="btn-primary-app">
-    <i class="bi bi-plus-lg me-1"></i> Nouvel ordre
+    <i class="bx bx-plus me-1"></i> Nouvel ordre
   </a>
   {% endif %}
 </div>
 
 {# Filter bar #}
 <form method="get" class="filter-bar mb-3">
-  <div class="position-relative">
-    <i class="bi bi-search position-absolute" style="left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);"></i>
-    <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, formulation…" class="form-control-app ps-4" style="min-width:220px;">
+  <div class="filter-search-wrap">
+    <i class="bx bx-search filter-search-icon"></i>
+    <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Référence, formulation…" class="form-control-app">
   </div>
   <select name="status" class="form-control-app">
     <option value="">Tous les statuts</option>
@@ -55,8 +65,8 @@
     <option value="{{ val }}" {% if request.GET.yield_status == val %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
-  <input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control-app" placeholder="Date début">
-  <input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control-app" placeholder="Date fin">
+  <input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control-app">
+  <input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control-app">
   <button type="submit" class="btn-secondary-app">Filtrer</button>
   <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app">Réinitialiser</a>
 </form>
@@ -122,7 +132,7 @@
               {% endif %}
             </td>
             <td class="text-end">
-              <a href="{% url 'production:production_order_detail' o.id %}" class="btn-icon" title="Voir détail"><i class="bi bi-eye"></i></a>
+              <a href="{% url 'production:production_order_detail' o.id %}" class="btn-icon" title="Voir détail"><i class="bx bx-show"></i></a>
             </td>
           </tr>
           {% endfor %}
@@ -131,7 +141,7 @@
     </div>
     {% else %}
     <div class="empty-state">
-      <i class="bi bi-box-seam"></i>
+      <i class="bx bx-package"></i>
       <p>Aucun ordre de production trouvé</p>
       {% if request.user.userprofile.role in 'manager,stock_prod' %}
       <a href="{% url 'production:production_order_create' %}" class="btn-primary-app">Créer un ordre</a>

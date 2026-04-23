@@ -1,130 +1,107 @@
-{% extends "reporting/base_report.html" %}
+{% extends "base.html" %}
+{% load static l10n %}
+{% block title %}Rendements production{% endblock %}
 
-{% block topbar_actions %}
-  {% if report_data %}
-  <a href="{% url 'reporting:export_report_csv' 'production_yield' %}?date_from={{ date_from }}&date_to={{ date_to }}"
-     class="btn-outline-sm ms-3"><i class="bi bi-download"></i> CSV</a>
-  {% endif %}
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a><span class="bc-sep">/</span>
+<a href="{% url 'reporting:reporting_dashboard' %}">Rapports</a><span class="bc-sep">/</span>
+<span class="bc-current">Rendements production</span>
 {% endblock %}
 
+{% block extra_css %}{% include "reporting/_shared_css.html" %}{% endblock %}
+
 {% block content %}
+<div class="rpt-page-header">
+  <div><p class="rpt-page-title">Analyse des rendements</p><p class="rpt-page-sub">Ordres de production clôturés</p></div>
+  {% if report_data %}<a href="{% url 'reporting:export_report_csv' 'production_yield' %}?date_from={{ date_from }}&date_to={{ date_to }}" class="btn-secondary-app"><i class="bx bx-download"></i> CSV</a>{% endif %}
+</div>
+
 <div class="filter-panel">
-  <div class="filter-panel-title"><i class="bi bi-funnel me-1"></i>Période</div>
+  <div class="filter-panel-label"><i class="bx bx-filter-alt me-1"></i>Période</div>
   <form method="get" class="row g-3 align-items-end">
     <div class="col-sm-4">
-      <label class="form-label" style="font-size:12px;font-weight:600">Début</label>
-      {{ form.date_from }}
+      <label>Début</label>
+      <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 12px;width:100%;">
     </div>
     <div class="col-sm-4">
-      <label class="form-label" style="font-size:12px;font-weight:600">Fin</label>
-      {{ form.date_to }}
+      <label>Fin</label>
+      <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 12px;width:100%;">
     </div>
-    <div class="col-sm-4">
-      <button type="submit" class="btn-primary-sm w-100 justify-content-center">
-        <i class="bi bi-arrow-clockwise"></i> Actualiser
-      </button>
-    </div>
+    <div class="col-sm-4"><button type="submit" class="btn-primary-app w-100 justify-content-center"><i class="bx bx-refresh"></i> Actualiser</button></div>
   </form>
 </div>
 
-{% if report_data %}
-{% with d=report_data %}
+{% if report_data %}{% with d=report_data %}
 
-<!-- KPIs -->
-<div class="row g-3 section-gap">
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Ordres terminés</span>
-      <span class="kpi-value">{{ d.total_orders }}</span>
-      <span class="kpi-sub">sur la période</span>
-    </div>
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-teal"><i class="bx bx-cog"></i></div>
+      <div><div class="metric-label">Ordres terminés</div><div class="metric-value">{{ d.total_orders }}</div><div class="metric-sub">sur la période</div></div></div>
   </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Rendement moyen</span>
-      <span class="kpi-value mono {% if d.avg_yield >= 90 %}text-pos{% elif d.avg_yield >= 80 %}text-warning{% else %}text-neg{% endif %}">
-        {{ d.avg_yield|floatformat:1 }}%
-      </span>
-      <span class="kpi-sub">cible ≥ 90%</span>
-    </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card"><div class="metric-icon {% if d.avg_yield >= 90 %}ic-green{% elif d.avg_yield >= 80 %}ic-amber{% else %}ic-red{% endif %}"><i class="bx bx-bar-chart-alt"></i></div>
+      <div><div class="metric-label">Rendement moyen</div>
+        <div class="metric-value {% if d.avg_yield >= 90 %}text-pos{% elif d.avg_yield >= 80 %}text-warn{% else %}text-neg{% endif %}">{{ d.avg_yield|floatformat:1 }}%</div>
+        <div class="metric-sub">cible ≥ 90%</div></div></div>
   </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Ordres normaux</span>
-      <span class="kpi-value text-pos">{{ d.normal_orders }}</span>
-      <span class="kpi-sub">rendement ≥ seuil alerte</span>
-    </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-green"><i class="bx bx-check-shield"></i></div>
+      <div><div class="metric-label">Ordres normaux</div><div class="metric-value text-pos">{{ d.normal_orders }}</div><div class="metric-sub">{{ d.warning_orders }} alerte · {{ d.critical_orders }} critique</div></div></div>
   </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Coût sur-consommation</span>
-      <span class="kpi-value mono text-neg">{{ d.total_over_consumption_cost|floatformat:0 }}</span>
-      <span class="kpi-sub">DZD perdu</span>
-    </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card"><div class="metric-icon ic-red"><i class="bx bx-error-alt"></i></div>
+      <div><div class="metric-label">Coût sur-conso</div><div class="metric-value text-neg">{{ d.total_over_consumption_cost|floatformat:0 }}</div><div class="metric-sub">DA perdu</div></div></div>
   </div>
 </div>
 
-<!-- Charts -->
-<div class="row g-3 section-gap">
+<div class="row g-3 mb-4">
   <div class="col-lg-4">
     <div class="chart-card">
-      <div class="chart-card-title">Statut des rendements</div>
-      <canvas id="yieldStatusChart" height="240"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Statut des rendements</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:240px"><canvas id="yieldDonut"></canvas></div></div>
     </div>
   </div>
   <div class="col-lg-8">
     <div class="chart-card">
-      <div class="chart-card-title">Rendement par ordre de production</div>
-      <canvas id="yieldLineChart" height="240"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Rendement par ordre de production</span></div>
+      <div class="chart-card-body"><div class="chart-wrap" style="height:240px"><canvas id="yieldLine"></canvas></div></div>
     </div>
   </div>
 </div>
 
-<!-- Top over-consuming materials -->
 {% if d.top_over_consuming_materials %}
-<div class="chart-card section-gap">
-  <div class="chart-card-title">Top matières en sur-consommation</div>
-  <canvas id="overConsChart" height="180"></canvas>
+<div class="chart-card mb-4">
+  <div class="chart-card-header"><span class="chart-card-title">Top matières en sur-consommation</span></div>
+  <div class="chart-card-body"><div class="chart-wrap" style="height:180px"><canvas id="overConsBar"></canvas></div></div>
 </div>
 {% endif %}
 
-<!-- Orders table -->
-<div class="table-card">
-  <div class="table-card-header">
-    <h6><i class="bi bi-table me-2"></i>Détail des ordres de production</h6>
-  </div>
+<div class="table-container mb-4">
+  <div class="table-container-header"><span class="table-container-title"><i class="bx bx-table me-2"></i>Détail des ordres de production</span></div>
   <div class="p-3">
-    <table id="ordersTable" class="table table-hover w-100">
-      <thead>
-        <tr>
-          <th>Référence OP</th>
-          <th>Formulation</th>
-          <th class="text-end">Qté cible</th>
-          <th class="text-end">Qté produite</th>
-          <th class="text-end">Rendement</th>
-          <th class="text-center">Statut</th>
-          <th>Date clôture</th>
-        </tr>
-      </thead>
+    <table id="ordersTable" class="table rpt-table w-100">
+      <thead><tr>
+        <th>Référence OP</th><th>Formulation</th>
+        <th class="text-end">Qté cible</th><th class="text-end">Qté produite</th>
+        <th class="text-end">Rendement</th><th class="text-center">Statut</th><th>Date clôture</th>
+      </tr></thead>
       <tbody>
         {% for order in d.orders %}
-        <tr>
-          <td class="mono fw-semibold">{{ order.reference }}</td>
+        <tr class="{% if order.yield_status == 'critical' %}row-critical{% elif order.yield_status == 'warning' %}row-warning{% endif %}">
+          <td class="ref-cell">{{ order.reference }}</td>
           <td>{{ order.formulation.designation|truncatechars:40 }}</td>
-          <td class="text-end mono">{{ order.target_qty|floatformat:3 }}</td>
-          <td class="text-end mono">{{ order.actual_qty_produced|floatformat:3|default:"—" }}</td>
-          <td class="text-end mono fw-bold
-            {% if order.yield_rate >= 90 %}text-pos
-            {% elif order.yield_rate >= 80 %}text-warning
-            {% elif order.yield_rate %}text-neg{% endif %}">
+          <td class="num-cell">{{ order.target_qty|floatformat:3 }}</td>
+          <td class="num-cell">{{ order.actual_qty_produced|floatformat:3|default:"—" }}</td>
+          <td class="num-cell {% if order.yield_rate >= 90 %}text-pos{% elif order.yield_rate >= 80 %}text-warn{% elif order.yield_rate %}text-neg{% endif %}">
             {% if order.yield_rate %}{{ order.yield_rate|floatformat:1 }}%{% else %}—{% endif %}
           </td>
           <td class="text-center">
-            {% if order.yield_status %}
-            <span class="badge-status {{ order.yield_status }}">{{ order.yield_status|upper }}</span>
+            {% if order.yield_status == 'normal' %}<span class="badge-status badge-normal">Normal</span>
+            {% elif order.yield_status == 'warning' %}<span class="badge-status badge-warning">Alerte</span>
+            {% elif order.yield_status == 'critical' %}<span class="badge-status badge-critical">Critique</span>
             {% else %}—{% endif %}
           </td>
-          <td>{{ order.closure_date|date:"d/m/Y"|default:"—" }}</td>
+          <td style="font-size:12px;color:var(--text-muted)">{{ order.closure_date|date:"d/m/Y"|default:"—" }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -132,30 +109,19 @@
   </div>
 </div>
 
-<!-- Top materials table -->
 {% if d.top_over_consuming_materials %}
-<div class="table-card mt-3">
-  <div class="table-card-header">
-    <h6><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Matières en sur-consommation</h6>
-  </div>
+<div class="table-container">
+  <div class="table-container-header"><span class="table-container-title"><i class="bx bx-error me-2" style="color:#d97706"></i>Matières en sur-consommation</span></div>
   <div class="p-3">
-    <table id="materialsTable" class="table table-hover w-100">
-      <thead>
-        <tr>
-          <th>Matière première</th>
-          <th class="text-end">Sur-conso totale</th>
-          <th class="text-end">Coût (DZD)</th>
-          <th class="text-end">Nb ordres concernés</th>
-        </tr>
-      </thead>
+    <table id="materialsTable" class="table rpt-table w-100">
+      <thead><tr><th>Matière première</th><th class="text-end">Sur-conso</th><th class="text-end">Coût (DA)</th><th class="text-end">Nb ordres</th></tr></thead>
       <tbody>
         {% for m in d.top_over_consuming_materials %}
         <tr>
-          <td><strong>{{ m.material.designation }}</strong><br>
-              <small class="text-muted mono">{{ m.material.reference }}</small></td>
-          <td class="text-end mono">{{ m.total_over_consumption|floatformat:3 }}</td>
-          <td class="text-end mono text-neg">{{ m.total_cost|floatformat:2 }}</td>
-          <td class="text-end">{{ m.order_count }}</td>
+          <td><span style="font-weight:600;color:var(--text-primary)">{{ m.material.designation }}</span><br><span class="ref-cell" style="font-size:11px;color:var(--text-muted)">{{ m.material.reference }}</span></td>
+          <td class="num-cell">{{ m.total_over_consumption|floatformat:3 }}</td>
+          <td class="num-cell text-neg">{{ m.total_cost|floatformat:2 }}</td>
+          <td class="num-cell">{{ m.order_count }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -164,99 +130,51 @@
 </div>
 {% endif %}
 
-{% endwith %}
-{% else %}
-<div class="chart-card text-center py-5">
-  <i class="bi bi-gear-wide-connected" style="font-size:2.5rem;color:var(--border)"></i>
-  <p class="mt-3 text-muted">Aucun ordre terminé sur cette période.</p>
-</div>
+{% endwith %}{% else %}
+<div class="empty-state"><i class="bx bx-cog"></i><div class="empty-state-title">Aucun ordre terminé</div><div class="empty-state-text">Aucun ordre de production clôturé sur cette période.</div></div>
 {% endif %}
 {% endblock %}
 
-{% block extra_scripts %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 {% if report_data %}
+{% localize off %}
 <script>
+Chart.defaults.font.family="'Inter',sans-serif"; Chart.defaults.font.size=12; Chart.defaults.color='#94a3b8';
+const DT_FR={decimal:",",thousands:" ",lengthMenu:"Afficher _MENU_ lignes",zeroRecords:"Aucun résultat",info:"_START_ à _END_ sur _TOTAL_",infoEmpty:"0",search:"Rechercher :",paginate:{first:"«",last:"»",next:"›",previous:"‹"}};
 $(document).ready(function(){
-  $('#ordersTable').DataTable({
-    language: DT_LANG_FR, pageLength:15, order:[[4,'asc']],
-    dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"
-  });
-  $('#materialsTable').DataTable({
-    language: DT_LANG_FR, pageLength:10, order:[[2,'desc']],
-    dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"
-  });
+  $('#ordersTable').DataTable({language:DT_FR,pageLength:15,order:[[4,'asc']],dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"});
+  {% if report_data.top_over_consuming_materials %}$('#materialsTable').DataTable({language:DT_FR,pageLength:10,order:[[2,'desc']],dom:"<'row mb-2'<'col-sm-6'l><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-2'<'col-sm-5'i><'col-sm-7'p>>"});{% endif %}
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+const refs   = [{% for o in report_data.orders %}"{{ o.reference|escapejs }}",{% endfor %}];
+const yields = [{% for o in report_data.orders %}{{ o.yield_rate|default:"null" }},{% endfor %}];
+
+document.addEventListener('DOMContentLoaded',()=>{
   // Status donut
-  new Chart(document.getElementById('yieldStatusChart'), {
-    type:'doughnut',
-    data:{
-      labels:['Normal','Alerte','Critique'],
-      datasets:[{
-        data:[{{ report_data.normal_orders }},{{ report_data.warning_orders }},{{ report_data.critical_orders }}],
-        backgroundColor:['#22c55e','#eab308','#dc2626'], borderWidth:0, hoverOffset:6
-      }]
-    },
-    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom'}}}
-  });
+  new Chart(document.getElementById('yieldDonut'),{type:'doughnut',data:{labels:['Normal','Alerte','Critique'],datasets:[{data:[{{ report_data.normal_orders }},{{ report_data.warning_orders }},{{ report_data.critical_orders }}],backgroundColor:['#16a34a','#d97706','#dc2626'],borderWidth:0,hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom'}}}});
 
-  // Yield per order line chart
-  const refs   = [{% for o in report_data.orders %}"{{ o.reference }}",{% endfor %}];
-  const yields = [{% for o in report_data.orders %}{{ o.yield_rate|default:"null" }},{% endfor %}];
-
-  new Chart(document.getElementById('yieldLineChart'), {
+  // Yield line chart
+  new Chart(document.getElementById('yieldLine'),{
     type:'line',
-    data:{
-      labels:refs,
-      datasets:[
-        {
-          label:'Rendement (%)', data:yields,
-          borderColor:'#1a56db', backgroundColor:'rgba(26,86,219,.08)',
-          borderWidth:2, pointRadius:4, pointHoverRadius:6,
-          fill:true, tension:.3
-        },
-        {
-          label:'Seuil alerte (90%)',
-          data: refs.map(()=>90),
-          borderColor:'#d97706', borderWidth:1.5, borderDash:[6,4],
-          pointRadius:0, fill:false
-        },
-        {
-          label:'Seuil critique (80%)',
-          data: refs.map(()=>80),
-          borderColor:'#dc2626', borderWidth:1.5, borderDash:[3,3],
-          pointRadius:0, fill:false
-        }
-      ]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{position:'top'}},
-      scales:{
-        x:{grid:{display:false},ticks:{maxRotation:45,font:{size:10}}},
-        y:{min:0,max:120,grid:{color:'#f3f4f6'},ticks:{callback:v=>v+'%'}}
-      }
-    }
+    data:{labels:refs,datasets:[
+      {label:'Rendement (%)',data:yields,borderColor:'#0f766e',backgroundColor:'rgba(15,118,110,.08)',borderWidth:2,pointRadius:3,fill:true,tension:.3,spanGaps:true},
+      {label:'Seuil alerte (90%)',data:refs.map(()=>90),borderColor:'#d97706',borderWidth:1.5,borderDash:[5,4],pointRadius:0,fill:false},
+      {label:'Seuil critique (80%)',data:refs.map(()=>80),borderColor:'#dc2626',borderWidth:1.5,borderDash:[3,3],pointRadius:0,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top'}},scales:{x:{grid:{display:false},border:{display:false},ticks:{maxRotation:45,font:{size:10}}},y:{min:0,max:115,grid:{color:'#f1f5f9'},border:{display:false},ticks:{callback:v=>v+'%'}}}}
   });
 
   {% if report_data.top_over_consuming_materials %}
-  const matLabels = [{% for m in report_data.top_over_consuming_materials %}"{{ m.material.designation|truncatechars:25 }}",{% endfor %}];
-  const matCosts  = [{% for m in report_data.top_over_consuming_materials %}{{ m.total_cost|floatformat:2 }},{% endfor %}];
-  new Chart(document.getElementById('overConsChart'), {
-    type:'bar',
-    data:{
-      labels:matLabels,
-      datasets:[{label:'Coût sur-consommation (DZD)',data:matCosts,backgroundColor:'rgba(220,38,38,.7)',borderColor:'#dc2626',borderWidth:1,borderRadius:6}]
-    },
-    options:{
-      indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{x:{grid:{color:'#f3f4f6'},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false}}}
-    }
-  });
+  const matL=[{% for m in report_data.top_over_consuming_materials %}"{{ m.material.designation|truncatechars:28|escapejs }}",{% endfor %}];
+  const matC=[{% for m in report_data.top_over_consuming_materials %}{{ m.total_cost|floatformat:2 }},{% endfor %}];
+  new Chart(document.getElementById('overConsBar'),{type:'bar',data:{labels:matL,datasets:[{label:'Coût sur-consommation (DA)',data:matC,backgroundColor:'rgba(220,38,38,.65)',borderColor:'#dc2626',borderWidth:1,borderRadius:5}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f1f5f9'},border:{display:false},ticks:{callback:v=>(v/1000).toFixed(0)+'K'}},y:{grid:{display:false},border:{display:false},ticks:{font:{size:11}}}}}});
   {% endif %}
 });
 </script>
+{% endlocalize %}
 {% endif %}
 {% endblock %}

@@ -1,207 +1,189 @@
-{% extends "reporting/base_report.html" %}
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Tableau de bord — Reporting{% endblock %}
 
-{% block extra_head %}
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Rapports</span>
+{% endblock %}
+
+{% block extra_css %}
+{% include "reporting/_shared_css.html" %}
 <style>
-  .report-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1rem;
+  .period-toggle { display:flex; gap:4px; }
+  .period-btn {
+    padding:6px 14px; border-radius:var(--radius-sm); border:1px solid var(--border);
+    background:var(--bg-surface); font-family:'Plus Jakarta Sans',sans-serif; font-weight:600;
+    font-size:12.5px; color:var(--text-secondary); cursor:pointer; transition:all .15s;
   }
+  .period-btn:hover { border-color:var(--border-strong); color:var(--text-primary); background:var(--bg-raised); }
+  .period-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
   .report-link-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 1.25rem;
-    text-decoration: none;
-    color: var(--ink);
-    display: flex; flex-direction: column; gap: .5rem;
-    transition: all .18s;
+    background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+    padding:14px 16px; text-decoration:none; color:inherit;
+    display:flex; align-items:center; gap:12px;
+    transition:border-color .15s,box-shadow .15s,transform .12s;
+    box-shadow:0 1px 3px rgba(15,23,42,.04);
   }
-  .report-link-card:hover {
-    border-color: var(--accent);
-    box-shadow: 0 4px 16px rgba(26,86,219,.1);
-    transform: translateY(-2px);
-    color: var(--ink);
-  }
-  .report-link-card .icon-wrap {
-    width: 36px; height: 36px;
-    background: var(--accent-lt);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--accent);
-    font-size: 16px;
-  }
-  .report-link-card h6 { font-size: 13px; font-weight: 600; margin: 0; }
-  .report-link-card p  { font-size: 11px; color: var(--ink-muted); margin: 0; }
+  .report-link-card:hover { border-color:var(--border-strong); box-shadow:0 4px 12px rgba(15,23,42,.08); transform:translateY(-1px); color:inherit; }
+  .report-link-card h6 { font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:13px; color:var(--text-primary); margin:0 0 2px; }
+  .report-link-card p  { font-size:11.5px; color:var(--text-muted); margin:0; }
 
-  .period-btn { border-radius: 6px !important; font-size: 12px; }
-  .period-btn.active { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
-
-  .exec-item {
-    display: flex; align-items: center; gap: .75rem;
-    padding: .65rem 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .exec-item:last-child { border-bottom: none; }
-  .exec-dot {
-    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  }
-  .exec-dot.completed { background: var(--success); }
-  .exec-dot.running   { background: var(--warning); }
-  .exec-dot.failed    { background: var(--danger); }
+  .exec-item { display:flex; align-items:center; gap:10px; padding:9px 20px; border-bottom:1px solid var(--border); }
+  .exec-item:last-child { border-bottom:none; }
+  .exec-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .exec-dot.completed { background:#15803d; }
+  .exec-dot.running   { background:#d97706; }
+  .exec-dot.failed    { background:#dc2626; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Period selector -->
-<div class="d-flex align-items-center justify-content-between mb-4">
+<div class="rpt-page-header">
   <div>
-    <h5 class="mb-0" style="font-family:'DM Serif Display',serif;font-size:1.4rem">Vue d'ensemble</h5>
-    <p class="text-muted mb-0" style="font-size:12px">Indicateurs clés de performance</p>
+    <p class="rpt-page-title">Tableau de bord reporting</p>
+    <p class="rpt-page-sub"><i class="bx bx-calendar me-1"></i>{% now "d F Y" %}</p>
   </div>
-  <div class="btn-group" role="group">
-    <button class="btn btn-outline-secondary period-btn active" data-period="month">Mois</button>
-    <button class="btn btn-outline-secondary period-btn" data-period="quarter">Trimestre</button>
-    <button class="btn btn-outline-secondary period-btn" data-period="year">Année</button>
-  </div>
-</div>
-
-<!-- KPI Row (AJAX-driven) -->
-<div class="row g-3 section-gap" id="kpiRow">
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Revenus facturés</span>
-      <span class="kpi-value mono" id="kpi-revenue">—</span>
-      <span class="kpi-sub">Période sélectionnée</span>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Charges totales</span>
-      <span class="kpi-value mono" id="kpi-charges">—</span>
-      <span class="kpi-sub">Fournisseurs + opérationnel</span>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Résultat net</span>
-      <span class="kpi-value mono" id="kpi-result">—</span>
-      <span class="kpi-sub" id="kpi-result-sub">—</span>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="kpi-card">
-      <span class="kpi-label">Dépenses opérat.</span>
-      <span class="kpi-value mono" id="kpi-opex">—</span>
-      <span class="kpi-sub">Validées et payées</span>
-    </div>
+  <div class="period-toggle">
+    <button class="period-btn active" data-period="month">Mois</button>
+    <button class="period-btn" data-period="quarter">Trimestre</button>
+    <button class="period-btn" data-period="year">Année</button>
   </div>
 </div>
 
-<!-- Charts row -->
-<div class="row g-3 section-gap">
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-teal"><i class="bx bx-trending-up"></i></div>
+      <div>
+        <div class="metric-label">Revenus facturés</div>
+        <div class="metric-value" id="kpi-revenue">—</div>
+        <div class="metric-sub">DA — période</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-red"><i class="bx bx-trending-down"></i></div>
+      <div>
+        <div class="metric-label">Charges totales</div>
+        <div class="metric-value" id="kpi-charges">—</div>
+        <div class="metric-sub">Fournisseurs + opérationnel</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-green"><i class="bx bx-bar-chart-alt-2"></i></div>
+      <div>
+        <div class="metric-label">Résultat net</div>
+        <div class="metric-value" id="kpi-result">—</div>
+        <div id="kpi-result-delta"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-amber"><i class="bx bx-receipt"></i></div>
+      <div>
+        <div class="metric-label">Dépenses opérat.</div>
+        <div class="metric-value" id="kpi-opex">—</div>
+        <div class="metric-sub">Validées et payées</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-4">
   <div class="col-lg-7">
     <div class="chart-card h-100">
-      <div class="chart-card-title">
-        Revenus vs Charges
-        <span style="font-size:11px;color:var(--ink-muted);font-weight:400">mis à jour automatiquement</span>
+      <div class="chart-card-header">
+        <span class="chart-card-title">Revenus vs Charges</span>
+        <span class="chart-card-sub">mis à jour automatiquement</span>
       </div>
-      <canvas id="revenueChart" height="220"></canvas>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:230px"><canvas id="revenueChart"></canvas></div>
+      </div>
     </div>
   </div>
   <div class="col-lg-5">
     <div class="chart-card h-100">
-      <div class="chart-card-title">Répartition des charges</div>
-      <canvas id="chargesDonut" height="220"></canvas>
+      <div class="chart-card-header"><span class="chart-card-title">Répartition des charges</span></div>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:230px"><canvas id="chargesDonut"></canvas></div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Reports menu + executions -->
+<!-- Report links + executions -->
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="chart-card">
-      <div class="chart-card-title mb-3">Accès rapide aux rapports</div>
-      <div class="report-grid">
-        <a href="{% url 'reporting:financial_result_report' %}" class="report-link-card">
-          <div class="icon-wrap"><i class="bi bi-graph-up-arrow"></i></div>
-          <h6>Résultat financier</h6>
-          <p>P&L théorique et trésorerie</p>
-        </a>
-        <a href="{% url 'reporting:receivables_aging_report' %}" class="report-link-card">
-          <div class="icon-wrap"><i class="bi bi-people"></i></div>
-          <h6>Échéancier clients</h6>
-          <p>Créances par tranche d'ancienneté</p>
-        </a>
-        <a href="{% url 'reporting:payables_aging_report' %}" class="report-link-card">
-          <div class="icon-wrap"><i class="bi bi-building"></i></div>
-          <h6>Échéancier fournisseurs</h6>
-          <p>Dettes par tranche d'ancienneté</p>
-        </a>
-        <a href="{% url 'reporting:production_yield_report' %}" class="report-link-card">
-          <div class="icon-wrap"><i class="bi bi-gear-wide-connected"></i></div>
-          <h6>Rendements production</h6>
-          <p>Analyse des ordres de production</p>
-        </a>
-        <a href="{% url 'reporting:expense_breakdown_report' %}" class="report-link-card">
-          <div class="icon-wrap"><i class="bi bi-receipt"></i></div>
-          <h6>Répartition dépenses</h6>
-          <p>Par catégorie et bénéficiaire</p>
-        </a>
-        <a href="{% url 'reporting:stock_valuation_report' %}" class="report-link-card">
-          <div class="icon-wrap"><i class="bi bi-boxes"></i></div>
-          <h6>Valorisation stocks</h6>
-          <p>MP et produits finis</p>
-        </a>
+      <div class="chart-card-header"><span class="chart-card-title">Accès rapide aux rapports</span></div>
+      <div class="chart-card-body">
+        <div class="row g-2">
+          {% for url_name, icon, color, title, sub in report_links %}{% endfor %}
+          <div class="col-sm-6"><a href="{% url 'reporting:financial_result_report' %}" class="report-link-card"><div class="metric-icon ic-teal"><i class="bx bx-line-chart"></i></div><div><h6>Résultat financier</h6><p>P&L théorique et trésorerie</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:receivables_aging_report' %}" class="report-link-card"><div class="metric-icon ic-blue"><i class="bx bx-group"></i></div><div><h6>Échéancier clients</h6><p>Créances par ancienneté</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:payables_aging_report' %}" class="report-link-card"><div class="metric-icon ic-amber"><i class="bx bx-building-house"></i></div><div><h6>Échéancier fournisseurs</h6><p>Dettes par ancienneté</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:production_yield_report' %}" class="report-link-card"><div class="metric-icon ic-green"><i class="bx bx-cog"></i></div><div><h6>Rendements production</h6><p>Analyse des ordres de production</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:expense_breakdown_report' %}" class="report-link-card"><div class="metric-icon ic-red"><i class="bx bx-wallet"></i></div><div><h6>Répartition dépenses</h6><p>Par catégorie et bénéficiaire</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:stock_valuation_report' %}" class="report-link-card"><div class="metric-icon ic-purple"><i class="bx bx-package"></i></div><div><h6>Valorisation stocks</h6><p>MP et produits finis</p></div></a></div>
+        </div>
       </div>
     </div>
   </div>
   <div class="col-lg-4">
     <div class="chart-card h-100">
-      <div class="chart-card-title">Dernières exécutions</div>
+      <div class="chart-card-header"><span class="chart-card-title">Dernières exécutions</span></div>
       {% if recent_executions %}
         {% for exec in recent_executions %}
         <div class="exec-item">
           <span class="exec-dot {{ exec.status }}"></span>
-          <div class="flex-grow-1" style="min-width:0">
-            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-              {{ exec.template.name }}
-            </div>
-            <div style="font-size:11px;color:var(--ink-muted)">
-              {{ exec.execution_date|date:"d/m/Y H:i" }}
-              — <span class="{% if exec.status == 'completed' %}text-success{% elif exec.status == 'failed' %}text-danger{% else %}text-warning{% endif %}">
-                {{ exec.get_status_display }}
-              </span>
-            </div>
+          <div style="min-width:0;flex:1">
+            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ exec.template.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">{{ exec.execution_date|date:"d/m/Y H:i" }} — <span style="color:{% if exec.status == 'completed' %}#15803d{% elif exec.status == 'failed' %}#dc2626{% else %}#d97706{% endif %}">{{ exec.get_status_display }}</span></div>
           </div>
         </div>
         {% endfor %}
       {% else %}
-        <p class="text-muted" style="font-size:13px">Aucune exécution enregistrée.</p>
+        <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">Aucune exécution enregistrée.</div>
       {% endif %}
     </div>
   </div>
 </div>
 {% endblock %}
 
-{% block extra_scripts %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size   = 12;
+Chart.defaults.color       = '#94a3b8';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.padding = 14;
+
 const KPI_URL = "{% url 'reporting:kpi_dashboard_ajax' %}";
 let revenueChart, chargesDonut;
 
-// Colors
-const PALETTE = ['#1a56db','#0d9488','#d97706','#7c3aed','#dc2626','#059669'];
+function fmtDA(n) {
+  return Math.round(parseFloat(n)).toLocaleString('fr-DZ') + ' DA';
+}
 
 function initCharts() {
-  const ctx1 = document.getElementById('revenueChart').getContext('2d');
-  revenueChart = new Chart(ctx1, {
+  revenueChart = new Chart(document.getElementById('revenueChart'), {
     type: 'bar',
     data: {
-      labels: ['Revenus','Charges fournisseurs','Dépenses opérat.'],
+      labels: ['Revenus','Ch. fournisseurs','Dép. opérat.'],
       datasets: [{
-        data: [0, 0, 0],
-        backgroundColor: ['#dbeafe','#fef3c7','#fee2e2'],
-        borderColor:     ['#1a56db','#d97706','#dc2626'],
+        data: [0,0,0],
+        backgroundColor: ['rgba(15,118,110,.15)','rgba(220,38,38,.12)','rgba(217,119,6,.12)'],
+        borderColor:     ['#0f766e','#dc2626','#d97706'],
         borderWidth: 2, borderRadius: 6
       }]
     },
@@ -209,59 +191,52 @@ function initCharts() {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => (v/1000).toFixed(0)+'K' } },
-        x: { grid: { display: false } }
+        y: { grid: { color: '#f1f5f9' }, border: { display: false }, ticks: { callback: v => (v/1000000).toFixed(1)+'M' } },
+        x: { grid: { display: false }, border: { display: false } }
       }
     }
   });
 
-  const ctx2 = document.getElementById('chargesDonut').getContext('2d');
-  chargesDonut = new Chart(ctx2, {
+  chargesDonut = new Chart(document.getElementById('chargesDonut'), {
     type: 'doughnut',
     data: {
-      labels: ['Charges fournisseurs','Dépenses opérationnel'],
-      datasets: [{ data: [0,0], backgroundColor: ['#1a56db','#d97706'], borderWidth: 0, hoverOffset: 4 }]
+      labels: ['Ch. fournisseurs','Dép. opérationnel'],
+      datasets: [{ data:[0,0], backgroundColor:['#0f766e','#d97706'], borderWidth:0, hoverOffset:4 }]
     },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      cutout: '72%',
-      plugins: { legend: { position: 'bottom' } }
-    }
+    options: { responsive: true, maintainAspectRatio: false, cutout:'70%', plugins:{ legend:{ position:'bottom' } } }
   });
 }
 
 function loadKPIs(period) {
   fetch(`${KPI_URL}?period=${period}`)
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
     .then(d => {
       if (!d.success) return;
       const rev  = parseFloat(d.revenue);
       const sup  = parseFloat(d.supplier_charges);
       const opex = parseFloat(d.op_expenses);
       const res  = parseFloat(d.result);
-
-      document.getElementById('kpi-revenue').textContent  = fmtMoney(rev);
-      document.getElementById('kpi-charges').textContent  = fmtMoney(parseFloat(d.total_charges));
-      document.getElementById('kpi-result').textContent   = fmtMoney(res);
-      document.getElementById('kpi-opex').textContent     = fmtMoney(opex);
-
-      const sub = document.getElementById('kpi-result-sub');
-      sub.innerHTML = res >= 0
-        ? `<span class="kpi-badge pos"><i class="bi bi-arrow-up-short"></i>Bénéfice</span>`
-        : `<span class="kpi-badge neg"><i class="bi bi-arrow-down-short"></i>Déficit</span>`;
-
+      document.getElementById('kpi-revenue').textContent = fmtDA(rev);
+      document.getElementById('kpi-charges').textContent = fmtDA(parseFloat(d.total_charges));
+      document.getElementById('kpi-result').textContent  = fmtDA(res);
+      document.getElementById('kpi-opex').textContent    = fmtDA(opex);
+      document.getElementById('kpi-result-delta').innerHTML = res >= 0
+        ? '<span class="metric-delta pos"><i class="bx bx-trending-up"></i> Bénéfice</span>'
+        : '<span class="metric-delta neg"><i class="bx bx-trending-down"></i> Déficit</span>';
       revenueChart.data.datasets[0].data = [rev, sup, opex];
       revenueChart.update('active');
-
       chargesDonut.data.datasets[0].data = [sup, opex];
       chargesDonut.update('active');
-    });
+    })
+    .catch(err => console.warn('KPI fetch failed:', err));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   initCharts();
   loadKPIs('month');
-
   document.querySelectorAll('.period-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));

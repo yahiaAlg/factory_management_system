@@ -158,12 +158,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Split donut — only if both values present
   new Chart(document.getElementById('splitDonut'),{
     type:'doughnut',
-    data:{labels:['Matières premières','Produits finis'],datasets:[{data:[{{ rm_total_value|floatformat:2 }},{{ fp_total_value|floatformat:2 }}],backgroundColor:['#0f766e','#3b82f6'],borderWidth:0,hoverOffset:5}]},
+    data:{labels:['Matières premières','Produits finis'],datasets:[{data:[{{ rm_total_value|stringformat:".2f" }},{{ fp_total_value|stringformat:".2f" }}],backgroundColor:['#0f766e','#3b82f6'],borderWidth:0,hoverOffset:5}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom'}}}
   });
 
   // Top RM by value — sort in JS, take 10
-  const rmRaw=[{% for item in rm_data %}{l:"{{ item.material.designation|truncatechars:28|escapejs }}",v:{{ item.value|floatformat:2 }}},{% endfor %}];
+  const rmRaw=[{% for item in rm_data %}{l:"{{ item.material.designation|truncatechars:28|escapejs }}",v:{{ item.value|stringformat:".2f" }}},{% endfor %}];
   const top10 = rmRaw.sort((a,b)=>b.v-a.v).slice(0,10);
   if(top10.length){
     new Chart(document.getElementById('topRmBar'),{

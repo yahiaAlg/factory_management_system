@@ -381,7 +381,11 @@ class ClientInvoice(models.Model):
             vat_rate = Decimal("0.19")
         self.vat_amount = net_ht * vat_rate
         self.total_ttc = net_ht + self.vat_amount
-        # balance_due updated by ClientPayment post_save signal (spec S7)
+        # FIX: initialize balance_due — same bug as SupplierInvoice
+        total_collected = (
+            sum(p.amount for p in self.payments.all()) if self.pk else Decimal("0.00")
+        )
+        self.balance_due = self.total_ttc - total_collected
 
     @property
     def net_ht(self):

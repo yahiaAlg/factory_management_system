@@ -653,18 +653,24 @@ def kpi_dashboard_ajax(request):
     revenue = ClientInvoice.objects.filter(
         invoice_date__gte=start_date,
         invoice_date__lt=end_date,
-    ).aggregate(total=Sum("total_ttc"))["total"] or Decimal("0.00")
+    ).exclude(status="cancelled").aggregate(total=Sum("total_ttc"))["total"] or Decimal(
+        "0.00"
+    )
 
     op_expenses = Expense.objects.filter(
         expense_date__gte=start_date,
         expense_date__lt=end_date,
         status__in=["validated", "paid"],
-    ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    ).exclude(status="cancelled").aggregate(total=Sum("amount"))["total"] or Decimal(
+        "0.00"
+    )
 
     supplier_charges = SupplierInvoice.objects.filter(
         invoice_date__gte=start_date,
         invoice_date__lt=end_date,
-    ).aggregate(total=Sum("total_ttc"))["total"] or Decimal("0.00")
+    ).exclude(status="cancelled").aggregate(total=Sum("total_ttc"))["total"] or Decimal(
+        "0.00"
+    )
 
     total_charges = op_expenses + supplier_charges
 

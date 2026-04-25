@@ -374,7 +374,10 @@ class SupplierInvoice(models.Model):
             vat_rate = Decimal("0.19")
         self.vat_amount = self.total_ht * vat_rate
         self.total_ttc = self.total_ht + self.vat_amount
-        # balance_due is recomputed by SupplierPayment post_save signal, not here.
+        total_paid = (
+            sum(p.amount for p in self.payments.all()) if self.pk else Decimal("0.00")
+        )
+        self.balance_due = self.total_ttc - total_paid
 
     def recompute_balance_due(self):
         """Called by supplier_ops.signals after SupplierPayment save (spec S7)."""

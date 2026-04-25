@@ -133,10 +133,29 @@ class SupplierPaymentForm(forms.ModelForm):
         model = SupplierPayment
         fields = ["payment_date", "amount", "payment_method", "bank_reference"]
         widgets = {
-            "payment_date": forms.DateInput(attrs={"type": "date"}),
-            "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01"}),
+            "payment_date": forms.DateInput(
+                attrs={
+                    "type": "date",
+                    "class": "form-control-app",
+                }
+            ),
+            "amount": forms.NumberInput(
+                attrs={
+                    "step": "0.01",
+                    "min": "0.01",
+                    "class": "form-control-app",
+                }
+            ),
+            "payment_method": forms.Select(
+                attrs={
+                    "class": "form-control-app",
+                }
+            ),
             "bank_reference": forms.TextInput(
-                attrs={"placeholder": "Référence bancaire ou numéro de chèque"}
+                attrs={
+                    "placeholder": "Référence bancaire ou numéro de chèque",
+                    "class": "form-control-app",
+                }
             ),
         }
 
@@ -154,12 +173,20 @@ class SupplierAccountPaymentForm(forms.ModelForm):
         model = SupplierAccountPayment
         fields = ["payment_date", "amount", "payment_method", "bank_reference", "notes"]
         widgets = {
-            "payment_date": forms.DateInput(attrs={"type": "date"}),
-            "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01"}),
-            "bank_reference": forms.TextInput(
-                attrs={"placeholder": "Référence bancaire ou numéro de chèque"}
+            "payment_date": forms.DateInput(
+                attrs={"type": "date", "class": "form-control-app"}
             ),
-            "notes": forms.Textarea(attrs={"rows": 2}),
+            "amount": forms.NumberInput(
+                attrs={"step": "0.01", "min": "0.01", "class": "form-control-app"}
+            ),
+            "payment_method": forms.Select(attrs={"class": "form-control-app"}),
+            "bank_reference": forms.TextInput(
+                attrs={
+                    "placeholder": "Référence bancaire ou numéro de chèque",
+                    "class": "form-control-app",
+                }
+            ),
+            "notes": forms.Textarea(attrs={"rows": 2, "class": "form-control-app"}),
         }
 
     def clean_amount(self):

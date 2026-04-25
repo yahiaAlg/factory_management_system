@@ -14,7 +14,9 @@ def generate_financial_result_report(date_from, date_to):
     invoiced_revenue = ClientInvoice.objects.filter(
         invoice_date__gte=date_from,
         invoice_date__lte=date_to,
-    ).aggregate(total=Sum("total_ttc"))["total"] or Decimal("0.00")
+    ).exclude(status="cancelled").aggregate(total=Sum("total_ttc"))["total"] or Decimal(
+        "0.00"
+    )
 
     collected_revenue = ClientPayment.objects.filter(
         payment_date__gte=date_from,
@@ -24,7 +26,9 @@ def generate_financial_result_report(date_from, date_to):
     committed_supplier_charges = SupplierInvoice.objects.filter(
         invoice_date__gte=date_from,
         invoice_date__lte=date_to,
-    ).aggregate(total=Sum("total_ttc"))["total"] or Decimal("0.00")
+    ).exclude(status="cancelled").aggregate(total=Sum("total_ttc"))["total"] or Decimal(
+        "0.00"
+    )
 
     paid_supplier_charges = SupplierPayment.objects.filter(
         payment_date__gte=date_from,

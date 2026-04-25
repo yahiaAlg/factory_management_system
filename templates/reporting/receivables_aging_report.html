@@ -131,13 +131,13 @@ $(document).ready(function(){
 
 const clients = [{% for row in report_data.clients %}"{{ row.client.raison_sociale|truncatechars:22|escapejs }}",{% endfor %}];
 const bk = {
-  current:[{% for r in report_data.clients %}{{ r.current|floatformat:2 }},{% endfor %}],
-  d1_30:  [{% for r in report_data.clients %}{{ r.days_1_30|floatformat:2 }},{% endfor %}],
-  d31_60: [{% for r in report_data.clients %}{{ r.days_31_60|floatformat:2 }},{% endfor %}],
-  d61_90: [{% for r in report_data.clients %}{{ r.days_61_90|floatformat:2 }},{% endfor %}],
-  over90: [{% for r in report_data.clients %}{{ r.days_over_90|floatformat:2 }},{% endfor %}],
+  current:[{% for r in report_data.clients %}{{ r.current|stringformat:".2f" }},{% endfor %}],
+  d1_30:  [{% for r in report_data.clients %}{{ r.days_1_30|stringformat:".2f" }},{% endfor %}],
+  d31_60: [{% for r in report_data.clients %}{{ r.days_31_60|stringformat:".2f" }},{% endfor %}],
+  d61_90: [{% for r in report_data.clients %}{{ r.days_61_90|stringformat:".2f" }},{% endfor %}],
+  over90: [{% for r in report_data.clients %}{{ r.days_over_90|stringformat:".2f" }},{% endfor %}],
 };
-const tot = { current:{{ report_data.totals.current|floatformat:2 }}, d1_30:{{ report_data.totals.days_1_30|floatformat:2 }}, d31_60:{{ report_data.totals.days_31_60|floatformat:2 }}, d61_90:{{ report_data.totals.days_61_90|floatformat:2 }}, over90:{{ report_data.totals.days_over_90|floatformat:2 }} };
+const tot = { current:{{ report_data.totals.current|stringformat:".2f" }}, d1_30:{{ report_data.totals.days_1_30|stringformat:".2f" }}, d31_60:{{ report_data.totals.days_31_60|stringformat:".2f" }}, d61_90:{{ report_data.totals.days_61_90|stringformat:".2f" }}, over90:{{ report_data.totals.days_over_90|stringformat:".2f" }} };
 
 document.addEventListener('DOMContentLoaded', () => {
   new Chart(document.getElementById('agingBar'), {

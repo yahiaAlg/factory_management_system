@@ -42,3 +42,25 @@ This is a common AP (Accounts Payable) pattern. To implement it you'd need:
 ## My recommendation
 
 Keep the current per-invoice payment as-is (it's useful for direct payment on receipt). Add the FIFO settlement as a **separate action** — something like "Régler le compte fournisseur" on the supplier detail page where the manager enters an amount and the system clears invoices automatically. Want me to build that?
+
+**No — and here's why the current separation is correct:**
+
+A `SupplierInvoice` is already a **liability/payable** tracked via `balance_due`. Auto-creating an `Expense` from it would cause **double-counting** in financial reports — the cost would appear once as an invoice payable and again as an operational expense.
+
+The two models represent different accounting concepts:
+
+|                  | `SupplierInvoice`              | `Expense`                               |
+| ---------------- | ------------------------------ | --------------------------------------- |
+| Nature           | Accounts payable (procurement) | Operating expense                       |
+| Tracks           | Raw material purchases         | Salaries, maintenance, rent, utilities… |
+| Financial impact | Inventory/COGS                 | P&L operating line                      |
+| Cleared by       | `SupplierPayment`              | `mark_as_paid()`                        |
+
+**The "Créer dépense liée" button exists for the legitimate edge case**: a supplier invoice that is _not_ for inventory (e.g. a maintenance contractor, a service provider) where you _do_ want it to appear in operating expenses. That's an explicit, intentional user action — not an automatic one.
+
+**What you could improve instead:**
+
+- Add a category `"Achats matières premières"` to `ExpenseCategory` — but only populate it when the user _manually_ creates that link
+- Or add an `expense_type` flag on `SupplierInvoice` (`goods` vs `services`) so the "Créer dépense liée" button only appears for service-type invoices
+
+Auto-generating expenses on every invoice would corrupt your expense reports with procurement figures that are already captured in your invoice/payment module.

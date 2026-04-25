@@ -85,9 +85,9 @@ class Command(BaseCommand):
         from sales.models import ClientPayment, ClientInvoice, ClientDN
         from supplier_ops.models import (
             SupplierPayment,
+            SupplierAccountPayment,
             SupplierInvoice,
             SupplierDN,
-            ReconciliationLine,
             SupplierInvoiceDNLink,
             SupplierInvoiceLine,
             SupplierDNLine,
@@ -112,7 +112,7 @@ class Command(BaseCommand):
             ClientInvoice,
             ClientDN,
             SupplierPayment,
-            ReconciliationLine,
+            SupplierAccountPayment,
             SupplierInvoiceLine,
             SupplierInvoiceDNLink,
             SupplierInvoice,
@@ -237,6 +237,7 @@ class Command(BaseCommand):
             ("PAY-C", datetime.date.today().year, "Paiements Client"),
             ("DEP", datetime.date.today().year, "Dépenses"),
             ("OP", datetime.date.today().year, "Ordres de Production"),
+            ("RGL-F", datetime.date.today().year, "Règlements compte fournisseur"),
             ("ADJ", datetime.date.today().year, "Ajustements stock"),
         ]
         for prefix, year, description in sequences:
@@ -1049,9 +1050,8 @@ class Command(BaseCommand):
                 dn.linked_invoice = inv
                 dn.save()
 
-            # Reconcile → sets status to verified/dispute automatically
-            inv.perform_reconciliation()
-
+            # Transition entered → verified (manual, no reconciliation)
+            inv.transition_to("verified", self._accountant)
             # Transition verified → unpaid
             inv.refresh_from_db()
             if inv.status == "verified":
@@ -1061,7 +1061,7 @@ class Command(BaseCommand):
             _ok(
                 self,
                 f"SupplierInvoice: {inv.reference} ({ext_ref}) — "
-                f"status={inv.status}, delta={inv.reconciliation_delta}",
+                f"status={inv.status}, total_ttc={inv.total_ttc}",
             )
 
     # ===================================================================

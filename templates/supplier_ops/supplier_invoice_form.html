@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% load static %}
-{% load factory_filters %}
 
 {% block title %}Nouvelle Facture Fournisseur{% endblock %}
 
@@ -14,48 +13,75 @@
 
 {% block extra_css %}
 <style>
-.line-row td { vertical-align: middle; padding: 8px 10px; }
-.delete-line-btn { color:#dc2626; background:none; border:none; cursor:pointer; padding:4px 8px; border-radius:var(--radius-xs); }
-.delete-line-btn:hover { background:#fef2f2; }
-.line-total-cell { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; text-align:right; font-size:13px; }
-#invoice-total-ht { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:700; color:var(--accent); }
-.recon-preview { background:var(--bg-raised); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; }
-.recon-status-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:var(--radius-xl); font-size:13px; font-weight:600; }
-.recon-status-badge.success { background:#dcfce7; color:#166534; }
-.recon-status-badge.warning { background:#fef9c3; color:#854d0e; }
-.recon-status-badge.danger  { background:#fee2e2; color:#991b1b; }
-.delta-val { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:15px; }
+/* ── DN picker cards ── */
+.dn-picker-wrap { display:flex; flex-direction:column; gap:8px; }
+.dn-card {
+  display:flex; align-items:flex-start; gap:12px;
+  padding:12px 14px; border-radius:var(--radius-md);
+  border:1.5px solid var(--border); background:var(--bg-surface);
+  cursor:pointer; transition:border-color .15s, background .15s;
+  user-select:none;
+}
+.dn-card:hover { border-color:var(--accent); background:var(--bg-raised); }
+.dn-card.selected { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 7%,var(--bg-surface)); }
+.dn-card input[type=checkbox] { margin-top:2px; width:15px; height:15px; accent-color:var(--accent); flex-shrink:0; }
+.dn-card-body { flex:1; min-width:0; }
+.dn-card-ref { font-weight:700; font-size:13px; color:var(--text-primary); }
+.dn-card-meta { font-size:12px; color:var(--text-muted); margin-top:2px; }
+.dn-card-amount { font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:13px; color:var(--accent); white-space:nowrap; }
+.dn-card-lines { margin-top:8px; display:flex; flex-wrap:wrap; gap:4px; }
+.dn-pill { font-size:11px; padding:2px 8px; border-radius:99px; background:var(--bg-raised); border:1px solid var(--border); color:var(--text-secondary); }
 
-/* Style Django-rendered form fields without waiting for JS */
-#invoice-form input[type="text"],
-#invoice-form input[type="date"],
-#invoice-form input[type="number"],
-#invoice-form select,
-#invoice-form textarea,
-#inv-lines-body input[type="text"],
-#inv-lines-body input[type="number"],
-#inv-lines-body select {
-  display: block; width: 100%; padding: 8px 12px; font-size: 13px;
-  font-family: 'Inter', sans-serif; color: var(--text-primary);
-  background: var(--bg-surface); border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm); transition: border-color 0.15s, box-shadow 0.15s;
-  outline: none; line-height: 1.5;
+/* ── Lines preview table ── */
+.lines-table th { font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--text-muted); padding:8px 12px; }
+.lines-table td { padding:8px 12px; vertical-align:middle; font-size:13px; }
+.lines-table input[type=number] {
+  width:100%; padding:6px 10px; font-size:13px; font-family:inherit;
+  color:var(--text-primary); background:var(--bg-surface);
+  border:1px solid var(--border-strong); border-radius:var(--radius-sm);
+  outline:none; transition:border-color .15s, box-shadow .15s;
 }
-#invoice-form input[type="text"]:focus,
-#invoice-form input[type="date"]:focus,
-#invoice-form input[type="number"]:focus,
-#invoice-form select:focus,
-#invoice-form textarea:focus,
-#inv-lines-body input:focus,
-#inv-lines-body select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+.lines-table input[type=number]:focus {
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent);
 }
-#inv-lines-body input[type="checkbox"] {
-  width: 15px; height: 15px; accent-color: var(--accent);
-  cursor: pointer; display: inline;
+.amount-cell { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; text-align:right; color:var(--text-primary); }
+.empty-state { text-align:center; padding:32px 16px; color:var(--text-muted); font-size:13px; }
+.empty-state i { font-size:28px; display:block; margin-bottom:8px; opacity:.4; }
+
+/* ── Header form fields ── */
+#invoice-form input[type=text],
+#invoice-form input[type=date],
+#invoice-form select {
+  display:block; width:100%; padding:8px 12px; font-size:13px;
+  font-family:inherit; color:var(--text-primary);
+  background:var(--bg-surface); border:1px solid var(--border-strong);
+  border-radius:var(--radius-sm); outline:none;
+  transition:border-color .15s, box-shadow .15s;
 }
-.field-error { color: #dc2626; font-size: 12px; margin-top: 3px; }
+#invoice-form input:focus, #invoice-form select:focus {
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent);
+}
+.field-error { color:#dc2626; font-size:12px; margin-top:3px; }
+
+/* ── Total bar ── */
+#invoice-total-ht { font-family:'Plus Jakarta Sans',sans-serif; font-size:18px; font-weight:700; color:var(--accent); }
+
+/* ── DN section placeholder ── */
+#dn-section { transition:opacity .2s; }
+.dn-loading { text-align:center; padding:24px; color:var(--text-muted); font-size:13px; }
+
+/* ── Step badge ── */
+.step-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  width:22px; height:22px; border-radius:50%;
+  background:var(--accent); color:#fff; font-size:11px; font-weight:700;
+  flex-shrink:0; margin-right:8px;
+}
+.section-subtitle { font-size:12px; color:var(--text-muted); margin:2px 0 0; }
+
+/* ── Recon preview ── */
 </style>
 {% endblock %}
 
@@ -63,7 +89,7 @@
 <div class="d-flex align-items-center justify-content-between mb-4">
   <div>
     <h1 style="font-size:22px;font-weight:700;margin:0;">Nouvelle Facture Fournisseur</h1>
-    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Saisie et rapprochement</p>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Saisie par rapprochement avec les BL validés</p>
   </div>
   <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">
     <i class="bx bx-arrow-back"></i> Retour
@@ -73,10 +99,21 @@
 <form method="post" id="invoice-form">
   {% csrf_token %}
 
-  <!-- Header -->
+  {# ── Formset management (hidden, populated by JS) ── #}
+  <input type="hidden" name="lines-TOTAL_FORMS"   id="id_lines-TOTAL_FORMS"   value="0">
+  <input type="hidden" name="lines-INITIAL_FORMS" id="id_lines-INITIAL_FORMS" value="0">
+  <input type="hidden" name="lines-MIN_NUM_FORMS"  value="0">
+  <input type="hidden" name="lines-MAX_NUM_FORMS"  value="1000">
+  {# linked_dns hidden inputs injected by JS here #}
+  <div id="linked-dns-inputs"></div>
+
+  {# ── STEP 1 — Invoice header ── #}
   <div class="card-app mb-4">
     <div class="card-app-header">
-      <span class="card-app-title"><i class="bx bx-receipt ic-teal me-2" style="font-size:16px;"></i>Informations de la facture</span>
+      <span class="card-app-title">
+        <span class="step-badge">1</span>
+        Informations de la facture
+      </span>
     </div>
     <div class="card-app-body">
       {% if form.non_field_errors %}
@@ -86,22 +123,22 @@
       {% endif %}
       <div class="row g-3">
         <div class="col-md-3">
-          <label class="form-label-app">Fournisseur <span style="color:#dc2626;">*</span></label>
+          <label class="form-label-app">Fournisseur <span style="color:#dc2626">*</span></label>
           {{ form.supplier }}
           {% if form.supplier.errors %}<div class="field-error">{{ form.supplier.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-3">
-          <label class="form-label-app">Réf. fournisseur <span style="color:#dc2626;">*</span></label>
+          <label class="form-label-app">Réf. fournisseur <span style="color:#dc2626">*</span></label>
           {{ form.external_reference }}
           {% if form.external_reference.errors %}<div class="field-error">{{ form.external_reference.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-3">
-          <label class="form-label-app">Date de facture <span style="color:#dc2626;">*</span></label>
+          <label class="form-label-app">Date de facture <span style="color:#dc2626">*</span></label>
           {{ form.invoice_date }}
           {% if form.invoice_date.errors %}<div class="field-error">{{ form.invoice_date.errors.0 }}</div>{% endif %}
         </div>
         <div class="col-md-3">
-          <label class="form-label-app">Date d'échéance <span style="color:#dc2626;">*</span></label>
+          <label class="form-label-app">Date d'échéance <span style="color:#dc2626">*</span></label>
           {{ form.due_date }}
           {% if form.due_date.errors %}<div class="field-error">{{ form.due_date.errors.0 }}</div>{% endif %}
         </div>
@@ -109,43 +146,59 @@
     </div>
   </div>
 
-  <!-- Lines + AJAX reconciliation preview side by side -->
+  {# ── STEP 2 + 3 side by side ── #}
   <div class="row g-4 mb-4">
+
+    {# Left column: DN picker + Lines table #}
     <div class="col-xl-8">
-      <div class="card-app h-100">
+
+      {# ── STEP 2 — Select DNs ── #}
+      <div class="card-app mb-4">
         <div class="card-app-header">
-          <span class="card-app-title"><i class="bx bx-list-ul ic-blue me-2" style="font-size:16px;"></i>Lignes facturées</span>
-          <div class="card-header-actions">
-            <button type="button" class="btn-secondary-app" id="add-inv-line-btn">
-              <i class="bx bx-plus"></i> Ajouter
-            </button>
+          <span class="card-app-title">
+            <span class="step-badge">2</span>
+            Sélectionner les BL fournisseurs
+          </span>
+          <span id="dn-selected-count" style="font-size:12px;color:var(--text-muted);"></span>
+        </div>
+        <div class="card-app-body">
+          <div id="dn-section">
+            <div class="empty-state">
+              <i class="bx bx-store-alt"></i>
+              Sélectionnez un fournisseur pour charger ses BL validés non liés.
+            </div>
           </div>
         </div>
+      </div>
+
+      {# ── STEP 3 — Lines preview ── #}
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">
+            <span class="step-badge">3</span>
+            Lignes facturées
+          </span>
+          <span class="section-subtitle">Pré-remplies depuis les BL · Prix ajustables</span>
+        </div>
         <div class="card-app-body p-0">
-          {{ formset.management_form }}
           <div class="table-container" style="border:none;border-radius:0;">
-            <table class="table mb-0" id="inv-lines-table">
+            <table class="table lines-table mb-0" id="inv-lines-table">
               <thead class="bg-raised">
                 <tr>
-                  <th style="width:28%;">Matière première</th>
-                  <th style="width:22%;">Désignation</th>
-                  <th style="width:14%;">Qté facturée</th>
-                  <th style="width:16%;">Prix unitaire</th>
-                  <th style="width:14%;text-align:right;">Montant HT</th>
-                  <th style="width:6%;"></th>
+                  <th style="width:30%">Matière première</th>
+                  <th style="width:24%">Désignation</th>
+                  <th style="width:13%;text-align:right">Qté</th>
+                  <th style="width:16%;text-align:right">Prix unitaire</th>
+                  <th style="width:17%;text-align:right">Montant HT</th>
                 </tr>
               </thead>
               <tbody id="inv-lines-body">
-                {% for lf in formset %}
-                <tr class="line-row" id="inv-line-row-{{ forloop.counter0 }}">
-                  <td>{{ lf.raw_material }}{{ lf.id }}{% if lf.raw_material.errors %}<div class="field-error">{{ lf.raw_material.errors.0 }}</div>{% endif %}</td>
-                  <td>{{ lf.designation }}{% if lf.designation.errors %}<div class="field-error">{{ lf.designation.errors.0 }}</div>{% endif %}</td>
-                  <td>{{ lf.quantity_invoiced }}{% if lf.quantity_invoiced.errors %}<div class="field-error">{{ lf.quantity_invoiced.errors.0 }}</div>{% endif %}</td>
-                  <td>{{ lf.unit_price_invoiced }}{% if lf.unit_price_invoiced.errors %}<div class="field-error">{{ lf.unit_price_invoiced.errors.0 }}</div>{% endif %}</td>
-                  <td class="line-total-cell">—</td>
-                  <td>{% if lf.DELETE %}<button type="button" class="delete-line-btn" title="Supprimer"><i class="bx bx-trash" style="font-size:15px;"></i></button>{{ lf.DELETE }}{% endif %}</td>
+                <tr id="lines-empty-row">
+                  <td colspan="5" class="empty-state">
+                    <i class="bx bx-list-ul"></i>
+                    Les lignes apparaîtront ici après sélection des BL.
+                  </td>
                 </tr>
-                {% endfor %}
               </tbody>
             </table>
           </div>
@@ -155,37 +208,19 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Live reconciliation preview -->
-    <div class="col-xl-4">
-      <div class="card-app h-100">
-        <div class="card-app-header">
-          <span class="card-app-title"><i class="bx bx-git-compare ic-purple me-2" style="font-size:16px;"></i>Rapprochement BL</span>
-          <div id="recon-status-indicator" style="display:none;"></div>
-        </div>
-        <div class="card-app-body">
-          <div class="recon-preview mb-3" id="recon-preview-box">
-            <p style="color:var(--text-muted);font-size:13px;margin:0;text-align:center;">
-              <i class="bx bx-info-circle" style="font-size:16px;margin-bottom:4px;display:block;"></i>
-              Saisissez les lignes de facture pour voir le rapprochement en temps réel.
-            </p>
-          </div>
-          <div style="font-size:12px;color:var(--text-muted);">
-            Le rapprochement compare les quantités et prix de la facture avec les BL fournisseurs liés.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+    </div>{# /col-xl-8 #}
 
-  <!-- Actions -->
+  </div>{# /row #}
+
+  {# ── Actions ── #}
   <div class="d-flex justify-content-end gap-3">
     <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">Annuler</a>
-    <button type="submit" class="btn-primary-app">
+    <button type="submit" class="btn-primary-app" id="submit-btn" disabled>
       <i class="bx bx-save"></i> Enregistrer la facture
     </button>
   </div>
+
 </form>
 {% endblock %}
 
@@ -194,137 +229,246 @@
 (function () {
   'use strict';
 
-  var invLinesBody = document.getElementById('inv-lines-body');
-  /* ── Store template from first row before any interaction ── */
-  var firstRow = invLinesBody.querySelector('.line-row');
-  var rowTemplate = firstRow ? firstRow.cloneNode(true) : null;
+  /* ─── Config ─────────────────────────────────────────── */
+  var DNS_URL = "{% url 'supplier_ops:supplier_dns_for_supplier' 0 %}"; // trailing /0/ replaced below
+  DNS_URL = DNS_URL.replace('/0/', '/');  // becomes …/ajax/supplier-dns/
 
-  /* ── Apply classes to all formset inputs ── */
-  function applyInputClasses() {
-    invLinesBody.querySelectorAll('input, select').forEach(function (el) {
-      el.classList.add('form-control-app');
-    });
-  }
-  applyInputClasses();
+  /* ─── State ──────────────────────────────────────────── */
+  // Map: rm_id → { ref, name, designation, uom, qty, price (user-adjustable) }
+  var aggregatedLines = {};
+  // Map: dn_id → dn data object (from AJAX)
+  var dnMap = {};
+  // Set of selected dn ids
+  var selectedDns = new Set();
 
-  /* ── Line totals ── */
-  function getFloat(el) { return parseFloat(el ? el.value : '') || 0; }
+  /* ─── DOM refs ───────────────────────────────────────── */
+  var supplierEl   = document.getElementById('{{ form.supplier.id_for_label }}');
+  var dnSection    = document.getElementById('dn-section');
+  var dnCountEl    = document.getElementById('dn-selected-count');
+  var linesBody    = document.getElementById('inv-lines-body');
+  var totalEl      = document.getElementById('invoice-total-ht');
+  var submitBtn    = document.getElementById('submit-btn');
+  var linkedInputs = document.getElementById('linked-dns-inputs');
+  var tfEl         = document.getElementById('id_lines-TOTAL_FORMS');
 
-  function recomputeLineTotals() {
-    var grand = 0;
-    invLinesBody.querySelectorAll('.line-row').forEach(function (row) {
-      if (row.style.display === 'none') return;
-      var qty = getFloat(row.querySelector('input[name$="-quantity_invoiced"]'));
-      var price = getFloat(row.querySelector('input[name$="-unit_price_invoiced"]'));
-      var amt = qty * price;
-      grand += amt;
-      var cell = row.querySelector('.line-total-cell');
-      if (cell) cell.textContent = amt > 0 ? amt.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA' : '—';
-    });
-    document.getElementById('invoice-total-ht').textContent =
-      grand.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA';
-  }
+  /* ─── Supplier change → load DNs ─────────────────────── */
+  supplierEl.addEventListener('change', function () {
+    var sid = this.value;
+    selectedDns.clear();
+    dnMap = {};
+    aggregatedLines = {};
+    renderLines();
+    updateSubmitBtn();
 
-  /* ── AJAX Reconciliation Preview ── */
-  var ajaxTimer = null;
-  function triggerReconPreview() {
-    clearTimeout(ajaxTimer);
-    ajaxTimer = setTimeout(fetchReconPreview, 600);
-  }
+    if (!sid) {
+      dnSection.innerHTML = '<div class="empty-state"><i class="bx bx-store-alt"></i>Sélectionnez un fournisseur pour charger ses BL validés non liés.</div>';
+      return;
+    }
+    dnSection.innerHTML = '<div class="dn-loading"><i class="bx bx-loader-alt bx-spin" style="font-size:18px;margin-bottom:6px;display:block;"></i>Chargement des BL…</div>';
 
-  function fetchReconPreview() {
-    var indicator = document.getElementById('recon-status-indicator');
-    indicator.style.display = 'flex';
-    indicator.innerHTML = '<span style="font-size:12px;color:var(--text-muted);"><i class="bx bx-loader-alt bx-spin" style="font-size:14px;margin-right:4px;"></i>Calcul…</span>';
+    fetch(DNS_URL + sid + '/')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.success) throw new Error(data.error || 'Erreur serveur');
+        renderDnPicker(data.dns);
+      })
+      .catch(function (e) {
+        dnSection.innerHTML = '<div class="empty-state" style="color:#dc2626;"><i class="bx bx-error-circle"></i>' + e.message + '</div>';
+      });
+  });
 
-    var lines = [];
-    invLinesBody.querySelectorAll('.line-row').forEach(function (row) {
-      if (row.style.display === 'none') return;
-      var mat = row.querySelector('select[name$="-raw_material"]');
-      var qty = getFloat(row.querySelector('input[name$="-quantity_invoiced"]'));
-      var price = getFloat(row.querySelector('input[name$="-unit_price_invoiced"]'));
-      if (mat && mat.value && qty > 0) {
-        lines.push({ mat: mat.options[mat.selectedIndex].text, qty: qty, price: price, amount: qty * price });
-      }
-    });
-
-    var total = lines.reduce(function (s, l) { return s + l.amount; }, 0);
-    var box = document.getElementById('recon-preview-box');
-
-    if (lines.length === 0) {
-      box.innerHTML = '<p style="color:var(--text-muted);font-size:13px;margin:0;text-align:center;">Aucune ligne saisie.</p>';
-      indicator.style.display = 'none';
+  /* ─── Render DN picker cards ─────────────────────────── */
+  function renderDnPicker(dns) {
+    if (!dns.length) {
+      dnSection.innerHTML = '<div class="empty-state"><i class="bx bx-check-circle"></i>Aucun BL validé non lié pour ce fournisseur.</div>';
       return;
     }
 
-    var rows = lines.map(function (l) {
-      return '<tr><td style="font-size:12.5px;">' + l.mat + '</td>' +
-             '<td style="text-align:right;font-size:12.5px;">' + l.qty.toLocaleString() + '</td>' +
-             '<td style="text-align:right;font-size:12.5px;font-weight:600;">' + l.amount.toLocaleString('fr-DZ',{maximumFractionDigits:0}) + ' DA</td></tr>';
-    }).join('');
+    dns.forEach(function (dn) { dnMap[dn.id] = dn; });
 
-    box.innerHTML =
-      '<table class="table table-sm mb-0" style="font-size:12px;">' +
-      '<thead><tr><th>Matière</th><th style="text-align:right;">Qté</th><th style="text-align:right;">Montant</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody>' +
-      '<tfoot><tr><td colspan="2" style="font-weight:600;font-size:13px;">Total facturé</td>' +
-      '<td style="text-align:right;font-family:\'Plus Jakarta Sans\',sans-serif;font-weight:700;font-size:13px;">' +
-      total.toLocaleString('fr-DZ',{maximumFractionDigits:0}) + ' DA</td></tr></tfoot></table>';
+    var html = '<div class="dn-picker-wrap">';
+    dns.forEach(function (dn) {
+      var pills = dn.lines.map(function (l) {
+        return '<span class="dn-pill">' + l.raw_material_ref + ' · ' + parseFloat(l.quantity_received).toLocaleString('fr-DZ') + ' ' + l.uom_symbol + '</span>';
+      }).join('');
+      var amt = parseFloat(dn.total_amount_ht).toLocaleString('fr-DZ', {maximumFractionDigits: 0});
+      html += '<label class="dn-card" data-dn-id="' + dn.id + '">' +
+        '<input type="checkbox" class="dn-checkbox" data-dn-id="' + dn.id + '">' +
+        '<div class="dn-card-body">' +
+          '<div class="d-flex justify-content-between align-items-start">' +
+            '<div>' +
+              '<div class="dn-card-ref"><i class="bx bx-receipt" style="margin-right:4px;opacity:.6;"></i>' + dn.reference + (dn.external_reference ? ' <span style="font-weight:400;color:var(--text-muted);">· ' + dn.external_reference + '</span>' : '') + '</div>' +
+              '<div class="dn-card-meta"><i class="bx bx-calendar" style="margin-right:3px;"></i>' + dn.delivery_date + '</div>' +
+            '</div>' +
+            '<div class="dn-card-amount">' + amt + ' DA</div>' +
+          '</div>' +
+          '<div class="dn-card-lines">' + pills + '</div>' +
+        '</div>' +
+      '</label>';
+    });
+    html += '</div>';
+    dnSection.innerHTML = html;
 
-    indicator.innerHTML = '<span style="font-size:12px;color:#166534;background:#dcfce7;padding:3px 10px;border-radius:99px;"><i class="bx bx-check" style="margin-right:3px;"></i>' + lines.length + ' ligne' + (lines.length > 1 ? 's' : '') + '</span>';
+    // Bind checkbox events
+    dnSection.querySelectorAll('.dn-checkbox').forEach(function (chk) {
+      chk.addEventListener('change', function () {
+        var id = parseInt(this.getAttribute('data-dn-id'));
+        var card = this.closest('.dn-card');
+        if (this.checked) {
+          selectedDns.add(id);
+          card.classList.add('selected');
+        } else {
+          selectedDns.delete(id);
+          card.classList.remove('selected');
+        }
+        rebuildAggregation();
+        renderLines();
+            updateSubmitBtn();
+        updateDnCount();
+      });
+    });
   }
 
-  invLinesBody.addEventListener('input', function () { recomputeLineTotals(); triggerReconPreview(); });
-  invLinesBody.addEventListener('change', function () { recomputeLineTotals(); triggerReconPreview(); });
-
-  /* ── Delete line ── */
-  invLinesBody.addEventListener('click', function (e) {
-    var btn = e.target.closest('.delete-line-btn');
-    if (!btn) return;
-    var row = btn.closest('.line-row');
-    var chk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
-    var hiddenId = row.querySelector('input[name$="-id"]');
-    var isExisting = hiddenId && hiddenId.value;
-    if (chk && isExisting) {
-      chk.checked = true;
-      row.style.display = 'none';
-    } else {
-      row.remove();
-    }
-    recomputeLineTotals();
-    triggerReconPreview();
-  });
-
-  /* ── Add line ── */
-  document.getElementById('add-inv-line-btn').addEventListener('click', function () {
-    if (!rowTemplate) { console.error('No row template available.'); return; }
-    var totalFormsEl = document.getElementById('id_lines-TOTAL_FORMS');
-    var count = parseInt(totalFormsEl.value, 10);
-
-    var clone = rowTemplate.cloneNode(true);
-    clone.id = 'inv-line-row-' + count;
-    clone.style.display = '';
-
-    clone.querySelectorAll('[name],[id],[for]').forEach(function (el) {
-      ['name','id','for'].forEach(function (attr) {
-        var val = el.getAttribute(attr);
-        if (val) el.setAttribute(attr, val.replace(/-\d+-/, '-' + count + '-'));
+  /* ─── Aggregate lines from selected DNs ─────────────── */
+  function rebuildAggregation() {
+    aggregatedLines = {};
+    selectedDns.forEach(function (dnId) {
+      var dn = dnMap[dnId];
+      if (!dn) return;
+      dn.lines.forEach(function (l) {
+        var rmId = l.raw_material_id;
+        if (aggregatedLines[rmId]) {
+          aggregatedLines[rmId].qty += parseFloat(l.quantity_received);
+          // keep last price (user will adjust in table if needed)
+          aggregatedLines[rmId].price = parseFloat(l.agreed_unit_price);
+        } else {
+          aggregatedLines[rmId] = {
+            ref:         l.raw_material_ref,
+            name:        l.raw_material_name,
+            designation: l.raw_material_name.replace(/^[A-Z0-9\-]+ - /, ''),
+            uom:         l.uom_symbol,
+            qty:         parseFloat(l.quantity_received),
+            price:       parseFloat(l.agreed_unit_price),
+          };
+        }
       });
-      if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.value = '';
-      if (el.tagName === 'SELECT') el.selectedIndex = 0;
-      if (el.type === 'checkbox') el.checked = false;
-      if (el.type === 'hidden' && el.name && el.name.endsWith('-id')) el.value = '';
+    });
+  }
+
+  /* ─── Render lines table ─────────────────────────────── */
+  function renderLines() {
+    var rmIds = Object.keys(aggregatedLines);
+
+    // Remove old data rows (keep empty row hidden)
+    linesBody.querySelectorAll('tr.data-row').forEach(function (r) { r.remove(); });
+
+    var emptyRow = document.getElementById('lines-empty-row');
+
+    if (!rmIds.length) {
+      emptyRow.style.display = '';
+      totalEl.textContent = '0 DA';
+      buildHiddenFormset();
+      buildLinkedDnsInputs();
+      return;
+    }
+
+    emptyRow.style.display = 'none';
+    var grand = 0;
+
+    rmIds.forEach(function (rmId, idx) {
+      var line = aggregatedLines[rmId];
+      var amt = line.qty * line.price;
+      grand += amt;
+
+      var tr = document.createElement('tr');
+      tr.className = 'data-row';
+      tr.setAttribute('data-rm-id', rmId);
+      tr.innerHTML =
+        '<td><span style="font-weight:600;font-size:12.5px;">' + line.ref + '</span><br><span style="color:var(--text-muted);font-size:11.5px;">' + line.uom + '</span></td>' +
+        '<td style="font-size:12.5px;color:var(--text-secondary);">' + line.designation + '</td>' +
+        '<td style="text-align:right;font-family:\'Plus Jakarta Sans\',sans-serif;font-weight:600;">' + line.qty.toLocaleString('fr-DZ', {maximumFractionDigits:3}) + '</td>' +
+        '<td><input type="number" class="price-input" data-rm-id="' + rmId + '" value="' + line.price.toFixed(2) + '" step="0.01" min="0"></td>' +
+        '<td class="amount-cell" id="amt-' + rmId + '">' + fmt(amt) + '</td>';
+      linesBody.appendChild(tr);
     });
 
-    var tc = clone.querySelector('.line-total-cell');
-    if (tc) tc.textContent = '—';
-    invLinesBody.appendChild(clone);
-    totalFormsEl.value = count + 1;
-    applyInputClasses();
-    recomputeLineTotals();
-  });
+    totalEl.textContent = fmt(grand);
+    buildHiddenFormset();
+    buildLinkedDnsInputs();
 
-  recomputeLineTotals();
+    // Bind price input events
+    linesBody.querySelectorAll('.price-input').forEach(function (inp) {
+      inp.addEventListener('input', function () {
+        var rmId = this.getAttribute('data-rm-id');
+        var price = parseFloat(this.value) || 0;
+        aggregatedLines[rmId].price = price;
+        var qty = aggregatedLines[rmId].qty;
+        document.getElementById('amt-' + rmId).textContent = fmt(qty * price);
+        recalcTotal();
+        buildHiddenFormset();
+          });
+    });
+  }
+
+  /* ─── Build hidden formset inputs ────────────────────── */
+  function buildHiddenFormset() {
+    // Remove existing hidden formset rows from form
+    document.querySelectorAll('.hidden-formset-row').forEach(function (el) { el.remove(); });
+
+    var rmIds = Object.keys(aggregatedLines);
+    tfEl.value = rmIds.length;
+
+    rmIds.forEach(function (rmId, idx) {
+      var line = aggregatedLines[rmId];
+      var frag = document.createDocumentFragment();
+      function hi(name, val) {
+        var el = document.createElement('input');
+        el.type = 'hidden';
+        el.className = 'hidden-formset-row';
+        el.name = 'lines-' + idx + '-' + name;
+        el.value = val;
+        frag.appendChild(el);
+      }
+      hi('raw_material', rmId);
+      hi('designation', line.designation);
+      hi('quantity_invoiced', line.qty.toFixed(3));
+      hi('unit_price_invoiced', line.price.toFixed(2));
+      hi('id', '');  // new line
+      document.getElementById('invoice-form').appendChild(frag);
+    });
+  }
+
+  /* ─── Build linked_dns hidden inputs ─────────────────── */
+  function buildLinkedDnsInputs() {
+    linkedInputs.innerHTML = '';
+    selectedDns.forEach(function (dnId) {
+      var el = document.createElement('input');
+      el.type = 'hidden';
+      el.name = 'linked_dns';
+      el.value = dnId;
+      linkedInputs.appendChild(el);
+    });
+  }
+
+  /* ─── Helpers ────────────────────────────────────────── */
+  function fmt(n) { return n.toLocaleString('fr-DZ', {maximumFractionDigits:0}) + ' DA'; }
+
+  function recalcTotal() {
+    var grand = 0;
+    Object.keys(aggregatedLines).forEach(function (rmId) {
+      grand += aggregatedLines[rmId].qty * aggregatedLines[rmId].price;
+    });
+    totalEl.textContent = fmt(grand);
+  }
+
+  function updateSubmitBtn() {
+    submitBtn.disabled = selectedDns.size === 0;
+  }
+
+  function updateDnCount() {
+    dnCountEl.textContent = selectedDns.size ? selectedDns.size + ' BL sélectionné' + (selectedDns.size > 1 ? 's' : '') : '';
+  }
+
 })();
 </script>
 {% endblock %}

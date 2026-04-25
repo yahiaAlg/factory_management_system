@@ -207,6 +207,11 @@
           <span class="badge-annule"><i class="bx bx-block"></i> Inactif</span>
         {% endif %}
         {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'accountant' %}
+        {% if outstanding_balance > 0 %}
+        <a href="{% url 'supplier_ops:supplier_account_settlement' supplier.id %}" class="btn-primary-app">
+          <i class="bx bx-wallet"></i> Régler le compte
+        </a>
+        {% endif %}
         <a href="{% url 'suppliers:supplier_edit' supplier.id %}" class="btn-secondary-app">
           <i class="bx bx-edit"></i> Modifier
         </a>
@@ -219,11 +224,15 @@
 <!-- Financial stats -->
 <div class="row g-3 mb-4">
   <div class="col-md-4">
-    <div class="stat-card {% if outstanding_balance > 0 %}is-outstanding{% endif %}">
+    {% if outstanding_balance > 0 %}
+    <a href="{% url 'supplier_ops:supplier_account_settlement' supplier.id %}" style="text-decoration:none;">
+    {% endif %}
+    <div class="stat-card {% if outstanding_balance > 0 %}is-outstanding{% endif %}" {% if outstanding_balance > 0 %}style="cursor:pointer;"{% endif %}>
       <div class="stat-label"><i class="bx bx-wallet me-1"></i>Solde impayé</div>
       <div class="stat-value">{{ outstanding_balance|floatformat:0 }} DA</div>
-      <div class="stat-sub">Factures non soldées</div>
+      <div class="stat-sub">{% if outstanding_balance > 0 %}Cliquer pour régler{% else %}Aucune facture en cours{% endif %}</div>
     </div>
+    {% if outstanding_balance > 0 %}</a>{% endif %}
   </div>
   <div class="col-md-4">
     <div class="stat-card">

@@ -75,6 +75,10 @@ def expenses_list(request):
 @login_required
 @role_required(["manager", "accountant"])
 def expense_create(request):
+    # Pre-fill from invoice detail link
+    invoice_id = request.GET.get("invoice_id")
+    prefilled_invoice = None
+
     if request.method == "POST":
         form = ExpenseForm(request.POST)
         if form.is_valid():
@@ -91,12 +95,25 @@ def expense_create(request):
             messages.success(request, f"Dépense {expense.reference} créée avec succès")
             return redirect("expenses:expense_detail", expense_id=expense.id)
     else:
-        form = ExpenseForm()
+        initial = {}
+        if invoice_id:
+            from supplier_ops.models import SupplierInvoice
+
+            try:
+                prefilled_invoice = SupplierInvoice.objects.get(pk=invoice_id)
+                initial["linked_supplier_invoice"] = prefilled_invoice
+            except SupplierInvoice.DoesNotExist:
+                pass
+        form = ExpenseForm(initial=initial)
 
     return render(
         request,
         "expenses/expense_form.html",
-        {"form": form, "title": "Nouvelle dépense"},
+        {
+            "form": form,
+            "title": "Nouvelle dépense",
+            "prefilled_invoice": prefilled_invoice,
+        },
     )
 
 

@@ -35,10 +35,18 @@
       <i class="bx bx-printer"></i> Imprimer
     </a>
     {% if can_validate %}
-    <form method="post" action="{% url 'supplier_ops:supplier_dn_validate' dn.id %}" id="validate-form">
+    <form method="post" action="{% url 'supplier_ops:supplier_dn_validate' dn.id %}" id="validate-form" enctype="multipart/form-data">
       {% csrf_token %}
       <button type="button" class="btn-validate" id="validate-btn">
         <i class="bx bx-check-double"></i> Valider le BL
+      </button>
+    </form>
+    {% endif %}
+    {% if dn.status == 'draft' and request.user.userprofile.role in "manager,stock_prod" %}
+    <form method="post" action="{% url 'supplier_ops:supplier_dn_submit' dn.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary-app">
+        <i class="bx bx-send"></i> Soumettre pour validation
       </button>
     </form>
     {% endif %}
@@ -47,6 +55,14 @@
     </a>
   </div>
 </div>
+
+<!-- Status banner for draft -->
+{% if dn.status == 'draft' and request.user.userprofile.role in "manager,stock_prod" %}
+<div class="alert-banner alert-banner-warning mb-4" style="display:flex;align-items:center;gap:10px;">
+  <i class="bx bx-edit" style="font-size:18px;flex-shrink:0;"></i>
+  <span>Ce BL est en <strong>brouillon</strong>. Soumettez-le pour validation une fois les lignes vérifiées.</span>
+</div>
+{% endif %}
 
 <!-- Status banner for pending -->
 {% if dn.status == 'pending' and can_validate %}
@@ -255,6 +271,14 @@
         <div class="mt-3 p-3" style="background:var(--bg-raised);border-radius:var(--radius-sm);border:1px solid var(--border);font-size:13px;">
           <strong>Prérequis :</strong> le justificatif signé (SD-DNF) doit être joint au dossier.
         </div>
+        <div class="mt-3">
+          <label for="sd_dnf_file" style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">
+            Joindre le justificatif SD-DNF <span style="color:var(--text-muted);font-weight:400;">(requis si non déjà joint)</span>
+          </label>
+          <input type="file" name="sd_dnf_file" id="sd_dnf_file" accept=".pdf,.jpg,.jpeg,.png"
+            style="display:block;width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-primary);">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Formats acceptés : PDF, JPG, PNG</div>
+        </div>
       </div>
       <div class="modal-footer" style="border-top:1px solid var(--border);padding:16px 24px;gap:10px;">
         <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
@@ -275,7 +299,13 @@
   var modal = new bootstrap.Modal(document.getElementById('validateModal'));
   validateBtn.addEventListener('click', function () { modal.show(); });
   document.getElementById('confirm-validate-btn').addEventListener('click', function () {
-    document.getElementById('validate-form').submit();
+    // Move the file input into the form before submitting so it's included
+    var fileInput = document.getElementById('sd_dnf_file');
+    var form = document.getElementById('validate-form');
+    if (fileInput && fileInput.parentNode !== form) {
+      form.appendChild(fileInput);
+    }
+    form.submit();
   });
 })();
 </script>

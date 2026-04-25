@@ -19,7 +19,7 @@
   <div>
     <h1 class="mb-1" style="font-size:22px; font-weight:700;">Ajouter un justificatif</h1>
     <p class="mb-0" style="color:var(--text-muted); font-size:13px;">
-      Dépense {{ expense.reference }} — {{ expense.amount|da_format }}
+      Dépense {{ expense.reference }} — {{ expense.amount|floatformat:2 }} DA
     </p>
   </div>
   <a href="{% url 'expenses:expense_detail' expense_id=expense.id %}" class="btn-secondary-app">

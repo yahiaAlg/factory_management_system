@@ -66,4 +66,15 @@ urlpatterns = [
         views.finished_product_quick_create,
         name="finished_product_quick_create",
     ),
+    # Units
+    path(
+        "raw-materials/<int:material_id>/unit/",
+        views.raw_material_get_unit,
+        name="raw_material_get_unit",
+    ),
+    path(
+        "raw-materials/quick-create/",
+        views.raw_material_quick_create,
+        name="raw_material_quick_create",
+    ),
 ]

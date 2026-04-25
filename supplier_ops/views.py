@@ -1,6 +1,7 @@
 # supplier_ops/views.py
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -8,10 +9,13 @@ from django.db.models import Q
 from django.utils import timezone
 from accounts.utils import role_required
 from accounts.models import AuditLog
+from expenses.models import Expense
 from .models import (
     SupplierDN,
     SupplierInvoice,
 )
+from catalog.models import RawMaterialCategory, UnitOfMeasure
+from suppliers.models import Supplier
 from .forms import (
     SupplierDNForm,
     SupplierDNLineFormSet,
@@ -91,6 +95,9 @@ def supplier_dn_create(request):
             "form": form,
             "formset": formset,
             "title": "Nouveau BL Fournisseur",
+            "rm_categories": RawMaterialCategory.objects.filter(is_active=True),
+            "uom_choices": UnitOfMeasure.objects.filter(is_active=True),
+            "active_suppliers": Supplier.objects.filter(is_active=True),
         },
     )
 
@@ -113,30 +120,38 @@ def supplier_dn_detail(request, dn_id):
     )
 
 
+# require post import for supplier_dn_validate
+
+
 @login_required
-@role_required(["manager", "stock_prod"])
+@require_POST
 def supplier_dn_validate(request, dn_id):
-    """
-    FIX: original code only caught ValueError; SupplierDN.validate() raises
-    ValidationError (wrong status, missing SD-DNF supporting document).
-    """
-    dn = get_object_or_404(SupplierDN, id=dn_id)
+    dn = get_object_or_404(SupplierDN, pk=dn_id)
 
-    if request.method == "POST":
-        try:
-            dn.validate(request.user)
-            AuditLog.log_action(
-                user=request.user,
-                action_type="validate",
-                module="supplier_ops",
-                instance=dn,
-                request=request,
-            )
-            messages.success(request, f"BL {dn.reference} validé avec succès")
-        except ValidationError as e:
-            messages.error(request, e.message if hasattr(e, "message") else str(e))
+    if request.user.userprofile.role not in ("manager", "accountant"):
+        messages.error(request, "Vous n'avez pas la permission de valider un BL.")
+        return redirect("supplier_ops:supplier_dn_detail", dn_id=dn_id)
 
-    return redirect("supplier_ops:supplier_dn_detail", dn_id=dn.id)
+    uploaded_file = request.FILES.get("sd_dnf_file")
+    if uploaded_file:
+        from expenses.models import SupportingDocument
+
+        SupportingDocument.objects.create(
+            doc_type="SD-DNF",
+            entity_type="supplierdn",
+            entity_id=dn.pk,
+            description=f"Justificatif BL {dn.reference} — {uploaded_file.name}",
+            file=uploaded_file,
+            registered_by=request.user,
+        )
+
+    try:
+        dn.validate(request.user)
+        messages.success(request, f"Le BL {dn.reference} a été validé avec succès.")
+    except ValidationError as e:
+        messages.error(request, e.message if hasattr(e, "message") else str(e))
+
+    return redirect("supplier_ops:supplier_dn_detail", dn_id=dn_id)
 
 
 @login_required
@@ -155,10 +170,6 @@ def supplier_invoices_list(request):
     if status_filter:
         invoices = invoices.filter(status=status_filter)
 
-    reconciliation_filter = request.GET.get("reconciliation")
-    if reconciliation_filter:
-        invoices = invoices.filter(reconciliation_result=reconciliation_filter)
-
     if request.GET.get("overdue") == "true":
         invoices = invoices.filter(
             due_date__lt=timezone.now().date(), balance_due__gt=0
@@ -170,7 +181,6 @@ def supplier_invoices_list(request):
         {
             "invoices": invoices.order_by("-invoice_date"),
             "status_choices": SupplierInvoice.STATUS_CHOICES,
-            "reconciliation_choices": SupplierInvoice.RECONCILIATION_CHOICES,
             "title": "Factures fournisseurs",
         },
     )
@@ -181,35 +191,85 @@ def supplier_invoices_list(request):
 def supplier_invoice_create(request):
     if request.method == "POST":
         form = SupplierInvoiceForm(request.POST)
-        formset = SupplierInvoiceLineFormSet(request.POST)
-        if form.is_valid() and formset.is_valid():
-            invoice = form.save(commit=False)
-            invoice.created_by = request.user
-            invoice.save()
-            formset.instance = invoice
-            formset.save()
+        linked_dn_ids = request.POST.getlist("linked_dns")
 
-            linked_dn_ids = request.POST.getlist("linked_dns")
-            if linked_dn_ids:
+        # Build formset only if explicit line data was posted (new template
+        # pre-fills via JS; fallback allows server-side line creation from DNs)
+        formset = SupplierInvoiceLineFormSet(request.POST)
+
+        if form.is_valid():
+            has_formset_lines = any(
+                request.POST.get(f"lines-{i}-raw_material")
+                for i in range(int(request.POST.get("lines-TOTAL_FORMS", 0)))
+            )
+
+            if not has_formset_lines and not linked_dn_ids:
+                messages.error(
+                    request,
+                    "Veuillez sélectionner au moins un BL ou saisir une ligne de facture.",
+                )
+            elif has_formset_lines and not formset.is_valid():
+                pass  # fall through to re-render with errors
+            else:
+                invoice = form.save(commit=False)
+                invoice.created_by = request.user
+                invoice.save()
+
+                if has_formset_lines:
+                    formset.instance = invoice
+                    formset.save()
+                else:
+                    # Server-side aggregation from selected DNs
+                    from collections import defaultdict
+                    from .models import SupplierInvoiceLine
+
+                    agg = defaultdict(
+                        lambda: {"qty": 0, "price": None, "designation": ""}
+                    )
+                    for dn_id in linked_dn_ids:
+                        try:
+                            dn = SupplierDN.objects.get(pk=dn_id, status="validated")
+                            for line in dn.lines.select_related("raw_material").all():
+                                rm_id = line.raw_material_id
+                                agg[rm_id]["qty"] += line.quantity_received
+                                # last DN price wins (template JS does same)
+                                agg[rm_id]["price"] = line.agreed_unit_price
+                                agg[rm_id][
+                                    "designation"
+                                ] = line.raw_material.designation
+                        except SupplierDN.DoesNotExist:
+                            pass
+
+                    for rm_id, vals in agg.items():
+                        SupplierInvoiceLine.objects.create(
+                            supplier_invoice=invoice,
+                            raw_material_id=rm_id,
+                            designation=vals["designation"],
+                            quantity_invoiced=vals["qty"],
+                            unit_price_invoiced=vals["price"],
+                        )
+
+                # Link DNs to invoice
                 for dn_id in linked_dn_ids:
                     try:
-                        dn = SupplierDN.objects.get(id=dn_id, status="validated")
+                        dn = SupplierDN.objects.get(pk=dn_id, status="validated")
                         invoice.linked_dns.add(dn)
                     except SupplierDN.DoesNotExist:
                         pass
-                invoice.perform_reconciliation()
 
-            AuditLog.log_action(
-                user=request.user,
-                action_type="create",
-                module="supplier_ops",
-                instance=invoice,
-                request=request,
-            )
-            messages.success(request, f"Facture {invoice.reference} créée avec succès")
-            return redirect(
-                "supplier_ops:supplier_invoice_detail", invoice_id=invoice.id
-            )
+                AuditLog.log_action(
+                    user=request.user,
+                    action_type="create",
+                    module="supplier_ops",
+                    instance=invoice,
+                    request=request,
+                )
+                messages.success(
+                    request, f"Facture {invoice.reference} créée avec succès"
+                )
+                return redirect(
+                    "supplier_ops:supplier_invoice_detail", invoice_id=invoice.id
+                )
     else:
         form = SupplierInvoiceForm()
         formset = SupplierInvoiceLineFormSet()
@@ -234,9 +294,6 @@ def supplier_invoice_detail(request, invoice_id):
         {
             "invoice": invoice,
             "lines": invoice.lines.select_related("raw_material").all(),
-            "reconciliation_lines": invoice.reconciliation_lines.select_related(
-                "raw_material"
-            ).all(),
             "payments": invoice.payments.all(),
             "linked_dns": invoice.linked_dns.all(),
             "can_pay": (
@@ -245,6 +302,18 @@ def supplier_invoice_detail(request, invoice_id):
                 and invoice.balance_due > 0
             ),
             "title": f"Facture Fournisseur - {invoice.reference}",
+            "can_settle": (
+                invoice.balance_due > 0
+                and invoice.status not in ("cancelled", "in_dispute")
+                and request.user.userprofile.role in ["manager", "accountant"]
+            ),
+            "can_link_expense": (
+                invoice.status in ["verified", "unpaid", "partially_paid"]
+                and request.user.userprofile.role in ["manager", "accountant"]
+            ),
+            "linked_expense": Expense.objects.filter(
+                linked_supplier_invoice=invoice
+            ).first(),
         },
     )
 
@@ -338,119 +407,135 @@ def supplier_payment_create(request, invoice_id):
 
 
 @login_required
-def reconciliation_ajax(request, invoice_id):
+def supplier_dns_for_supplier(request, supplier_id):
     """
-    AJAX endpoint — permitted by S5 (real-time reconciliation delta calculation
-    as Accountant enters invoice lines).
-
-    FIX: wrong SystemParameter keys used in original code:
-      'reconciliation_tolerance_threshold' → 'reconciliation_tolerance_epsilon'
-      'reconciliation_dispute_threshold'   → 'reconciliation_dispute_delta'
+    AJAX — returns validated, unlinked SupplierDNs for a given supplier.
+    Used by the invoice creation form to auto-populate invoice lines.
+    GET /supplier-ops/ajax/supplier-dns/<supplier_id>/
     """
-    if request.method != "POST":
-        return JsonResponse({"success": False, "error": "Méthode non autorisée"})
+    supplier = get_object_or_404(Supplier, pk=supplier_id, is_active=True)
 
-    try:
-        invoice = get_object_or_404(SupplierInvoice, id=invoice_id)
+    dns = (
+        SupplierDN.objects.filter(
+            supplier=supplier,
+            status="validated",
+            linked_invoice__isnull=True,
+        )
+        .prefetch_related("lines__raw_material__unit_of_measure")
+        .order_by("-delivery_date")
+    )
 
-        lines_data = []
-        for key, value in request.POST.items():
-            if key.startswith("lines-") and key.endswith("-quantity_invoiced"):
-                line_index = key.split("-")[1]
-                material_id = request.POST.get(f"lines-{line_index}-raw_material")
-                try:
-                    quantity = float(value) if value else 0
-                    price = float(
-                        request.POST.get(f"lines-{line_index}-unit_price_invoiced", 0)
-                    )
-                except ValueError:
-                    continue
-                if material_id and quantity > 0:
-                    lines_data.append(
-                        {
-                            "material_id": int(material_id),
-                            "quantity": quantity,
-                            "price": price,
-                        }
-                    )
-
-        # Aggregate DN quantities per material
-        dn_data = {}
-        for dn in invoice.linked_dns.all():
-            for dn_line in dn.lines.all():
-                mid = dn_line.raw_material_id
-                if mid in dn_data:
-                    dn_data[mid]["quantity"] += float(dn_line.quantity_received)
-                else:
-                    dn_data[mid] = {
-                        "quantity": float(dn_line.quantity_received),
-                        "price": float(dn_line.agreed_unit_price),
-                    }
-
-        total_delta = 0.0
-        reconciliation_data = []
-        for line_data in lines_data:
-            mid = line_data["material_id"]
-            qty_inv = line_data["quantity"]
-            price_inv = line_data["price"]
-            dn_info = dn_data.get(mid, {"quantity": 0.0, "price": 0.0})
-            qty_del = dn_info["quantity"]
-            price_agr = dn_info["price"]
-
-            delta_qty = qty_inv - qty_del
-            delta_price = price_inv - price_agr
-            delta_amount = (qty_inv * price_inv) - (qty_del * price_agr)
-            total_delta += delta_amount
-
-            reconciliation_data.append(
+    data = []
+    for dn in dns:
+        lines = []
+        for line in dn.lines.all():
+            rm = line.raw_material
+            lines.append(
                 {
-                    "material_id": mid,
-                    "qty_delivered": qty_del,
-                    "qty_invoiced": qty_inv,
-                    "delta_qty": delta_qty,
-                    "price_agreed": price_agr,
-                    "price_invoiced": price_inv,
-                    "delta_price": delta_price,
-                    "delta_amount": delta_amount,
+                    "raw_material_id": rm.pk,
+                    "raw_material_ref": rm.reference,
+                    "raw_material_name": str(rm),
+                    "quantity_received": str(line.quantity_received),
+                    "agreed_unit_price": str(line.agreed_unit_price),
+                    "uom_symbol": rm.unit_of_measure.symbol,
+                    "amount_ht": str(line.quantity_received * line.agreed_unit_price),
                 }
             )
-
-        from core.models import SystemParameter
-        from decimal import Decimal
-
-        # FIX: correct parameter key names (S2 / SystemParameter spec)
-        tolerance = float(
-            SystemParameter.get_decimal_value(
-                "reconciliation_tolerance_epsilon", Decimal("500.00")
-            )
-        )
-        dispute_limit = float(
-            SystemParameter.get_decimal_value(
-                "reconciliation_dispute_delta", Decimal("5000.00")
-            )
-        )
-
-        abs_delta = abs(total_delta)
-        if abs_delta <= tolerance:
-            status, label, css = "compliant", "Conforme", "success"
-        elif abs_delta <= dispute_limit:
-            status, label, css = "minor_discrepancy", "Écart mineur", "warning"
-        else:
-            status, label, css = "dispute", "Litige", "danger"
-
-        return JsonResponse(
+        data.append(
             {
-                "success": True,
-                "total_delta": total_delta,
-                "reconciliation_status": status,
-                "status_label": label,
-                "status_class": css,
-                "reconciliation_lines": reconciliation_data,
+                "id": dn.pk,
+                "reference": dn.reference,
+                "external_reference": dn.external_reference or "",
+                "delivery_date": dn.delivery_date.strftime("%d/%m/%Y"),
+                "total_amount_ht": str(dn.total_amount_ht),
+                "lines": lines,
             }
         )
 
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)})
+    return JsonResponse(
+        {"success": True, "dns": data, "supplier_name": supplier.raison_sociale}
+    )
+
+
+@login_required
+@role_required(["manager", "accountant"])
+def supplier_account_settlement(request, supplier_id):
+    """
+    Record a payment against a supplier account and apply FIFO invoice clearing.
+    POST /supplier-ops/suppliers/<supplier_id>/settle/
+    """
+    from .models import SupplierAccountPayment, SupplierInvoice
+    from .forms import SupplierAccountPaymentForm
+    from django.db import transaction
+
+    supplier = get_object_or_404(Supplier, pk=supplier_id, is_active=True)
+
+    open_invoices = (
+        SupplierInvoice.objects.filter(
+            supplier=supplier,
+            balance_due__gt=0,
+        )
+        .exclude(status__in=["in_dispute", "cancelled", "paid"])
+        .order_by("due_date", "invoice_date")
+    )
+    total_outstanding = sum(inv.balance_due for inv in open_invoices)
+
+    if request.method == "POST":
+        form = SupplierAccountPaymentForm(request.POST)
+        if form.is_valid():
+            if form.cleaned_data["amount"] > total_outstanding:
+                form.add_error(
+                    "amount",
+                    f"Le montant ({form.cleaned_data['amount']} DA) dépasse le solde total dû ({total_outstanding} DA).",
+                )
+            else:
+                try:
+                    with transaction.atomic():
+                        settlement = form.save(commit=False)
+                        settlement.supplier = supplier
+                        settlement.recorded_by = request.user
+                        settlement.save()
+                        applied = settlement.settle_fifo()
+
+                    AuditLog.log_action(
+                        user=request.user,
+                        action_type="pay",
+                        module="supplier_ops",
+                        instance=settlement,
+                        details={
+                            "supplier": supplier.code,
+                            "amount": str(settlement.amount),
+                            "invoices_cleared": len(applied),
+                        },
+                        request=request,
+                    )
+                    invoices_str = ", ".join(
+                        f"{r['invoice'].reference} ({r['applied']} DA)" for r in applied
+                    )
+                    messages.success(
+                        request,
+                        f"Règlement {settlement.reference} enregistré. "
+                        f"Factures soldées : {invoices_str}",
+                    )
+                    return redirect(
+                        "suppliers:supplier_detail", supplier_id=supplier.id
+                    )
+                except Exception as e:
+                    messages.error(request, str(e))
+    else:
+        form = SupplierAccountPaymentForm(initial={"amount": total_outstanding})
+
+    return render(
+        request,
+        "supplier_ops/supplier_account_settlement.html",
+        {
+            "supplier": supplier,
+            "form": form,
+            "open_invoices": open_invoices,
+            "total_outstanding": total_outstanding,
+            "title": f"Régler le compte — {supplier.raison_sociale}",
+        },
+    )
 
 
 @login_required
@@ -475,8 +560,26 @@ def supplier_invoice_print(request, invoice_id):
         {
             "invoice": invoice,
             "lines": invoice.lines.select_related("raw_material").all(),
-            "reconciliation_lines": invoice.reconciliation_lines.select_related(
-                "raw_material"
-            ).all(),
         },
     )
+
+
+@login_required
+@role_required(["manager", "stock_prod"])
+def supplier_dn_submit(request, dn_id):
+    """Transition draft → pending (submit for validation)."""
+    dn = get_object_or_404(SupplierDN, id=dn_id)
+    if request.method == "POST":
+        try:
+            dn.transition_to("pending", request.user)
+            AuditLog.log_action(
+                user=request.user,
+                action_type="update",
+                module="supplier_ops",
+                instance=dn,
+                request=request,
+            )
+            messages.success(request, f"BL {dn.reference} soumis pour validation.")
+        except ValidationError as e:
+            messages.error(request, e.message if hasattr(e, "message") else str(e))
+    return redirect("supplier_ops:supplier_dn_detail", dn_id=dn.id)

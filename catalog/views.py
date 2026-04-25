@@ -477,3 +477,88 @@ def finished_product_quick_create(request):
     )
 
     return JsonResponse({"success": True, "id": product.pk, "label": str(product)})
+
+
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+import json
+
+
+@login_required
+def raw_material_get_unit(request, material_id):
+    """AJAX: return the unit_of_measure for a raw material (for auto-fill in DN lines)."""
+    from catalog.models import RawMaterial
+
+    try:
+
+        material = get_object_or_404(RawMaterial, id=material_id)
+        return JsonResponse(
+            {
+                "unit_id": material.unit_of_measure_id,
+                "unit_symbol": material.unit_of_measure.symbol,
+                "reference_price": str(material.reference_price),  # ← add this
+            }
+        )
+    except RawMaterial.DoesNotExist:
+        return JsonResponse({"error": "Not found"}, status=404)
+
+
+@login_required
+@require_POST
+def raw_material_quick_create(request):
+    """AJAX quick-create a raw material from the supplier DN form modal."""
+    from catalog.models import RawMaterial, RawMaterialCategory, UnitOfMeasure
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        data = json.loads(request.body)
+        designation = (data.get("designation") or "").strip()
+        category_id = data.get("category")
+        uom_id = data.get("unit_of_measure")
+        if not designation:
+            return JsonResponse({"success": False, "error": "Désignation obligatoire."})
+        if not category_id:
+            return JsonResponse({"success": False, "error": "Catégorie obligatoire."})
+        if not uom_id:
+            return JsonResponse(
+                {"success": False, "error": "Unité de mesure obligatoire."}
+            )
+
+        def to_dec(val, default="0.000"):
+            try:
+                return Decimal(str(val))
+            except (InvalidOperation, TypeError):
+                return Decimal(default)
+
+        alert_t = to_dec(data.get("alert_threshold"), "10.000")
+        stockout_t = to_dec(data.get("stockout_threshold"), "5.000")
+
+        rm = RawMaterial(
+            designation=designation,
+            category_id=category_id,
+            unit_of_measure_id=uom_id,
+            reference_price=to_dec(data.get("reference_price"), "0.00"),
+            alert_threshold=alert_t,
+            stockout_threshold=stockout_t,
+            created_by=request.user,
+            is_active=True,
+        )
+        supplier_id = data.get("default_supplier")
+        if supplier_id:
+            rm.default_supplier_id = supplier_id
+
+        rm.full_clean()  # triggers clean() — validates alert > stockout, etc.
+        rm.save()
+
+        return JsonResponse(
+            {
+                "success": True,
+                "id": rm.pk,
+                "label": str(rm),  # "RM-001 - Designation"
+                "unit_id": rm.unit_of_measure_id,
+            }
+        )
+    except Exception as e:
+        msg = e.message_dict if hasattr(e, "message_dict") else str(e)
+        return JsonResponse({"success": False, "error": str(msg)})

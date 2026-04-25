@@ -119,6 +119,12 @@
           <span class="card-app-title">Lien facture fournisseur</span>
         </div>
         <div class="card-app-body">
+          {% if prefilled_invoice %}
+          <div class="alert-banner alert-banner-warning mb-3" style="padding:8px 12px;font-size:12px;">
+            <i class="bx bx-link"></i>
+            <span>Pré-liée à <strong>{{ prefilled_invoice.reference }}</strong> — {{ prefilled_invoice.supplier.raison_sociale }}</span>
+          </div>
+          {% endif %}
           <label class="form-label-app">Facture liée <span style="color:var(--text-muted); font-weight:400;">(optionnel)</span></label>
           {{ form.linked_supplier_invoice }}
           {% if form.linked_supplier_invoice.errors %}

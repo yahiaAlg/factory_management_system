@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:suppliers_list' %}">Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}">{{ supplier.code }}</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Règlement compte</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+#settle-form input[type=text],
+#settle-form input[type=date],
+#settle-form input[type=number],
+#settle-form select,
+#settle-form textarea {
+  display:block; width:100%; padding:8px 12px; font-size:13px; font-family:inherit;
+  color:var(--text-primary); background:var(--bg-surface);
+  border:1px solid var(--border-strong); border-radius:var(--radius-sm);
+  outline:none; transition:border-color .15s, box-shadow .15s;
+}
+#settle-form input:focus,
+#settle-form select:focus,
+#settle-form textarea:focus {
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent);
+}
+.field-error { color:#dc2626; font-size:12px; margin-top:3px; }
+
+/* FIFO preview */
+.fifo-row { display:flex; align-items:center; gap:0; }
+.fifo-bar-wrap { flex:1; height:6px; background:var(--bg-raised); border-radius:3px; overflow:hidden; margin:0 10px; }
+.fifo-bar { height:100%; border-radius:3px; background:var(--accent); transition:width .3s; }
+.fifo-applied { font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:12px; color:var(--accent); min-width:90px; text-align:right; }
+.fifo-ref { font-size:12.5px; font-weight:600; min-width:130px; }
+.fifo-due { font-size:11.5px; color:var(--text-muted); min-width:90px; }
+.fifo-balance { font-size:12px; color:var(--text-secondary); min-width:90px; }
+
+.outstanding-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 16px; border-radius:var(--radius-xl);
+  background:color-mix(in srgb,var(--accent) 10%,var(--bg-surface));
+  border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);
+  font-family:'Plus Jakarta Sans',sans-serif; font-weight:700;
+  font-size:16px; color:var(--accent);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Régler le compte fournisseur</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">
+      {{ supplier.raison_sociale }} · Apurement FIFO des factures ouvertes
+    </p>
+  </div>
+  <a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- Left: form -->
+  <div class="col-lg-5">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-money ic-teal me-2" style="font-size:16px;"></i>Paiement</span>
+        <div class="outstanding-badge">
+          <i class="bx bx-wallet"></i>
+          {{ total_outstanding|floatformat:0 }} DA
+        </div>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px;">
+          Le montant saisi sera imputé automatiquement sur les factures les plus anciennes (FIFO) jusqu'à épuisement.
+        </p>
+
+        <form method="post" id="settle-form">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+          <div class="alert-banner alert-banner-error mb-3">
+            {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-app">Montant réglé (DA) <span style="color:#dc2626">*</span></label>
+              {{ form.amount }}
+              {% if form.amount.errors %}<div class="field-error">{{ form.amount.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Date de règlement <span style="color:#dc2626">*</span></label>
+              {{ form.payment_date }}
+              {% if form.payment_date.errors %}<div class="field-error">{{ form.payment_date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Mode de paiement <span style="color:#dc2626">*</span></label>
+              {{ form.payment_method }}
+              {% if form.payment_method.errors %}<div class="field-error">{{ form.payment_method.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Référence bancaire</label>
+              {{ form.bank_reference }}
+              {% if form.bank_reference.errors %}<div class="field-error">{{ form.bank_reference.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Notes</label>
+              {{ form.notes }}
+            </div>
+            <div class="col-12 mt-2">
+              <button type="submit" class="btn-primary-app w-100" id="submit-btn">
+                <i class="bx bx-check-circle"></i> Confirmer le règlement
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: FIFO preview -->
+  <div class="col-lg-7">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-sort-up ic-blue me-2" style="font-size:16px;"></i>Aperçu d'imputation FIFO</span>
+        <span id="fifo-summary" style="font-size:12px;color:var(--text-muted);"></span>
+      </div>
+      <div class="card-app-body">
+        {% if not open_invoices %}
+        <div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">
+          <i class="bx bx-check-circle" style="font-size:28px;display:block;margin-bottom:8px;color:#16a34a;"></i>
+          Aucune facture ouverte pour ce fournisseur.
+        </div>
+        {% else %}
+        <div style="display:flex;flex-direction:column;gap:14px;" id="fifo-rows">
+          {% for inv in open_invoices %}
+          <div class="fifo-row" data-balance="{{ inv.balance_due }}">
+            <div>
+              <div class="fifo-ref">{{ inv.reference }}</div>
+              <div class="fifo-due">Éch. {{ inv.due_date|date:"d/m/Y" }}</div>
+            </div>
+            <div class="fifo-bar-wrap"><div class="fifo-bar" style="width:0%"></div></div>
+            <div>
+              <div class="fifo-balance inv-balance">{{ inv.balance_due|floatformat:0 }} DA</div>
+              <div class="fifo-applied" style="display:none;"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  var amountInput = document.querySelector('input[name="amount"]');
+  var rows = document.querySelectorAll('#fifo-rows .fifo-row');
+  var summaryEl = document.getElementById('fifo-summary');
+  if (!amountInput || !rows.length) return;
+
+  function simulateFIFO() {
+    var remaining = parseFloat(amountInput.value) || 0;
+    var count = 0;
+
+    rows.forEach(function (row) {
+      var balance = parseFloat(row.getAttribute('data-balance'));
+      var bar = row.querySelector('.fifo-bar');
+      var appliedEl = row.querySelector('.fifo-applied');
+      var balanceEl = row.querySelector('.inv-balance');
+
+      if (remaining <= 0) {
+        bar.style.width = '0%';
+        appliedEl.style.display = 'none';
+        balanceEl.style.display = '';
+        return;
+      }
+
+      var apply = Math.min(remaining, balance);
+      var pct = (apply / balance * 100).toFixed(1);
+      bar.style.width = pct + '%';
+
+      if (apply > 0) {
+        appliedEl.textContent = '−' + Math.round(apply).toLocaleString('fr-DZ') + ' DA';
+        appliedEl.style.display = '';
+        balanceEl.style.display = 'none';
+        count++;
+      } else {
+        appliedEl.style.display = 'none';
+        balanceEl.style.display = '';
+      }
+
+      remaining -= apply;
+    });
+
+    if (summaryEl) {
+      var entered = parseFloat(amountInput.value) || 0;
+      summaryEl.textContent = entered > 0
+        ? count + ' facture' + (count > 1 ? 's' : '') + ' soldée' + (count > 1 ? 's' : '')
+        : '';
+    }
+  }
+
+  amountInput.addEventListener('input', simulateFIFO);
+  simulateFIFO();
+})();
+</script>
+{% endblock %}

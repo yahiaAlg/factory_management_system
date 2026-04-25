@@ -16,6 +16,11 @@ urlpatterns = [
         name="supplier_dn_validate",
     ),
     path(
+        "supplier-dns/<int:dn_id>/submit/",
+        views.supplier_dn_submit,
+        name="supplier_dn_submit",
+    ),
+    path(
         "supplier-dns/<int:dn_id>/print/",
         views.supplier_dn_print,
         name="supplier_dn_print",
@@ -49,8 +54,14 @@ urlpatterns = [
     ),
     # AJAX endpoints
     path(
-        "reconciliation/<int:invoice_id>/",
-        views.reconciliation_ajax,
-        name="reconciliation_ajax",
+        "ajax/supplier-dns/<int:supplier_id>/",
+        views.supplier_dns_for_supplier,
+        name="supplier_dns_for_supplier",
+    ),
+    # Supplier account settlement (FIFO)
+    path(
+        "suppliers/<int:supplier_id>/settle/",
+        views.supplier_account_settlement,
+        name="supplier_account_settlement",
     ),
 ]

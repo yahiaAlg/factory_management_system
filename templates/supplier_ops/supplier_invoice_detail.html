@@ -42,8 +42,18 @@
       <i class="bx bx-printer"></i> Imprimer
     </a>
     {% if can_pay %}
-    <a href="{% url 'supplier_ops:supplier_payment_create' invoice.id %}" class="btn-primary-app">
-      <i class="bx bx-credit-card"></i> Enregistrer paiement
+    <a href="{% url 'supplier_ops:supplier_payment_create' invoice.id %}" class="btn-secondary-app">
+      <i class="bx bx-credit-card"></i> Paiement direct
+    </a>
+    {% endif %}
+    {% if can_settle %}
+    <a href="{% url 'supplier_ops:supplier_account_settlement' invoice.supplier.id %}" class="btn-primary-app">
+      <i class="bx bx-wallet"></i> Régler le compte
+    </a>
+    {% endif %}
+    {% if can_link_expense %}
+    <a href="{% url 'expenses:expense_create' %}?invoice_id={{ invoice.id }}" class="btn-secondary-app">
+      <i class="bx bx-receipt"></i> Créer dépense liée
     </a>
     {% endif %}
     <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">
@@ -76,7 +86,6 @@
         <span class="card-app-title">Informations générales</span>
         <div>
           {% if invoice.status == 'entered' %}<span class="badge-en-attente">Saisie</span>
-          {% elif invoice.status == 'under_reconciliation' %}<span class="badge-en-attente">Rapprochement</span>
           {% elif invoice.status == 'verified' %}<span class="badge-valide">Vérifiée</span>
           {% elif invoice.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
           {% elif invoice.status == 'unpaid' %}<span class="badge-non-paye">Impayée</span>
@@ -107,15 +116,6 @@
           <div class="meta-item">
             <label>Date d'échéance</label>
             <div class="meta-val {% if invoice.is_overdue %}text-danger{% endif %}">{{ invoice.due_date|date:"d/m/Y" }}</div>
-          </div>
-          <div class="meta-item">
-            <label>Rapprochement</label>
-            <div class="meta-val">
-              {% if invoice.reconciliation_result == 'compliant' %}<span class="badge-valide">Conforme</span>
-              {% elif invoice.reconciliation_result == 'minor_discrepancy' %}<span class="badge-non-paye">Écart mineur</span>
-              {% elif invoice.reconciliation_result == 'dispute' %}<span class="badge-en-retard">Litige</span>
-              {% else %}<span class="badge-en-attente">En attente</span>{% endif %}
-            </div>
           </div>
           <div class="meta-item">
             <label>Créé par</label>
@@ -198,67 +198,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Rapprochement -->
-    {% if reconciliation_lines %}
-    <div class="card-app mb-4">
-      <div class="card-app-header">
-        <span class="card-app-title">Rapprochement BL ↔ Facture</span>
-        <div>
-          {% if invoice.reconciliation_result == 'compliant' %}<span class="badge-valide">Conforme · Écart: {{ invoice.reconciliation_delta|floatformat:0 }} DA</span>
-          {% elif invoice.reconciliation_result == 'minor_discrepancy' %}<span class="badge-non-paye">Écart mineur · {{ invoice.reconciliation_delta|floatformat:0 }} DA</span>
-          {% elif invoice.reconciliation_result == 'dispute' %}<span class="badge-en-retard">Litige · {{ invoice.reconciliation_delta|floatformat:0 }} DA</span>
-          {% else %}<span class="badge-en-attente">En attente</span>{% endif %}
-        </div>
-      </div>
-      <div class="card-app-body p-0">
-        <div class="table-container" style="border:none;border-radius:0;">
-          <table class="table table-hover mb-0" style="font-size:12.5px;">
-            <thead class="bg-raised">
-              <tr>
-                <th>Matière première</th>
-                <th style="text-align:right;">Qté livrée</th>
-                <th style="text-align:right;">Qté facturée</th>
-                <th style="text-align:right;">Δ Qté</th>
-                <th style="text-align:right;">PU convenu</th>
-                <th style="text-align:right;">PU facturé</th>
-                <th style="text-align:right;">Δ Montant</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for rl in reconciliation_lines %}
-              <tr>
-                <td>{{ rl.raw_material.designation }}</td>
-                <td style="text-align:right;">{{ rl.qty_delivered|floatformat:3 }}</td>
-                <td style="text-align:right;">{{ rl.qty_invoiced|floatformat:3 }}</td>
-                <td style="text-align:right;">
-                  {% if rl.delta_qty == 0 %}
-                    <span class="delta-ok">—</span>
-                  {% elif rl.delta_qty > -10 and rl.delta_qty < 10 %}
-                    <span class="delta-minor">{{ rl.delta_qty|floatformat:3 }}</span>
-                  {% else %}
-                    <span class="delta-alert">{{ rl.delta_qty|floatformat:3 }}</span>
-                  {% endif %}
-                </td>
-                <td style="text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">{{ rl.price_agreed|floatformat:2 }}</td>
-                <td style="text-align:right;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;">{{ rl.price_invoiced|floatformat:2 }}</td>
-                <td style="text-align:right;">
-                  {% if rl.delta_amount == 0 %}
-                    <span class="delta-ok">—</span>
-                  {% elif rl.delta_amount > -500 and rl.delta_amount < 500 %}
-                    <span class="delta-minor">{{ rl.delta_amount|floatformat:0 }} DA</span>
-                  {% else %}
-                    <span class="delta-alert">{{ rl.delta_amount|floatformat:0 }} DA</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    {% endif %}
 
     <!-- Paiements -->
     {% if payments %}
@@ -351,6 +290,48 @@
         <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Délai: {{ invoice.supplier.payment_terms }} jours</div>
       </div>
     </div>
+
+    <!-- Linked expense -->
+    {% if linked_expense %}
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-receipt ic-teal me-2" style="font-size:15px;"></i>Dépense liée</span>
+      </div>
+      <div class="card-app-body">
+        <div style="font-family:monospace;font-weight:600;margin-bottom:4px;">{{ linked_expense.reference }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">{{ linked_expense.description|truncatechars:60 }}</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+          <span style="color:var(--text-secondary);">Montant</span>
+          <span style="font-weight:600;">{{ linked_expense.amount|floatformat:0 }} DA</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;">
+          <span style="color:var(--text-secondary);">Statut</span>
+          <span>
+            {% if linked_expense.status == 'recorded' %}<span class="badge-en-attente">Enregistrée</span>
+            {% elif linked_expense.status == 'validated' %}<span class="badge-valide">Validée</span>
+            {% elif linked_expense.status == 'paid' %}<span class="badge-paye">Payée</span>
+            {% elif linked_expense.status == 'rejected' %}<span class="badge-annule">Rejetée</span>
+            {% endif %}
+          </span>
+        </div>
+        <a href="{% url 'expenses:expense_detail' linked_expense.id %}" class="btn-secondary-app w-100 text-center" style="font-size:12px;">
+          <i class="bx bx-show"></i> Voir la dépense
+        </a>
+      </div>
+    </div>
+    {% elif can_link_expense %}
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-receipt ic-blue me-2" style="font-size:15px;"></i>Dépense liée</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;">Aucune dépense liée à cette facture.</p>
+        <a href="{% url 'expenses:expense_create' %}?invoice_id={{ invoice.id }}" class="btn-secondary-app w-100 text-center" style="font-size:12px;">
+          <i class="bx bx-plus"></i> Créer une dépense liée
+        </a>
+      </div>
+    </div>
+    {% endif %}
 
     <!-- Actions manager -->
     {% if request.user.userprofile.role == 'manager' and invoice.status == 'in_dispute' %}

@@ -237,7 +237,6 @@ class SupplierInvoice(models.Model):
 
     STATUS_CHOICES = [
         ("entered", "Saisie"),
-        ("under_reconciliation", "En rapprochement"),
         ("verified", "Vérifiée"),
         ("in_dispute", "En litige"),
         ("unpaid", "Impayée"),
@@ -246,17 +245,9 @@ class SupplierInvoice(models.Model):
         ("cancelled", "Annulée"),
     ]
 
-    RECONCILIATION_CHOICES = [
-        ("pending", "En attente"),
-        ("compliant", "Conforme"),
-        ("minor_discrepancy", "Écart mineur"),
-        ("dispute", "Litige"),
-    ]
-
     VALID_TRANSITIONS = {
-        "entered": ["under_reconciliation", "cancelled"],
-        "under_reconciliation": ["verified", "in_dispute"],
-        "verified": ["unpaid"],
+        "entered": ["verified", "in_dispute", "cancelled"],
+        "verified": ["unpaid", "in_dispute"],
         "unpaid": ["partially_paid", "paid", "in_dispute"],
         "partially_paid": ["paid", "in_dispute"],
         "in_dispute": ["unpaid"],  # Manager only — enforced in view
@@ -307,22 +298,6 @@ class SupplierInvoice(models.Model):
         decimal_places=2,
         default=Decimal("0.00"),
         verbose_name="Solde dû",
-        editable=False,
-    )
-
-    reconciliation_result = models.CharField(
-        max_length=20,
-        choices=RECONCILIATION_CHOICES,
-        default="pending",
-        verbose_name="Résultat rapprochement",
-        editable=False,
-    )
-    # SPEC S3: reconciliation_delta is signal-updated after ReconciliationLine save — never form-editable.
-    reconciliation_delta = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=Decimal("0.00"),
-        verbose_name="Écart rapprochement",
         editable=False,
     )
 
@@ -405,7 +380,6 @@ class SupplierInvoice(models.Model):
         """Called by supplier_ops.signals after SupplierPayment save (spec S7)."""
         total_paid = sum(p.amount for p in self.payments.all())
         self.balance_due = self.total_ttc - total_paid
-        # Update payment status
         if self.balance_due <= 0:
             self.status = "paid"
         elif total_paid > 0 and self.status not in ("in_dispute", "cancelled"):
@@ -423,105 +397,6 @@ class SupplierInvoice(models.Model):
             )
         self.status = new_status
         self.save()
-
-    # ------------------------------------------------------------------
-    # Reconciliation
-    # ------------------------------------------------------------------
-    def perform_reconciliation(self):
-        """Line-by-line BL ↔ Invoice reconciliation.
-
-        Fixed: original code had a double-addition bug in the
-        dn_materials aggregation — corrected below.
-        """
-        if not self.linked_dns.exists():
-            return
-
-        self.reconciliation_lines.all().delete()
-
-        invoice_lines = {line.raw_material_id: line for line in self.lines.all()}
-
-        # Aggregate DN quantities per material (fix: avoid double-count)
-        dn_materials: dict = {}
-        for dn in self.linked_dns.all():
-            for dn_line in dn.lines.all():
-                mid = dn_line.raw_material_id
-                if mid in dn_materials:
-                    existing_qty = dn_materials[mid]["quantity"]
-                    existing_price = dn_materials[mid]["price"]
-                    new_qty = existing_qty + dn_line.quantity_received
-                    # Weighted-average price
-                    new_price = (
-                        existing_qty * existing_price
-                        + dn_line.quantity_received * dn_line.agreed_unit_price
-                    ) / new_qty
-                    dn_materials[mid] = {
-                        "material": dn_line.raw_material,
-                        "quantity": new_qty,
-                        "price": new_price,
-                    }
-                else:
-                    dn_materials[mid] = {
-                        "material": dn_line.raw_material,
-                        "quantity": dn_line.quantity_received,
-                        "price": dn_line.agreed_unit_price,
-                    }
-
-        total_delta = Decimal("0.00")
-        for mid in set(invoice_lines) | set(dn_materials):
-            inv = invoice_lines.get(mid)
-            dn = dn_materials.get(mid)
-
-            qty_delivered = dn["quantity"] if dn else Decimal("0.000")
-            price_agreed = dn["price"] if dn else Decimal("0.00")
-            qty_invoiced = inv.quantity_invoiced if inv else Decimal("0.000")
-            price_invoiced = inv.unit_price_invoiced if inv else Decimal("0.00")
-
-            delta_qty = qty_invoiced - qty_delivered
-            delta_price = price_invoiced - price_agreed
-            delta_amount = (qty_invoiced * price_invoiced) - (
-                qty_delivered * price_agreed
-            )
-            total_delta += delta_amount
-
-            ReconciliationLine.objects.create(
-                supplier_invoice=self,
-                raw_material_id=mid,
-                qty_delivered=qty_delivered,
-                qty_invoiced=qty_invoiced,
-                delta_qty=delta_qty,
-                price_agreed=price_agreed,
-                price_invoiced=price_invoiced,
-                delta_price=delta_price,
-                delta_amount=delta_amount,
-            )
-
-        # Update reconciliation result
-        self.reconciliation_delta = total_delta
-        from core.models import SystemParameter
-
-        tolerance = SystemParameter.get_decimal_value(
-            "reconciliation_tolerance_epsilon", Decimal("500.00")
-        )
-        dispute_limit = SystemParameter.get_decimal_value(
-            "reconciliation_dispute_delta", Decimal("5000.00")
-        )
-
-        abs_delta = abs(total_delta)
-        if abs_delta <= tolerance:
-            self.reconciliation_result = "compliant"
-            self.status = "verified"
-        elif abs_delta <= dispute_limit:
-            self.reconciliation_result = "minor_discrepancy"
-            self.status = "under_reconciliation"
-        else:
-            self.reconciliation_result = "dispute"
-            self.status = "in_dispute"
-
-        SupplierInvoice.objects.filter(pk=self.pk).update(
-            reconciliation_delta=self.reconciliation_delta,
-            reconciliation_result=self.reconciliation_result,
-            status=self.status,
-        )
 
     def is_overdue(self):
         return self.due_date < timezone.now().date() and self.balance_due > 0
@@ -581,47 +456,6 @@ class SupplierInvoiceDNLink(models.Model):
 
     class Meta:
         unique_together = ["supplier_invoice", "supplier_dn"]
-
-
-class ReconciliationLine(models.Model):
-    """Reconciliation comparison line between DN and Invoice.
-
-    SPEC S3: delta_qty, delta_price, delta_amount are computed — stored
-    here after perform_reconciliation() runs, never user-editable.
-    """
-
-    supplier_invoice = models.ForeignKey(
-        SupplierInvoice, on_delete=models.CASCADE, related_name="reconciliation_lines"
-    )
-    raw_material = models.ForeignKey("catalog.RawMaterial", on_delete=models.PROTECT)
-
-    qty_delivered = models.DecimalField(
-        max_digits=10, decimal_places=3, default=Decimal("0.000"), editable=False
-    )
-    price_agreed = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal("0.00"), editable=False
-    )
-    qty_invoiced = models.DecimalField(
-        max_digits=10, decimal_places=3, default=Decimal("0.000"), editable=False
-    )
-    price_invoiced = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal("0.00"), editable=False
-    )
-
-    delta_qty = models.DecimalField(
-        max_digits=10, decimal_places=3, default=Decimal("0.000"), editable=False
-    )
-    delta_price = models.DecimalField(
-        max_digits=10, decimal_places=2, default=Decimal("0.00"), editable=False
-    )
-    delta_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0.00"), editable=False
-    )
-
-    class Meta:
-        verbose_name = "Ligne de rapprochement"
-        verbose_name_plural = "Lignes de rapprochement"
-        unique_together = ["supplier_invoice", "raw_material"]
 
 
 class SupplierPayment(models.Model):
@@ -702,3 +536,120 @@ class SupplierPayment(models.Model):
         super().save(*args, **kwargs)
         # Signal supplier_ops.signals.supplier_payment_post_save will call
         # invoice.recompute_balance_due() — spec S7.
+
+
+class SupplierAccountPayment(models.Model):
+    """Supplier-level account settlement payment (FIFO invoice clearing).
+
+    Instead of paying a specific invoice, the accountant records a payment
+    against the supplier. The settle_fifo() method then clears invoices
+    oldest-first (by due_date, then invoice_date) until the amount is exhausted,
+    creating one SupplierPayment record per invoice touched.
+    """
+
+    PAYMENT_METHOD_CHOICES = [
+        ("cash", "Espèces"),
+        ("transfer", "Virement"),
+        ("cheque", "Chèque"),
+        ("bill", "Effet de commerce"),
+    ]
+
+    reference = models.CharField(
+        max_length=50, unique=True, verbose_name="Référence règlement", editable=False
+    )
+    supplier = models.ForeignKey(
+        "suppliers.Supplier",
+        on_delete=models.PROTECT,
+        related_name="account_payments",
+        verbose_name="Fournisseur",
+    )
+    payment_date = models.DateField(verbose_name="Date de règlement")
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+        verbose_name="Montant réglé",
+    )
+    payment_method = models.CharField(
+        max_length=20, choices=PAYMENT_METHOD_CHOICES, verbose_name="Mode de paiement"
+    )
+    bank_reference = models.CharField(
+        max_length=100, blank=True, verbose_name="Référence bancaire"
+    )
+    notes = models.TextField(blank=True, verbose_name="Notes")
+
+    recorded_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, verbose_name="Enregistré par"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Règlement compte fournisseur"
+        verbose_name_plural = "Règlements compte fournisseur"
+        ordering = ["-payment_date", "-reference"]
+        indexes = [
+            models.Index(fields=["supplier", "payment_date"]),
+            models.Index(fields=["reference"]),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} - {self.supplier.code} - {self.amount} DA"
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            from core.models import DocumentSequence
+
+            year = self.payment_date.year if self.payment_date else timezone.now().year
+            self.reference = DocumentSequence.get_next_reference("RGL-F", year)
+        super().save(*args, **kwargs)
+
+    def settle_fifo(self):
+        """Apply self.amount to the supplier's open invoices oldest-first.
+
+        Fetches all invoices with balance_due > 0 and status not in_dispute/cancelled,
+        ordered by due_date ASC then invoice_date ASC (FIFO).
+        Creates one SupplierPayment record per invoice touched, reducing
+        balance_due proportionally. Updates each invoice's status via
+        recompute_balance_due().
+
+        Returns a list of dicts describing what was applied:
+          [{"invoice": <SupplierInvoice>, "applied": <Decimal>}, ...]
+        """
+        open_invoices = (
+            SupplierInvoice.objects.filter(
+                supplier=self.supplier,
+                balance_due__gt=0,
+            )
+            .exclude(status__in=["in_dispute", "cancelled", "paid"])
+            .order_by("due_date", "invoice_date")
+            .select_for_update()
+        )
+
+        remaining = self.amount
+        applied = []
+
+        for invoice in open_invoices:
+            if remaining <= 0:
+                break
+
+            to_apply = min(remaining, invoice.balance_due)
+
+            payment = SupplierPayment(
+                supplier_invoice=invoice,
+                supplier=self.supplier,
+                payment_date=self.payment_date,
+                amount=to_apply,
+                payment_method=self.payment_method,
+                bank_reference=self.bank_reference,
+                recorded_by=self.recorded_by,
+            )
+            # skip full_clean here — in_dispute guard already excluded above
+            payment.save()
+
+            invoice.refresh_from_db()
+            invoice.recompute_balance_due()
+
+            applied.append({"invoice": invoice, "applied": to_apply})
+            remaining -= to_apply
+
+        return applied

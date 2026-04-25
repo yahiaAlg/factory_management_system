@@ -146,7 +146,7 @@
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
           <div>
             <div class="info-label" style="margin-bottom:8px;">Montant de la dépense</div>
-            <div class="amount-display">{{ expense.amount|da_format }}</div>
+            <div class="amount-display">{{ expense.amount|floatformat:2 }} DA</div>
           </div>
           <div style="text-align:right;">
             <div class="info-label" style="margin-bottom:8px;">Catégorie</div>

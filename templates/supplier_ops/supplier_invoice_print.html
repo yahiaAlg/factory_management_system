@@ -53,12 +53,6 @@
 
     .section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 10px; color: #0f172a; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
 
-    /* Delta cells for reconciliation */
-    .delta-ok    { color: #166534; }
-    .delta-minor { background: #fef9c3; color: #854d0e; padding: 1px 7px; border-radius: 99px; font-size: 11.5px; }
-    .delta-alert { background: #fee2e2; color: #991b1b; padding: 1px 7px; border-radius: 99px; font-size: 11.5px; }
-
-    /* Payment history */
     .pay-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid #f1f5f9; }
     .pay-row:last-child { border-bottom: none; }
 
@@ -121,12 +115,7 @@
     <div class="party-meta" style="line-height:2;">
       <strong>Réf. fournisseur :</strong> {{ invoice.external_reference }}<br>
       <strong>Date facture :</strong> {{ invoice.invoice_date|date:"d/m/Y" }}<br>
-      <strong>Échéance :</strong> <span {% if invoice.is_overdue %}style="color:#dc2626;font-weight:600;"{% endif %}>{{ invoice.due_date|date:"d/m/Y" }}</span><br>
-      <strong>Rapprochement :</strong>
-      {% if invoice.reconciliation_result == 'compliant' %}Conforme
-      {% elif invoice.reconciliation_result == 'minor_discrepancy' %}Écart mineur
-      {% elif invoice.reconciliation_result == 'dispute' %}Litige
-      {% else %}En attente{% endif %}
+      <strong>Échéance :</strong> <span {% if invoice.is_overdue %}style="color:#dc2626;font-weight:600;"{% endif %}>{{ invoice.due_date|date:"d/m/Y" }}</span>
     </div>
   </div>
 </div>
@@ -194,57 +183,6 @@
     {% endif %}
   </div>
 </div>
-
-<!-- Reconciliation (if available) -->
-{% if reconciliation_lines %}
-<div class="section-title" style="margin-top:8px;">Rapprochement BL ↔ Facture</div>
-<div class="table-wrap">
-  <table style="font-size:12px;">
-    <thead>
-      <tr>
-        <th>Matière première</th>
-        <th style="text-align:right;">Qté livrée</th>
-        <th style="text-align:right;">Qté facturée</th>
-        <th style="text-align:right;">Δ Qté</th>
-        <th style="text-align:right;">PU convenu</th>
-        <th style="text-align:right;">PU facturé</th>
-        <th style="text-align:right;">Δ Montant (DA)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for rl in reconciliation_lines %}
-      <tr>
-        <td>{{ rl.raw_material.designation }}</td>
-        <td class="num-col" style="font-size:12px;">{{ rl.qty_delivered|floatformat:3 }}</td>
-        <td class="num-col" style="font-size:12px;">{{ rl.qty_invoiced|floatformat:3 }}</td>
-        <td style="text-align:right;">
-          {% if rl.delta_qty == 0 %}<span class="delta-ok">—</span>
-          {% elif rl.delta_qty|abs < 10 %}<span class="delta-minor">{{ rl.delta_qty|floatformat:3 }}</span>
-          {% else %}<span class="delta-alert">{{ rl.delta_qty|floatformat:3 }}</span>{% endif %}
-        </td>
-        <td class="num-col" style="font-size:12px;">{{ rl.price_agreed|floatformat:2 }}</td>
-        <td class="num-col" style="font-size:12px;">{{ rl.price_invoiced|floatformat:2 }}</td>
-        <td style="text-align:right;">
-          {% if rl.delta_amount == 0 %}<span class="delta-ok">—</span>
-          {% elif rl.delta_amount|abs < 500 %}<span class="delta-minor">{{ rl.delta_amount|floatformat:0 }}</span>
-          {% else %}<span class="delta-alert">{{ rl.delta_amount|floatformat:0 }}</span>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot>
-      <tr style="background:#f1f5f9;">
-        <td colspan="6" style="font-weight:700;font-size:12.5px;padding:8px 12px;">Écart total rapprochement</td>
-        <td style="text-align:right;font-weight:800;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;padding:8px 12px;">
-          {% if invoice.reconciliation_delta == 0 %}<span class="delta-ok">0 DA</span>
-          {% elif invoice.reconciliation_delta|abs < 500 %}<span class="delta-minor">{{ invoice.reconciliation_delta|floatformat:0 }} DA</span>
-          {% else %}<span class="delta-alert">{{ invoice.reconciliation_delta|floatformat:0 }} DA</span>{% endif %}
-        </td>
-      </tr>
-    </tfoot>
-  </table>
-</div>
-{% endif %}
 
 <!-- Signatures -->
 <div class="signatures">

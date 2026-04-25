@@ -54,12 +54,6 @@
     <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
-  <select name="reconciliation" class="form-control-app">
-    <option value="">Rapprochement</option>
-    {% for val, label in reconciliation_choices %}
-    <option value="{{ val }}" {% if request.GET.reconciliation == val %}selected{% endif %}>{{ label }}</option>
-    {% endfor %}
-  </select>
   <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;">
     <input type="checkbox" name="overdue" value="true" {% if request.GET.overdue == 'true' %}checked{% endif %}>
     En retard uniquement
@@ -85,7 +79,6 @@
             <th>Échéance</th>
             <th style="text-align:right;">Total TTC</th>
             <th style="text-align:right;">Solde dû</th>
-            <th>Rapprochement</th>
             <th>Statut</th>
             <th style="width:80px;"></th>
           </tr>
@@ -111,15 +104,7 @@
               {{ inv.balance_due|floatformat:0 }} DA
             </td>
             <td>
-              {% if inv.reconciliation_result == 'compliant' %}<span class="badge-valide">Conforme</span>
-              {% elif inv.reconciliation_result == 'minor_discrepancy' %}<span class="badge-non-paye">Écart mineur</span>
-              {% elif inv.reconciliation_result == 'dispute' %}<span class="badge-en-retard">Litige</span>
-              {% else %}<span class="badge-en-attente">En attente</span>
-              {% endif %}
-            </td>
-            <td>
               {% if inv.status == 'entered' %}<span class="badge-en-attente">Saisie</span>
-              {% elif inv.status == 'under_reconciliation' %}<span class="badge-en-attente">Rapprochement</span>
               {% elif inv.status == 'verified' %}<span class="badge-valide">Vérifiée</span>
               {% elif inv.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
               {% elif inv.status == 'unpaid' %}<span class="badge-non-paye">Impayée</span>

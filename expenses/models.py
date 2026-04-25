@@ -241,6 +241,12 @@ class SupportingDocument(models.Model):
     entity_type = models.CharField(max_length=50, verbose_name="Type d'entité")
     entity_id = models.PositiveIntegerField(verbose_name="ID entité")
     description = models.TextField(verbose_name="Description")
+    file = models.FileField(
+        upload_to="supporting_docs/%Y/%m/",
+        null=True,
+        blank=True,
+        verbose_name="Fichier joint",
+    )
     file_reference = models.CharField(
         max_length=200, blank=True, verbose_name="Référence fichier"
     )
@@ -263,12 +269,15 @@ class SupportingDocument(models.Model):
         return f"{self.get_doc_type_display()} — {self.description[:50]}"
 
     @classmethod
-    def create_for_entity(cls, doc_type, entity, description, user, file_reference=""):
+    def create_for_entity(
+        cls, doc_type, entity, description, user, file=None, file_reference=""
+    ):
         return cls.objects.create(
             doc_type=doc_type,
             entity_type=entity.__class__.__name__.lower(),
             entity_id=entity.pk,
             description=description,
+            file=file,
             file_reference=file_reference,
             registered_by=user,
         )

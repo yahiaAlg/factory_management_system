@@ -60,3 +60,22 @@ def update_stock_on_dn_validation(sender, instance, created, **kwargs):
 #
 # The total is kept consistent by SupplierDNLine.save()'s direct .update()
 # call, which is sufficient and safe.
+
+
+# -----------------------------------------------------------------------
+# SPEC S7: recompute invoice balance_due + status after every direct payment.
+# This signal was referenced in SupplierPayment.save() but was never
+# implemented, causing direct payments to record correctly yet leave the
+# invoice status/balance_due unchanged.
+# Account settlement (settle_fifo) called recompute_balance_due() directly,
+# which is why it worked — this signal closes the gap for direct payments.
+# -----------------------------------------------------------------------
+from .models import SupplierPayment  # noqa: E402 — placed after SupplierDN handler
+
+
+@receiver(post_save, sender=SupplierPayment)
+def supplier_payment_post_save(sender, instance, created, **kwargs):
+    """Recompute invoice balance_due and status after a direct payment is saved."""
+    invoice = instance.supplier_invoice
+    if invoice is not None:
+        invoice.recompute_balance_due()

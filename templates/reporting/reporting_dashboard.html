@@ -20,6 +20,26 @@
   .period-btn:hover { border-color:var(--border-strong); color:var(--text-primary); background:var(--bg-raised); }
   .period-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 
+  .custom-range {
+    display:flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:var(--radius-sm); border:1px solid var(--border);
+    background:var(--bg-surface); transition:border-color .15s,box-shadow .15s;
+  }
+  .custom-range.active { border-color:var(--accent); box-shadow:0 0 0 2px rgba(15,118,110,.12); }
+  .custom-range label { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:11.5px; color:var(--text-muted); white-space:nowrap; margin:0; }
+  .custom-range input[type="date"] {
+    background:transparent; border:none; outline:none;
+    font-family:'Inter',sans-serif; font-size:12.5px; color:var(--text-primary);
+    padding:2px 4px; cursor:pointer; width:130px;
+  }
+  .custom-range .range-sep { color:var(--text-muted); font-size:12px; }
+  .range-apply-btn {
+    padding:5px 11px; border-radius:var(--radius-sm); border:1px solid var(--accent);
+    background:var(--accent); font-family:'Plus Jakarta Sans',sans-serif; font-weight:600;
+    font-size:12px; color:#fff; cursor:pointer; transition:opacity .15s; white-space:nowrap;
+  }
+  .range-apply-btn:hover { opacity:.85; }
+
   .report-link-card {
     background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg);
     padding:14px 16px; text-decoration:none; color:inherit;
@@ -46,10 +66,18 @@
     <p class="rpt-page-title">Tableau de bord reporting</p>
     <p class="rpt-page-sub"><i class="bx bx-calendar me-1"></i>{% now "d F Y" %}</p>
   </div>
-  <div class="period-toggle">
+  <div class="period-toggle" style="flex-wrap:wrap;gap:6px;align-items:center;">
     <button class="period-btn active" data-period="month">Mois</button>
     <button class="period-btn" data-period="quarter">Trimestre</button>
     <button class="period-btn" data-period="year">Année</button>
+    <div class="custom-range" id="customRange">
+      <label>Du</label>
+      <input type="date" id="dateFrom">
+      <span class="range-sep">→</span>
+      <label>Au</label>
+      <input type="date" id="dateTo">
+      <button class="range-apply-btn" id="applyRange"><i class="bx bx-check"></i> Appliquer</button>
+    </div>
   </div>
 </div>
 
@@ -207,8 +235,10 @@ function initCharts() {
   });
 }
 
-function loadKPIs(period) {
-  fetch(`${KPI_URL}?period=${period}`)
+function loadKPIs(period, dateFrom, dateTo) {
+  let url = `${KPI_URL}?period=${period}`;
+  if (dateFrom && dateTo) url += `&date_from=${dateFrom}&date_to=${dateTo}`;
+  fetch(url)
     .then(r => {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
@@ -235,14 +265,45 @@ function loadKPIs(period) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Default date inputs to current month
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const fmt = d => d.toISOString().slice(0,10);
+  document.getElementById('dateFrom').value = fmt(firstDay);
+  document.getElementById('dateTo').value   = fmt(lastDay);
+
   initCharts();
   loadKPIs('month');
-  document.querySelectorAll('.period-btn').forEach(btn => {
+
+  const periodBtns  = document.querySelectorAll('.period-btn');
+  const customRange = document.getElementById('customRange');
+
+  periodBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      periodBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      customRange.classList.remove('active');
       loadKPIs(btn.dataset.period);
     });
+  });
+
+  // Highlight custom range when a date input is focused/changed
+  ['dateFrom','dateTo'].forEach(id => {
+    document.getElementById(id).addEventListener('focus', () => {
+      periodBtns.forEach(b => b.classList.remove('active'));
+      customRange.classList.add('active');
+    });
+  });
+
+  document.getElementById('applyRange').addEventListener('click', () => {
+    const from = document.getElementById('dateFrom').value;
+    const to   = document.getElementById('dateTo').value;
+    if (!from || !to) return;
+    if (from > to) { alert('La date de début doit être antérieure à la date de fin.'); return; }
+    periodBtns.forEach(b => b.classList.remove('active'));
+    customRange.classList.add('active');
+    loadKPIs('custom', from, to);
   });
 });
 </script>

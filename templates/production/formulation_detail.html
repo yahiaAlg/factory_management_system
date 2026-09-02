@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% load static %}
+{% load factory_filters %}
+
+{% block title %}{{ formulation.reference }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:formulations_list' %}">Formulations</a></li>
+    <li class="breadcrumb-item active">{{ formulation.reference }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.cost-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.cost-card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 18px; }
+.cost-label { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.cost-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.tolerance-pill { font-size: 11px; background: var(--accent-dim); color: var(--accent); padding: 2px 7px; border-radius: var(--radius-xs); font-weight: 600; }
+.badge-planned { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--accent); background: var(--accent-dim); border: 1px solid var(--accent-glow); border-radius: var(--radius-sm); padding: 1px 6px; }
+.complement-pill { font-size: 11px; background: var(--success-dim, #dcfce7); color: var(--success, #16a34a); padding: 2px 7px; border-radius: var(--radius-xs); font-weight: 600; }
+.mb-status-ok { color: var(--success, #16a34a); }
+.mb-status-warn { color: var(--danger, #dc2626); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{# ─── Header ─── #}
+<div class="d-flex align-items-start justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span style="font-family:monospace;font-size:13px;color:var(--text-muted);">{{ formulation.reference }}</span>
+      <span style="font-size:11px;background:var(--accent-dim);color:var(--accent);padding:2px 7px;border-radius:var(--radius-xs);font-weight:600;">v{{ formulation.version }}</span>
+      {% if formulation.is_active %}
+        <span class="badge-valide">Active</span>
+      {% else %}
+        <span class="badge-annule">Inactive</span>
+      {% endif %}
+    </div>
+    <h1 class="page-title mb-0">{{ formulation.designation }}</h1>
+    <p class="text-muted small mb-0 mt-1">
+      Produit fini : <strong>{{ formulation.finished_product.reference }} — {{ formulation.finished_product.designation }}</strong>
+      &nbsp;·&nbsp; Créée le {{ formulation.created_at|date:"d/m/Y" }} par {{ formulation.created_by.get_full_name|default:formulation.created_by.username }}
+    </p>
+  </div>
+  {% if can_edit %}
+  <div class="d-flex gap-2">
+    {% if not formulation.has_active_production_orders %}
+    <a href="{% url 'production:formulation_edit' formulation.id %}" class="btn-secondary-app">
+      <i class="bx bx-edit-alt me-1"></i> Modifier
+    </a>
+    {% endif %}
+    <form method="post" action="{% url 'production:formulation_new_version' formulation.id %}" id="new-version-form">
+      {% csrf_token %}
+      <button type="button" class="btn-secondary-app" id="new-version-btn">
+        <i class="bx bx-book-add me-1"></i> Nouvelle version
+      </button>
+    </form>
+    <a href="{% url 'production:production_order_create' %}?formulation={{ formulation.id }}" class="btn-primary-app">
+      <i class="bx bx-play-circle me-1"></i> Lancer un OP
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  {# ─── Paramètres du lot ─── #}
+  <div class="col-lg-4 col-md-6">
+    <div class="card-app h-100">
+      <div class="card-app-header"><span class="card-app-title">Paramètres du lot</span></div>
+      <div class="card-app-body">
+        <dl class="row mb-0" style="font-family:'Inter',sans-serif;font-size:14px;">
+          <dt class="col-7 text-muted">Qté de référence</dt>
+          <dd class="col-5 fw-500 text-end">{{ formulation.reference_batch_qty|floatformat:3 }} {{ formulation.reference_batch_unit.symbol }}</dd>
+          <dt class="col-7 text-muted">Rendement attendu</dt>
+          <dd class="col-5 fw-500 text-end">{{ formulation.expected_yield_pct|floatformat:2 }} %</dd>
+          {% if formulation.target_batch_mass_kg %}
+          <dt class="col-7 text-muted d-flex align-items-center gap-1">Masse cible <span class="badge-planned">§22</span></dt>
+          <dd class="col-5 fw-500 text-end">{{ formulation.target_batch_mass_kg|floatformat:3 }} kg</dd>
+          {% endif %}
+        </dl>
+        {% if formulation.technical_notes %}
+        <hr class="my-2">
+        <p class="text-muted small mb-0" style="white-space:pre-line;">{{ formulation.technical_notes }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ─── Coût théorique ─── #}
+  <div class="col-lg-4 col-md-6">
+    <div class="card-app h-100">
+      <div class="card-app-header"><span class="card-app-title">Coût théorique du lot</span></div>
+      <div class="card-app-body">
+        <div class="cost-grid">
+          <div class="cost-card">
+            <div class="cost-label">Coût total lot</div>
+            <div class="cost-value"><span data-money="{{ theoretical_cost }}" data-money-suffix="">{{ theoretical_cost|floatformat:2 }}</span> <small style="font-size:13px;">DA</small></div>
+          </div>
+          <div class="cost-card">
+            <div class="cost-label">Coût unitaire PF</div>
+            <div class="cost-value"><span data-money="{{ unit_cost }}" data-money-suffix="">{{ unit_cost|floatformat:2 }}</span> <small style="font-size:13px;">DA</small></div>
+          </div>
+        </div>
+        <p class="text-muted small mt-2 mb-0">Basé sur les prix de référence des matières premières</p>
+      </div>
+    </div>
+  </div>
+
+  {# ─── Composition ─── #}
+  <div class="col-12">
+    <div class="card-app">
+      <div class="card-app-header"><span class="card-app-title">Composition — {{ lines|length }} matière{{ lines|length|pluralize }}</span></div>
+      <div class="card-app-body p-0">
+        {% if lines %}
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Matière première</th>
+                <th class="text-end">Qté (kg éq.)</th>
+                <th>Tolérance</th>
+                <th class="text-end">Prix réf.</th>
+                <th class="text-end">Coût ligne</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in lines %}
+              <tr>
+                <td>
+                  <span class="fw-500" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ line.raw_material.designation }}</span>
+                  <br><small class="text-muted font-mono">{{ line.raw_material.reference }}</small>
+                  {% if line.is_complement %}<br><span class="complement-pill">Complément — calculé</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if line.kg_equivalent is not None %}
+                  <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;">{{ line.kg_equivalent|floatformat:3 }} kg</span>
+                  {% else %}
+                  <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;">{{ line.qty_per_batch|floatformat:3 }} {{ line.unit_of_measure.symbol }}</span>
+                  {% endif %}
+                  <br><small class="text-muted">{{ line.qty_per_batch|floatformat:3 }} {{ line.unit_of_measure.symbol }}</small>
+                </td>
+                <td>
+                  {% if line.tolerance_pct %}
+                  <span class="tolerance-pill">± {{ line.tolerance_pct|floatformat:1 }} %</span>
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end text-muted small"><span data-money="{{ line.raw_material.reference_price }}" data-money-suffix=" DA">{{ line.raw_material.reference_price|floatformat:2 }} DA</span></td>
+                <td class="text-end" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">
+                  <span data-money="{{ line.qty_per_batch|mul:line.raw_material.reference_price }}" data-money-suffix=" DA">{{ line.qty_per_batch|mul:line.raw_material.reference_price|floatformat:2 }} DA</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot class="bg-raised">
+              <tr>
+                <td colspan="4" class="text-end fw-600" style="font-family:'Plus Jakarta Sans',sans-serif;">Coût total lot :</td>
+                <td class="text-end fw-700" style="font-family:'Plus Jakarta Sans',sans-serif;color:var(--accent);"><span data-money="{{ theoretical_cost }}" data-money-suffix=" DA">{{ theoretical_cost|floatformat:2 }} DA</span></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        {% if formulation.target_batch_mass_kg %}
+        <div class="p-3 border-top">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="card-app-title" style="font-size:13px;">Bilan massique <span class="badge-planned">§22 planifié</span></span>
+          </div>
+          <dl class="row mb-0" style="font-family:'Inter',sans-serif;font-size:14px;">
+            <dt class="col-8 text-muted">Masse des ingrédients non-complément</dt>
+            <dd class="col-4 fw-500 text-end">{{ formulation.non_complement_mass_kg|floatformat:3 }} kg</dd>
+            <dt class="col-8 text-muted">Masse cible du lot</dt>
+            <dd class="col-4 fw-500 text-end">{{ formulation.target_batch_mass_kg|floatformat:3 }} kg</dd>
+            <dt class="col-8 text-muted">Statut</dt>
+            <dd class="col-4 fw-600 text-end {% if mass_balance_ok %}mb-status-ok{% else %}mb-status-warn{% endif %}">
+              {{ mass_balance_status }}
+            </dd>
+          </dl>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="empty-state"><i class="bx bx-list-ul"></i><p>Aucune matière première définie</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ─── Ordres de production récents ─── #}
+  <div class="col-12">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Ordres de production récents</span>
+        <div class="card-header-actions">
+          <a href="{% url 'production:production_orders_list' %}?formulation={{ formulation.id }}" class="btn-secondary-app btn-sm">Voir tous</a>
+        </div>
+      </div>
+      <div class="card-app-body p-0">
+        {% if production_orders %}
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Référence</th>
+                <th>Date lancement</th>
+                <th>Qté cible</th>
+                <th>Qté produite</th>
+                <th>Rendement réel</th>
+                <th>Statut</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for po in production_orders %}
+              <tr>
+                <td><a href="{% url 'production:production_order_detail' po.id %}" class="font-mono text-decoration-none" style="color:var(--accent);font-family:monospace;">{{ po.reference }}</a></td>
+                <td class="text-muted small">{{ po.launch_date|date:"d/m/Y" }}</td>
+                <td>{{ po.target_qty|floatformat:3 }} {{ po.target_unit.symbol }}</td>
+                <td>{% if po.actual_qty_produced %}{{ po.actual_qty_produced|floatformat:3 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                <td>
+                  {% if po.yield_rate %}
+                    {% if po.yield_status == 'normal' %}<span class="badge-normal-yield">{% elif po.yield_status == 'warning' %}<span class="badge-warn-yield">{% else %}<span class="badge-crit-yield">{% endif %}
+                      {{ po.yield_rate|floatformat:1 }} %
+                    </span>
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td>
+                  {% if po.status == 'pending' %}<span class="badge-en-attente">En attente</span>
+                  {% elif po.status == 'validated' %}<span class="badge-valide">Validé</span>
+                  {% elif po.status == 'in_progress' %}<span class="badge-commande">En cours</span>
+                  {% elif po.status == 'completed' %}<span class="badge-valide">Clôturé</span>
+                  {% elif po.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+                  {% endif %}
+                </td>
+                <td><a href="{% url 'production:production_order_detail' po.id %}" class="btn-icon"><i class="bx bx-show"></i></a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:24px;">
+          <i class="bx bx-box"></i>
+          <p class="mb-0">Aucun ordre de production pour cette formulation</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Confirmation modal for new version #}
+<div class="modal fade" id="newVersionModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-600">Créer une nouvelle version ?</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="text-muted small mb-0">
+          Une copie de <strong>{{ formulation.reference }} v{{ formulation.version }}</strong> sera créée avec un numéro de version incrémenté.
+          Les ordres de production existants conservent la formulation d'origine.
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn-primary-app" id="confirm-new-version">Confirmer</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const newVersionBtn = document.getElementById('new-version-btn');
+  const confirmBtn = document.getElementById('confirm-new-version');
+  if (newVersionBtn) {
+    const modal = new bootstrap.Modal(document.getElementById('newVersionModal'));
+    newVersionBtn.addEventListener('click', () => modal.show());
+    confirmBtn.addEventListener('click', () => {
+      document.getElementById('new-version-form').submit();
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,7 @@
+Django
+django-import-export
+Pillow
+python-dateutil
+gunicorn
+psycopg2-binary
+whitenoise[brotli]

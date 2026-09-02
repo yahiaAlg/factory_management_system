@@ -1,0 +1,1 @@
+# Core app for company settings and system configuration

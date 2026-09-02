@@ -1,0 +1,1170 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Tableau de bord{% endblock %}
+
+{% block breadcrumb %}
+<span class="bc-current">Tableau de bord</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Greeting ── */
+  .db-greeting {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 24px;
+    color: var(--text-primary);
+    line-height: 1.15;
+    margin: 0 0 3px;
+  }
+  .db-greeting span { color: var(--accent); }
+  .db-date { font-size: 13px; color: var(--text-muted); }
+
+  /* ── Section label ── */
+  .section-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Finance KPI cards ── */
+  .fin-kpi {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    border-left: 3px solid transparent;
+    transition: box-shadow 0.18s;
+    text-decoration: none;
+    display: block;
+    color: inherit;
+  }
+  .fin-kpi:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.07); color: inherit; }
+  .fin-kpi.revenue  { border-left-color: var(--accent); }
+  .fin-kpi.expense  { border-left-color: #dc2626; }
+  .fin-kpi.margin   { border-left-color: #16a34a; }
+  .fin-kpi.balance  { border-left-color: #2563eb; }
+  .fin-kpi.overdue  { border-left-color: #d97706; }
+  .fin-kpi-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .fin-kpi-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+  .fin-kpi-value .unit { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+  .fin-kpi-sub { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+
+  /* ── Ops metric cards ── */
+  .metric-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    transition: box-shadow 0.18s, transform 0.12s;
+    text-decoration: none;
+    color: inherit;
+  }
+  .metric-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+    color: inherit;
+  }
+  .metric-icon {
+    width: 44px; height: 44px;
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .metric-body { flex: 1; min-width: 0; }
+  .metric-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700; font-size: 22px;
+    color: var(--text-primary); line-height: 1.1;
+  }
+  .metric-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── Chart panels ── */
+  .chart-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .chart-panel-header {
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-raised);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .chart-panel-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .chart-panel-title .bx { color: var(--accent); font-size: 16px; }
+  .chart-panel-body { padding: 18px; }
+
+  /* ── Quick actions ── */
+  .quick-action {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+  }
+  .quick-action:hover {
+    box-shadow: 0 3px 14px rgba(0,0,0,0.07);
+    border-color: var(--accent-light);
+    transform: translateY(-1px);
+    color: inherit;
+  }
+  .quick-action-icon {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; flex-shrink: 0;
+  }
+  .quick-action-label {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600; font-size: 13px;
+    color: var(--text-primary); line-height: 1.2;
+  }
+  .quick-action-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
+
+  /* ── Activity feed ── */
+  .activity-item {
+    display: flex; gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0; margin-top: 5px;
+  }
+  .dot-teal  { background: var(--accent); }
+  .dot-amber { background: #d97706; }
+  .dot-red   { background: #dc2626; }
+  .dot-blue  { background: #2563eb; }
+  .dot-slate { background: #94a3b8; }
+
+  .activity-text {
+    font-size: 12.5px; color: var(--text-secondary);
+    line-height: 1.4; flex: 1;
+  }
+  .activity-text strong { color: var(--text-primary); font-weight: 600; }
+  .activity-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+  /* ── Stock alert list ── */
+  .stock-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .stock-row:last-child { border-bottom: none; }
+  .stock-name { font-size: 13px; color: var(--text-primary); font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stock-qty  { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+
+  /* ── Table compact ── */
+  .table-compact { font-size: 13px; margin-bottom: 0; }
+  .table-compact thead th {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .table-compact tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    color: var(--text-primary);
+  }
+  .table-compact tbody tr:last-child td { border-bottom: none; }
+  .table-compact tbody tr:hover td { background: var(--bg-hover); }
+
+  /* ── Alert strip ── */
+  .alert-strip {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: var(--radius-md);
+    padding: 11px 15px;
+    display: flex; align-items: center; gap: 9px;
+    font-size: 13px; color: #92400e;
+    margin-bottom: 20px;
+  }
+
+  /* ── Sparkline-like mini bar ── */
+  .mini-bar-wrap { display: flex; align-items: flex-end; gap: 3px; height: 28px; }
+  .mini-bar { background: var(--accent-dim); border-radius: 2px 2px 0 0; flex: 1; min-width: 4px; transition: background 0.2s; }
+  .mini-bar:hover { background: var(--accent-light); }
+
+  /* ── Overdue row highlight ── */
+  .overdue-days { font-weight: 700; color: #dc2626; font-size: 12px; }
+
+  /* ── Tab pills ── */
+  .tab-pills { display: flex; gap: 4px; }
+  .tab-pill {
+    font-size: 12px; font-weight: 600;
+    padding: 4px 12px; border-radius: 99px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .tab-pill.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .tab-content-pane { display: none; }
+  .tab-content-pane.active { display: block; }
+
+  /* ── Progress bar (yield) ── */
+  .yield-bar-wrap { background: var(--bg-raised); border-radius: 99px; height: 6px; overflow: hidden; }
+  .yield-bar { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
+
+  /* ── Phone overrides ── */
+  @media (max-width: 600px) {
+    /* Greeting row: stack buttons below title */
+    .d-flex.align-items-center.justify-content-between.mb-4 {
+      flex-direction: column;
+      align-items: flex-start !important;
+    }
+    .d-flex.gap-2.flex-wrap { width: 100%; }
+    .btn-primary-app, .btn-secondary-app { flex: 1; justify-content: center; }
+
+    /* Date filter: full-width stacked */
+    #dashFilterForm > div {
+      flex-direction: column;
+      align-items: stretch !important;
+      gap: 8px !important;
+    }
+    #dashFilterForm label,
+    #dashFilterForm input[type="date"] {
+      width: 100%;
+    }
+    #dashFilterForm button[type="submit"],
+    #dashFilterForm a {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+    }
+
+    /* Chart panel tabs: wrap */
+    .chart-panel-header { flex-wrap: wrap; gap: 8px; }
+    .tab-pills { flex-wrap: wrap; }
+
+    /* KPI values: slightly smaller on tiny screens */
+    .fin-kpi-value { font-size: 17px; }
+    .metric-value  { font-size: 19px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     GREETING + HEADER ACTIONS
+════════════════════════════════════════════════════════════════ -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+  <div>
+    <div class="db-greeting">
+      Bonjour, <span>{{ request.user.first_name|default:request.user.username }}</span>
+    </div>
+    <div class="db-date">
+      <span id="currentDate"></span> &nbsp;·&nbsp; Exercice {{ today.year }}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if request.user.userprofile.role in 'manager,sales' %}
+    <a href="{% url 'sales:client_dn_create' %}" class="btn-primary-app">
+      <i class="bx bx-plus"></i> Nouveau BL Client
+    </a>
+    {% endif %}
+    {% if request.user.userprofile.role in 'manager,stock_prod' %}
+    <a href="{% url 'production:production_order_create' %}" class="btn-secondary-app">
+      <i class="bx bx-cog"></i> Nouvel OP
+    </a>
+    {% endif %}
+    <a href="{% url 'reporting:reporting_dashboard' %}" class="btn-secondary-app">
+      <i class="bx bx-bar-chart-alt-2"></i> Rapports
+    </a>
+  </div>
+</div>
+
+<!-- Overdue alert strip -->
+{% if overdue_count and overdue_count > 0 %}
+<div class="alert-strip">
+  <i class="bx bx-error" style="font-size:18px;flex-shrink:0;"></i>
+  <span>
+    <strong>{{ overdue_count }} facture{{ overdue_count|pluralize }} client{{ overdue_count|pluralize }}</strong>
+    en retard de paiement —
+    <a href="{% url 'sales:client_invoices_list' %}" style="color:#92400e;font-weight:700;text-decoration:underline;">Voir les factures</a>
+  </span>
+</div>
+{% endif %}
+
+{% if rm_stockout_count and rm_stockout_count > 0 %}
+<div class="alert-strip" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;">
+  <i class="bx bx-x-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <span>
+    <strong>{{ rm_stockout_count }} matière{{ rm_stockout_count|pluralize }}</strong>
+    en rupture de stock —
+    <a href="{% url 'stock:stock_alerts_dashboard' %}" style="color:#991b1b;font-weight:700;text-decoration:underline;">Gérer les alertes</a>
+  </span>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FINANCE KPIs
+════════════════════════════════════════════════════════════════ -->
+{% if request.user.userprofile.role in 'manager,accountant,viewer' %}
+<!-- ═══ Global Date Range Filter ═══ -->
+<form method="get" action="" id="dashFilterForm" class="mb-3">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 16px;">
+    <i class="bx bx-calendar-range" style="color:var(--accent);font-size:18px;flex-shrink:0;"></i>
+    <span style="font-size:12px;font-weight:600;color:var(--text-muted);white-space:nowrap;">Période :</span>
+    <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+      Du
+      <input type="date" name="date_from" value="{{ filter_date_from }}"
+             style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-raised);color:var(--text-primary);">
+    </label>
+    <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;">
+      Au
+      <input type="date" name="date_to" value="{{ filter_date_to }}"
+             style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-raised);color:var(--text-primary);">
+    </label>
+    <button type="submit"
+            style="font-size:12px;padding:5px 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;display:flex;align-items:center;gap:5px;">
+      <i class="bx bx-filter-alt"></i> Appliquer
+    </button>
+    <a href="?" style="font-size:12px;color:var(--text-muted);border:1px solid var(--border);padding:5px 12px;border-radius:var(--radius-sm);text-decoration:none;white-space:nowrap;">
+      Réinitialiser
+    </a>
+    {% if filter_is_custom %}
+    <span style="font-size:11px;background:var(--accent-light);color:var(--accent);padding:3px 8px;border-radius:20px;font-weight:600;white-space:nowrap;">
+      <i class="bx bx-check"></i> Filtre actif
+    </span>
+    {% endif %}
+  </div>
+</form>
+
+<div class="section-label">Finance — {{ filter_date_from }} → {{ filter_date_to }}</div>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">
+    <a href="{% url 'sales:client_invoices_list' %}" class="fin-kpi revenue">
+      <div class="fin-kpi-label"><i class="bx bx-trending-up"></i> Chiffre d'affaires</div>
+      <div class="fin-kpi-value"><span data-money="{{ total_revenue }}" data-money-suffix="">{{ total_revenue|floatformat:2|default:"—"  }}</span> <span class="unit">DA</span></div>
+      <div class="fin-kpi-sub">{{ filter_date_from }} — {{ filter_date_to }}</div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="fin-kpi expense">
+      <div class="fin-kpi-label"><i class="bx bx-trending-down"></i> Charges fournisseurs</div>
+      <div class="fin-kpi-value"><span data-money="{{ total_supplier_charges }}" data-money-suffix="">{{ total_supplier_charges|floatformat:2|default:"—"  }}</span> <span class="unit">DA</span></div>
+      <div class="fin-kpi-sub">{{ filter_date_from }} — {{ filter_date_to }}</div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a href="{% url 'reporting:financial_result_report' %}" class="fin-kpi margin">
+      <div class="fin-kpi-label"><i class="bx bx-dollar-circle"></i> Marge brute</div>
+      <div class="fin-kpi-value"
+        style="color:{% if gross_margin and gross_margin >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+        <span data-money="{{ gross_margin }}" data-money-suffix="">{{ gross_margin|floatformat:2|default:"—"  }}</span> <span class="unit" style="color:var(--text-muted);">DA</span>
+      </div>
+      <div class="fin-kpi-sub">Revenu − Charges fournisseurs</div>
+    </a>
+  </div>
+  <div class="col-6 col-xl-3">
+    <a href="{% url 'sales:client_invoices_list' %}" class="fin-kpi balance">
+      <div class="fin-kpi-label"><i class="bx bx-time-five"></i> Solde clients dû</div>
+      <div class="fin-kpi-value"><span data-money="{{ outstanding_clients }}" data-money-suffix="">{{ outstanding_clients|floatformat:2|default:"—"  }}</span> <span class="unit">DA</span></div>
+      <div class="fin-kpi-sub">
+        Encours —
+        <span style="color:{% if overdue_count > 0 %}#dc2626{% else %}#16a34a{% endif %}; font-weight:700;">
+          {{ overdue_count }} en retard
+        </span>
+      </div>
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     OPS KPIs
+════════════════════════════════════════════════════════════════ -->
+<div class="section-label mt-2">Exploitation</div>
+<div class="row g-3 mb-5">
+  <div class="col-6 col-lg-3">
+    <a href="{% url 'stock:stock_alerts_dashboard' %}" class="metric-card">
+      <div class="metric-icon ic-red"><i class="bx bx-x-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="{% if rm_stockout_count > 0 %}color:#dc2626;{% endif %}">{{ rm_stockout_count|default:"0" }}</div>
+        <div class="metric-label">MP en rupture</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a href="{% url 'stock:stock_alerts_dashboard' %}" class="metric-card">
+      <div class="metric-icon ic-amber"><i class="bx bx-error"></i></div>
+      <div class="metric-body">
+        <div class="metric-value" style="{% if rm_alert_count > 0 %}color:#d97706;{% endif %}">{{ rm_alert_count|default:"0" }}</div>
+        <div class="metric-label">MP en alerte stock</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a href="{% url 'production:production_orders_list' %}" class="metric-card">
+      <div class="metric-icon ic-purple"><i class="bx bx-cog"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">{{ active_production_orders|default:"0" }}</div>
+        <div class="metric-label">Ordres de production actifs</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-3">
+    <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="metric-card">
+      <div class="metric-icon ic-blue"><i class="bx bx-receipt"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">{{ pending_supplier_dns|default:"0" }}</div>
+        <div class="metric-label">BL fournisseurs en attente</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CHARTS ROW — Revenue Trend + Invoice Donut
+════════════════════════════════════════════════════════════════ -->
+{% if request.user.userprofile.role in 'manager,accountant,viewer' %}
+<div class="row g-4 mb-5">
+
+  <!-- Revenue vs Charges (line chart) -->
+  <div class="col-lg-8">
+    <div class="chart-panel h-100">
+      <div class="chart-panel-header" style="flex-wrap:wrap;gap:8px;">
+        <span class="chart-panel-title">
+          <i class="bx bx-line-chart"></i>
+          <span id="revenueChartTitle">Évolution financière — 6 derniers mois</span>
+        </span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="tab-pills" id="revPeriodPills">
+            <button class="tab-pill" data-period="3">3M</button>
+            <button class="tab-pill active" data-period="6">6M</button>
+            <button class="tab-pill" data-period="12">12M</button>
+            <button class="tab-pill" data-period="ytd">Année</button>
+          </div>
+          <a href="{% url 'reporting:financial_result_report' %}" class="btn-secondary-app" style="font-size:12px;padding:4px 12px;">
+            Rapport complet
+          </a>
+        </div>
+      </div>
+      <div class="chart-panel-body" style="position:relative;">
+        <div id="revenueChartLoader" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.7);display:flex;align-items:center;justify-content:center;z-index:10;border-radius:var(--radius-lg);">
+          <span style="font-size:12px;color:var(--text-muted);">Chargement…</span>
+        </div>
+        <canvas id="revenueChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invoice status donut -->
+  <div class="col-lg-4">
+    <div class="chart-panel h-100">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title">
+          <i class="bx bx-pie-chart-alt-2"></i>
+          Statuts factures
+        </span>
+        <a href="{% url 'sales:client_invoices_list' %}" class="btn-secondary-app" style="font-size:12px;padding:4px 12px;">
+          Voir tout
+        </a>
+      </div>
+      <div class="chart-panel-body d-flex flex-column align-items-center">
+        <canvas id="invoiceStatusChart" height="180" style="max-width:200px;"></canvas>
+        <div style="margin-top:14px;width:100%;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:11.5px;">
+            {% for label in inv_legend_labels %}
+            <div style="display:flex;align-items:center;gap:6px;color:var(--text-secondary);">
+              <span id="dot-inv-{{ forloop.counter0 }}" style="width:9px;height:9px;border-radius:50%;display:inline-block;background:#ccc;flex-shrink:0;"></span>
+              {{ label }}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MAIN 3-COLUMN GRID
+════════════════════════════════════════════════════════════════ -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-3">
+    <div class="section-label">Actions rapides</div>
+    <div class="d-flex flex-column gap-2">
+
+      {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'stock_prod' %}
+      <a href="{% url 'supplier_ops:supplier_dn_create' %}" class="quick-action">
+        <div class="quick-action-icon ic-teal"><i class="bx bx-receipt"></i></div>
+        <div>
+          <div class="quick-action-label">Réceptionner un BL</div>
+          <div class="quick-action-sub">Nouveau BL fournisseur</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+      <a href="{% url 'production:production_order_create' %}" class="quick-action">
+        <div class="quick-action-icon ic-purple"><i class="bx bx-cog"></i></div>
+        <div>
+          <div class="quick-action-label">Lancer une production</div>
+          <div class="quick-action-sub">Créer un ordre de production</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+      <a href="{% url 'stock:stock_adjustment_create' %}" class="quick-action">
+        <div class="quick-action-icon ic-slate"><i class="bx bx-slider-alt"></i></div>
+        <div>
+          <div class="quick-action-label">Ajustement stock</div>
+          <div class="quick-action-sub">Correction inventaire</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+      {% endif %}
+
+      {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'sales' %}
+      <a href="{% url 'sales:client_dn_create' %}" class="quick-action">
+        <div class="quick-action-icon ic-green"><i class="bx bx-send"></i></div>
+        <div>
+          <div class="quick-action-label">Créer un BL Client</div>
+          <div class="quick-action-sub">Nouvelle livraison</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+      <a href="{% url 'sales:client_invoice_create' %}" class="quick-action">
+        <div class="quick-action-icon ic-teal"><i class="bx bx-spreadsheet"></i></div>
+        <div>
+          <div class="quick-action-label">Créer une facture</div>
+          <div class="quick-action-sub">Facture client</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+      {% endif %}
+
+      {% if request.user.userprofile.role == 'manager' or request.user.userprofile.role == 'accountant' %}
+      <a href="{% url 'supplier_ops:supplier_invoice_create' %}" class="quick-action">
+        <div class="quick-action-icon ic-blue"><i class="bx bx-file"></i></div>
+        <div>
+          <div class="quick-action-label">Saisir facture fournisseur</div>
+          <div class="quick-action-sub">Comptabilité achats</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+      <a href="{% url 'expenses:expense_create' %}" class="quick-action">
+        <div class="quick-action-icon ic-amber"><i class="bx bx-wallet"></i></div>
+        <div>
+          <div class="quick-action-label">Enregistrer une dépense</div>
+          <div class="quick-action-sub">Dépense opérationnelle</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+      {% endif %}
+
+      <a href="{% url 'reporting:reporting_dashboard' %}" class="quick-action">
+        <div class="quick-action-icon ic-slate"><i class="bx bx-bar-chart-alt-2"></i></div>
+        <div>
+          <div class="quick-action-label">Tableaux de bord</div>
+          <div class="quick-action-sub">Rapports & analyse</div>
+        </div>
+        <i class="bx bx-chevron-right ms-auto" style="color:var(--text-muted);"></i>
+      </a>
+
+    </div>
+
+    <!-- Production status mini-chart (middle-left) -->
+    {% if po_status_data %}
+    <div class="section-label mt-4">Production</div>
+    <div class="chart-panel">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-bar-chart"></i> Ordres par statut</span>
+        <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app" style="font-size:11px;padding:3px 10px;">Voir</a>
+      </div>
+      <div class="chart-panel-body" style="padding:14px 16px;">
+        <canvas id="poStatusChart" height="130"></canvas>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- MIDDLE: Tabbed panel — Stock alerts / Overdue invoices / Recent orders -->
+  <div class="col-lg-5">
+    <div class="chart-panel">
+      <div class="chart-panel-header" style="flex-wrap:wrap;gap:8px;">
+        <span class="chart-panel-title"><i class="bx bx-table"></i> Suivi opérationnel</span>
+        <div class="tab-pills">
+          <button class="tab-pill active" data-tab="stock">Stock</button>
+          {% if request.user.userprofile.role in 'manager,accountant,viewer' %}
+          <button class="tab-pill" data-tab="overdue">Retards</button>
+          {% endif %}
+          <button class="tab-pill" data-tab="orders">OP</button>
+        </div>
+      </div>
+
+      <!-- STOCK ALERTS TAB -->
+      <div class="tab-content-pane active" id="tab-stock">
+        <div style="padding:0 16px;">
+          {% if low_stock_materials %}
+            <table class="table table-compact" style="margin:0;">
+              <thead>
+                <tr>
+                  <th>Référence</th>
+                  <th>Désignation</th>
+                  <th class="text-end">Qté</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in low_stock_materials %}
+                <tr>
+                  <td>
+                    <a href="{% url 'stock:raw_material_stock_detail' item.id %}" class="col-ref">{{ item.reference }}</a>
+                  </td>
+                  <td class="text-truncate" style="max-width:130px;" title="{{ item.designation }}">{{ item.designation }}</td>
+                  <td class="text-end" style="white-space:nowrap;font-weight:600;">
+                    {{ item.get_current_stock|floatformat:2 }}
+                    <span style="font-size:11px;color:var(--text-muted);">{{ item.unit_of_measure.symbol }}</span>
+                  </td>
+                  <td>
+                    {% with status=item.get_stock_status %}
+                    {% if status == 'stockout' %}
+                      <span class="badge-rupture"><i class="bx bx-x-circle"></i> Rupture</span>
+                    {% elif status == 'running_low' %}
+                      <span class="badge-presque"><i class="bx bx-error"></i> Alerte</span>
+                    {% endif %}
+                    {% endwith %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty-state" style="padding:36px 0;">
+              <div class="empty-icon" style="font-size:36px;"><i class="bx bx-check-shield"></i></div>
+              <div class="empty-title">Stocks en ordre</div>
+              <div class="empty-desc">Aucune alerte de stock active.</div>
+            </div>
+          {% endif %}
+        </div>
+        {% if low_stock_materials %}
+        <div style="padding:10px 16px;border-top:1px solid var(--border);background:var(--bg-raised);text-align:right;">
+          <a href="{% url 'stock:stock_alerts_dashboard' %}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
+            Toutes les alertes <i class="bx bx-right-arrow-alt"></i>
+          </a>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- OVERDUE INVOICES TAB -->
+      {% if request.user.userprofile.role in 'manager,accountant,viewer' %}
+      <div class="tab-content-pane" id="tab-overdue">
+        <div style="padding:0 16px;">
+          {% if overdue_invoices %}
+            <table class="table table-compact" style="margin:0;">
+              <thead>
+                <tr>
+                  <th>Référence</th>
+                  <th>Client</th>
+                  <th class="text-end">Solde dû</th>
+                  <th>Retard</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for inv in overdue_invoices %}
+                <tr>
+                  <td>
+                    <a href="{% url 'sales:client_invoice_detail' inv.id %}" class="col-ref">{{ inv.reference }}</a>
+                  </td>
+                  <td class="text-truncate" style="max-width:110px;" title="{{ inv.client.name }}">{{ inv.client.name }}</td>
+                  <td class="text-end col-amount" style="color:#dc2626;">
+                    <span data-money="{{ inv.balance_due }}" data-money-suffix="">{{ inv.balance_due|floatformat:2 }}</span>
+                    <span style="font-size:11px;color:var(--text-muted);">DA</span>
+                  </td>
+                  <td>
+                    <span class="overdue-days">
+                      +{{ today|timeuntil:inv.due_date|default:"?" }}j
+                    </span>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty-state" style="padding:36px 0;">
+              <div class="empty-icon" style="font-size:36px;"><i class="bx bx-check-circle"></i></div>
+              <div class="empty-title">Aucun retard</div>
+              <div class="empty-desc">Toutes les factures sont à jour.</div>
+            </div>
+          {% endif %}
+        </div>
+        {% if overdue_invoices %}
+        <div style="padding:10px 16px;border-top:1px solid var(--border);background:var(--bg-raised);text-align:right;">
+          <a href="{% url 'reporting:receivables_aging_report' %}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
+            Analyse des créances <i class="bx bx-right-arrow-alt"></i>
+          </a>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- PRODUCTION ORDERS TAB -->
+      <div class="tab-content-pane" id="tab-orders">
+        <div style="padding:0 16px;">
+          {% if recent_production_orders %}
+            <table class="table table-compact" style="margin:0;">
+              <thead>
+                <tr>
+                  <th>Référence</th>
+                  <th>Formulation</th>
+                  <th class="text-end">Qté</th>
+                  <th>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for po in recent_production_orders %}
+                <tr>
+                  <td>
+                    <a href="{% url 'production:production_order_detail' po.id %}" class="col-ref">{{ po.reference }}</a>
+                  </td>
+                  <td class="text-truncate" style="max-width:120px;" title="{{ po.formulation.name }}">{{ po.formulation.name }}</td>
+                  <td class="text-end" style="font-weight:600;">{{ po.quantity_planned|floatformat:0 }}</td>
+                  <td>
+                    {% if po.status == 'pending' %}
+                      <span class="badge-en-attente">En attente</span>
+                    {% elif po.status == 'launched' %}
+                      <span class="badge-commande">Lancé</span>
+                    {% elif po.status == 'in_progress' %}
+                      <span class="badge-partiellement">En cours</span>
+                    {% elif po.status == 'closed' %}
+                      <span class="badge-valide">Fermé</span>
+                    {% elif po.status == 'cancelled' %}
+                      <span class="badge-annule">Annulé</span>
+                    {% else %}
+                      <span class="badge-en-attente">{{ po.status }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <div class="empty-state" style="padding:36px 0;">
+              <div class="empty-icon" style="font-size:36px;"><i class="bx bx-cog"></i></div>
+              <div class="empty-title">Aucun ordre récent</div>
+              <div class="empty-desc">Aucun ordre de production récent.</div>
+            </div>
+          {% endif %}
+        </div>
+        {% if recent_production_orders %}
+        <div style="padding:10px 16px;border-top:1px solid var(--border);background:var(--bg-raised);text-align:right;">
+          <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app" style="font-size:12px;padding:5px 12px;">
+            Tous les ordres <i class="bx bx-right-arrow-alt"></i>
+          </a>
+        </div>
+        {% endif %}
+      </div>
+
+    </div><!-- /chart-panel -->
+
+    <!-- Expenses Doughnut -->
+    {% if request.user.userprofile.role in 'manager,accountant' %}
+    <div class="chart-panel mt-4">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-wallet"></i> Dépenses par catégorie</span>
+        <a href="{% url 'reporting:expense_breakdown_report' %}" class="btn-secondary-app" style="font-size:12px;padding:4px 12px;">Rapport</a>
+      </div>
+      <div class="chart-panel-body">
+        {% if total_expenses_ytd and total_expenses_ytd > 0 %}
+          <canvas id="expensesChart" height="140"></canvas>
+          <div style="margin-top:10px;text-align:center;font-size:11px;color:var(--text-muted);">
+            Total : <strong style="color:var(--text-primary);"><span data-money="{{ total_expenses_ytd }}" data-money-suffix=" DA">{{ total_expenses_ytd|floatformat:2 }} DA</span></strong>
+          </div>
+        {% else %}
+          <div class="empty-state" style="padding:28px 0;">
+            <div class="empty-icon" style="font-size:32px;"><i class="bx bx-wallet"></i></div>
+            <div class="empty-title" style="font-size:13px;">Aucune dépense sur cette période</div>
+            <div class="empty-desc" style="font-size:12px;">Modifiez la période ou enregistrez une dépense.</div>
+            <a href="{% url 'expenses:expense_create' %}" class="btn-primary-app" style="font-size:12px;padding:6px 14px;margin-top:10px;display:inline-block;">
+              <i class="bx bx-plus"></i> Enregistrer une dépense
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- RIGHT: Activity feed -->
+  <div class="col-lg-4">
+    <div class="section-label">Activité récente</div>
+    <div class="chart-panel">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-history"></i> Journal des actions</span>
+        {% if request.user.userprofile.role == 'manager' %}
+        <a href="{% url 'accounts:audit_log' %}" class="btn-secondary-app" style="font-size:12px;padding:4px 12px;">
+          Journal complet
+        </a>
+        {% endif %}
+      </div>
+      <div style="padding:4px 18px 8px;">
+        {% if recent_activity %}
+          {% for log in recent_activity %}
+          <div class="activity-item">
+            <div class="activity-dot
+              {% if log.action_type == 'create' %}dot-teal
+              {% elif log.action_type == 'validate' %}dot-teal
+              {% elif log.action_type == 'cancel' %}dot-slate
+              {% elif log.action_type == 'pay' %}dot-blue
+              {% elif log.action_type == 'failed_login' %}dot-red
+              {% elif log.action_type == 'delete' %}dot-red
+              {% elif log.action_type == 'update' %}dot-amber
+              {% else %}dot-slate{% endif %}"></div>
+            <div class="activity-text">
+              <strong>{{ log.user.get_full_name|default:log.user.username }}</strong>
+              — {{ log.get_action_type_display }}
+              <span style="color:var(--text-muted);">{{ log.entity_type }}</span>
+              {% if log.entity_reference %}
+              <a href="#" class="col-ref" style="font-size:11.5px;">#{{ log.entity_reference }}</a>
+              {% endif %}
+            </div>
+            <div class="activity-time">
+              {{ log.timestamp|date:"d/m" }}<br>
+              <span style="font-size:10px;">{{ log.timestamp|date:"H:i" }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state" style="padding:32px 0;">
+            <div class="empty-icon" style="font-size:32px;"><i class="bx bx-history"></i></div>
+            <div class="empty-title" style="font-size:14px;">Aucune activité récente</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Navigation rapide (shortcuts grid) -->
+    <div class="section-label mt-4">Navigation</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <a href="{% url 'catalog:raw_materials_list' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-teal" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-cube"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Matières premières</div>
+      </a>
+      <a href="{% url 'catalog:finished_products_list' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-green" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-package"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Produits finis</div>
+      </a>
+      <a href="{% url 'clients:clients_list' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-blue" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-group"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Clients</div>
+      </a>
+      <a href="{% url 'suppliers:suppliers_list' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-amber" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-store"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Fournisseurs</div>
+      </a>
+      <a href="{% url 'stock:raw_materials_stock_list' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-purple" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-box"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Stock RM</div>
+      </a>
+      <a href="{% url 'stock:finished_products_stock_list' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-slate" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-archive"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Stock PF</div>
+      </a>
+      <a href="{% url 'expenses:expenses_list' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-red" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-wallet"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Dépenses</div>
+      </a>
+      {% if request.user.userprofile.role == 'manager' %}
+      <a href="{% url 'core:system_parameters' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-slate" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-slider-alt"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Paramètres</div>
+      </a>
+      {% else %}
+      <a href="{% url 'reporting:stock_valuation_report' %}" class="metric-card" style="padding:12px 14px;flex-direction:column;gap:6px;align-items:flex-start;">
+        <div class="metric-icon ic-orange" style="width:32px;height:32px;font-size:15px;"><i class="bx bx-line-chart"></i></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-primary);line-height:1.2;">Valorisation</div>
+      </a>
+      {% endif %}
+    </div>
+
+  </div>
+
+</div><!-- /row -->
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+<script>
+/* ── Date ── */
+(function(){
+  var el = document.getElementById('currentDate');
+  if(el){
+    el.textContent = new Date().toLocaleDateString('fr-DZ',{
+      weekday:'long', year:'numeric', month:'long', day:'numeric'
+    });
+  }
+})();
+
+/* ── Tabs ── */
+(function(){
+  document.querySelectorAll('.tab-pill').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var tab = btn.dataset.tab;
+      btn.closest('.chart-panel').querySelectorAll('.tab-pill').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      btn.closest('.chart-panel').querySelectorAll('.tab-content-pane').forEach(function(p){ p.classList.remove('active'); });
+      var pane = document.getElementById('tab-' + tab);
+      if(pane) pane.classList.add('active');
+    });
+  });
+})();
+
+{% if request.user.userprofile.role in 'manager,accountant,viewer' %}
+/* ── Revenue vs Charges Line Chart (with period filter) ── */
+(function(){
+  var ctx = document.getElementById('revenueChart');
+  if(!ctx) return;
+
+  var initialMonths  = {{ chart_months|safe }};
+  var initialRevenue = {{ chart_revenue|safe }};
+  var initialCharges = {{ chart_charges|safe }};
+
+  var periodLabels = { '3':'3 derniers mois', '6':'6 derniers mois', '12':'12 derniers mois', 'ytd':'Année en cours' };
+
+  var chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: initialMonths,
+      datasets: [
+        {
+          label: 'Chiffre d\'affaires',
+          data: initialRevenue,
+          borderColor: '#0f766e',
+          backgroundColor: 'rgba(15,118,110,0.08)',
+          borderWidth: 2.5,
+          tension: 0.35,
+          fill: true,
+          pointBackgroundColor: '#0f766e',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        },
+        {
+          label: 'Charges fournisseurs',
+          data: initialCharges,
+          borderColor: '#dc2626',
+          backgroundColor: 'rgba(220,38,38,0.05)',
+          borderWidth: 2,
+          tension: 0.35,
+          fill: true,
+          pointBackgroundColor: '#dc2626',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { boxWidth: 10, font: { size: 12, family: "'Plus Jakarta Sans', sans-serif" } }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(c){ return ' ' + c.dataset.label + ': ' + Number(c.raw).toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DA'; }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 11 } } },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { font: { size: 11 }, callback: function(v){ return Number(v).toLocaleString('fr-DZ'); } }
+        }
+      }
+    }
+  });
+
+  /* Period pill click */
+  document.querySelectorAll('#revPeriodPills .tab-pill').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('#revPeriodPills .tab-pill').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      var period = btn.dataset.period;
+      var titleEl = document.getElementById('revenueChartTitle');
+      if(titleEl) titleEl.textContent = 'Évolution financière — ' + periodLabels[period];
+
+      var loader = document.getElementById('revenueChartLoader');
+      if(loader) loader.style.display = 'flex';
+
+      fetch('{% url "core:chart_data_ajax" %}?period=' + period, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        chart.data.labels = d.months;
+        chart.data.datasets[0].data = d.revenue;
+        chart.data.datasets[1].data = d.charges;
+        chart.update('active');
+      })
+      .catch(function(){ /* silently ignore */ })
+      .finally(function(){
+        if(loader) loader.style.display = 'none';
+      });
+    });
+  });
+})();
+
+/* ── Invoice Status Donut ── */
+(function(){
+  var ctx = document.getElementById('invoiceStatusChart');
+  if(!ctx) return;
+  var colors = ['#94a3b8','#0f766e','#2563eb','#16a34a','#dc2626','#e2e8f0'];
+  var labels = ['Brouillon','Validé','Part. payé','Payé','En retard','Annulé'];
+  var data   = {{ inv_status_data|safe }};
+
+  colors.forEach(function(c, i){
+    var dot = document.getElementById('dot-inv-' + i);
+    if(dot) dot.style.background = c;
+  });
+
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: '#fff',
+        hoverOffset: 4,
+      }]
+    },
+    options: {
+      cutout: '68%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(c){ return ' ' + c.label + ': ' + c.raw; }
+          }
+        }
+      }
+    }
+  });
+})();
+{% endif %}
+
+/* ── Production Orders Bar Chart ── */
+(function(){
+  var ctx = document.getElementById('poStatusChart');
+  if(!ctx) return;
+  var labels = {{ po_status_labels|safe }};
+  var data   = {{ po_status_data|safe }};
+  var colors = ['#94a3b8','#2563eb','#7c3aed','#16a34a','#dc2626'];
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: colors,
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 }, stepSize: 1 } }
+      }
+    }
+  });
+})();
+
+/* ── Expenses Doughnut ── */
+(function(){
+  var ctx = document.getElementById('expensesChart');
+  if(!ctx) return;
+  var labels = {{ exp_labels|safe }};
+  var data   = {{ exp_data|safe }};
+  if(!data || !data.length) return;
+  var palette = ['#0f766e','#2563eb','#d97706','#dc2626','#7c3aed','#94a3b8'];
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: palette.slice(0, data.length),
+        borderWidth: 2, borderColor: '#fff', hoverOffset: 4,
+      }]
+    },
+    options: {
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 10, font: { size: 11 }, padding: 10 } },
+        tooltip: { callbacks: { label: function(c){ return ' ' + c.label + ': ' + Number(c.raw).toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DA'; } } }
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

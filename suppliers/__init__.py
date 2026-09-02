@@ -1,0 +1,1 @@
+# Suppliers app for supplier directory management

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Registre des échantillons — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item active">Qualité / Laboratoire</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="page-title mb-0">Registre des échantillons</h1>
+    <p class="text-muted small mb-0">{{ samples|length }} échantillon(s)</p>
+  </div>
+  <a href="{% url 'quality:ncr_list' %}" class="btn-secondary-app">
+    <i class="bx bx-error-circle me-1"></i> Non-Conformités
+  </a>
+</div>
+
+<form method="get" class="filter-bar mb-3 d-flex gap-2">
+  <select name="gate" class="form-control-app">
+    <option value="">Tous les gates</option>
+    <option value="A" {% if request.GET.gate == 'A' %}selected{% endif %}>Gate A — Réception MP</option>
+    <option value="B" {% if request.GET.gate == 'B' %}selected{% endif %}>Gate B — En cours</option>
+    <option value="C" {% if request.GET.gate == 'C' %}selected{% endif %}>Gate C — Post-production</option>
+  </select>
+  <select name="status" class="form-control-app">
+    <option value="">Tous les statuts</option>
+    {% for val, label in status_choices %}
+    <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-secondary-app">Filtrer</button>
+</form>
+
+<div class="table-container">
+  <table class="table table-hover mb-0">
+    <thead>
+      <tr>
+        <th>Référence</th>
+        <th>Gate</th>
+        <th>Cible</th>
+        <th>Spécification</th>
+        <th>Prélevé par</th>
+        <th>Prélevé le</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in samples %}
+      <tr onclick="window.location='{% url 'quality:sample_detail' s.id %}'" style="cursor:pointer;">
+        <td><strong>{{ s.reference }}</strong></td>
+        <td>{{ s.get_control_point_display }}</td>
+        <td>{{ s.quality_specification.target }}</td>
+        <td>v{{ s.quality_specification.version }}</td>
+        <td>{{ s.sampled_by.username }}</td>
+        <td>{{ s.sampled_at|date:"d/m/Y H:i" }}</td>
+        <td>
+          {% if s.status == 'conforming' %}<span class="badge-valide">Conforme</span>
+          {% elif s.status == 'non_conforming' %}<span class="badge-annule">Non conforme</span>
+          {% elif s.status == 'conditionally_accepted' %}<span class="badge-commande">Dérogation</span>
+          {% else %}<span class="badge-en-attente">{{ s.get_status_display }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-center text-muted py-4">Aucun échantillon.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

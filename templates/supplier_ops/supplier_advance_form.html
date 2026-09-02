@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:suppliers_list' %}">Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}">{{ supplier.code }}</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Avance</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+#advance-form input[type=date], #advance-form input[type=number],
+#advance-form select, #advance-form textarea {
+  display:block; width:100%; padding:8px 12px; font-size:13px; font-family:inherit;
+  color:var(--text-primary); background:var(--bg-surface);
+  border:1px solid var(--border-strong); border-radius:var(--radius-sm);
+  outline:none; transition:border-color .15s, box-shadow .15s;
+}
+#advance-form input:focus, #advance-form select:focus, #advance-form textarea:focus {
+  border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent);
+}
+.field-error { color:#dc2626; font-size:12px; margin-top:3px; }
+
+.preview-card { background:var(--bg-raised); border-radius:var(--radius-sm); padding:14px 16px; margin-top:16px; }
+.preview-row { display:flex; align-items:center; justify-content:space-between; font-size:12.5px; padding:6px 0; }
+.preview-row + .preview-row { border-top:1px solid var(--border-strong); }
+.preview-label { color:var(--text-muted); }
+.preview-value { font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; }
+.preview-value.accent { color:var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Enregistrer une avance fournisseur</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">
+      {{ supplier.raison_sociale }} · §23 planifié — sera consommée automatiquement, oldest-first, sur la prochaine facture
+    </p>
+  </div>
+  <a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-wallet ic-teal me-2" style="font-size:16px;"></i>Nouvelle avance</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px;">
+          Une somme payée avant qu'une facture n'existe (ex. chèque remis en acompte pour une commande à venir).
+          Elle restera disponible jusqu'à ce qu'une nouvelle facture pour ce fournisseur vienne l'absorber.
+        </p>
+        <form method="post" id="advance-form">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert-banner alert-banner-error mb-3">
+            {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+          </div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-app">Montant (DA) <span style="color:#dc2626">*</span></label>
+              {{ form.amount }}
+              {% if form.amount.errors %}<div class="field-error">{{ form.amount.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Date <span style="color:#dc2626">*</span></label>
+              {{ form.date }}
+              {% if form.date.errors %}<div class="field-error">{{ form.date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Mode de paiement <span style="color:#dc2626">*</span></label>
+              {{ form.payment_method }}
+              {% if form.payment_method.errors %}<div class="field-error">{{ form.payment_method.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Notes</label>
+              {{ form.notes }}
+            </div>
+            <div class="col-12 mt-2">
+              <button type="submit" class="btn-primary-app w-100">
+                <i class="bx bx-check-circle"></i> Enregistrer l'avance
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div class="preview-card" id="advance-preview">
+          <div class="preview-row">
+            <span class="preview-label">Avance disponible actuellement</span>
+            <span class="preview-value" id="preview-current"><span data-money="{{ available_advance_total }}" data-money-suffix=" DA">{{ available_advance_total|floatformat:2 }} DA</span></span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">Avance disponible après enregistrement</span>
+            <span class="preview-value accent" id="preview-after"><span data-money="{{ available_advance_total }}" data-money-suffix=" DA">{{ available_advance_total|floatformat:2 }} DA</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  var CURRENT = {{ available_advance_total|default_if_none:0 }};
+  var amountInput = document.querySelector('input[name="amount"]');
+  var afterEl = document.getElementById('preview-after');
+  if (!amountInput || !afterEl) return;
+
+  function refresh() {
+    var entered = parseFloat(amountInput.value) || 0;
+    var after = CURRENT + entered;
+    afterEl.textContent = after.toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DA';
+  }
+
+  amountInput.addEventListener('input', refresh);
+  refresh();
+})();
+</script>
+{% endblock %}

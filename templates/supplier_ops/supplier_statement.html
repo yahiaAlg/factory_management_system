@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:suppliers_list' %}">Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}">{{ supplier.code }}</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Relevé de compte</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.stmt-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.stmt-table th { text-align:left; padding:8px 10px; color:var(--text-muted); font-weight:600; border-bottom:1px solid var(--border-strong); }
+.stmt-table td { padding:8px 10px; border-bottom:1px solid var(--border-subtle, var(--border-strong)); }
+.stmt-table tr.ob-row td { font-weight:700; background:color-mix(in srgb,var(--accent) 6%,transparent); }
+.amt-debit { color:#dc2626; font-weight:600; }
+.amt-credit { color:#16a34a; font-weight:600; }
+.stmt-filter input[type=date] {
+  padding:6px 10px; font-size:12.5px; border:1px solid var(--border-strong);
+  border-radius:var(--radius-sm); background:var(--bg-surface); color:var(--text-primary);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Relevé de compte fournisseur</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">
+      {{ supplier.raison_sociale }} · §23 planifié
+    </p>
+  </div>
+  <a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<form method="get" class="stmt-filter d-flex align-items-center gap-2 mb-4">
+  <label class="form-label-app mb-0">Du</label>
+  <input type="date" name="date_start" value="{{ date_start|date:'Y-m-d' }}">
+  <label class="form-label-app mb-0">Au</label>
+  <input type="date" name="date_end" value="{{ date_end|date:'Y-m-d' }}">
+  <button type="submit" class="btn-secondary-app">Filtrer</button>
+</form>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card-app card-app-body" style="padding:16px;">
+      <div style="font-size:11.5px;color:var(--text-muted);">Solde initial</div>
+      <div style="font-size:20px;font-weight:700;"><span data-money="{{ statement.opening_balance }}" data-money-suffix=" DA">{{ statement.opening_balance|floatformat:2 }} DA</span></div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card-app card-app-body" style="padding:16px;">
+      <div style="font-size:11.5px;color:var(--text-muted);">Total débit / crédit (période)</div>
+      <div style="font-size:20px;font-weight:700;">
+        <span class="amt-debit"><span data-money="{{ statement.total_debit }}" data-money-suffix="">{{ statement.total_debit|floatformat:2 }}</span></span> /
+        <span class="amt-credit"><span data-money="{{ statement.total_credit }}" data-money-suffix="">{{ statement.total_credit|floatformat:2 }}</span></span> DA
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card-app card-app-body" style="padding:16px;">
+      <div style="font-size:11.5px;color:var(--text-muted);">Solde final</div>
+      <div style="font-size:20px;font-weight:700;color:var(--accent);"><span data-money="{{ statement.closing_balance }}" data-money-suffix=" DA">{{ statement.closing_balance|floatformat:2 }} DA</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="card-app mb-4">
+  <div class="card-app-header">
+    <span class="card-app-title"><i class="bx bx-list-ul ic-blue me-2" style="font-size:16px;"></i>Mouvements chronologiques</span>
+  </div>
+  <div class="card-app-body" style="padding:0;">
+    <table class="stmt-table">
+      <thead>
+        <tr>
+          <th>Date</th><th>Référence</th><th>Type</th>
+          <th style="text-align:right;">Débit</th><th style="text-align:right;">Crédit</th><th style="text-align:right;">Solde</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="ob-row">
+          <td colspan="5">Solde initial</td>
+          <td style="text-align:right;"><span data-money="{{ statement.opening_balance }}" data-money-suffix=" DA">{{ statement.opening_balance|floatformat:2 }} DA</span></td>
+        </tr>
+        {% for line in statement.lines %}
+        <tr>
+          <td>{{ line.date|date:"d/m/Y" }}</td>
+          <td>{{ line.reference }}</td>
+          <td>
+            {% if line.type == "invoice" %}
+              Facture{% if line.is_opening_balance %} <span style="color:var(--text-muted);">(ouverture)</span>{% endif %}
+            {% elif line.type == "advance" %}
+              Avance — {{ line.status_display }}
+            {% else %}
+              Paiement — {{ line.status_display }}
+            {% endif %}
+          </td>
+          <td style="text-align:right;" class="amt-debit">{% if line.debit %}<span data-money="{{ line.debit }}" data-money-suffix="">{{ line.debit|floatformat:2 }}</span>{% endif %}</td>
+          <td style="text-align:right;" class="amt-credit">{% if line.credit %}<span data-money="{{ line.credit }}" data-money-suffix="">{{ line.credit|floatformat:2 }}</span>{% endif %}</td>
+          <td style="text-align:right;"><span data-money="{{ line.balance }}" data-money-suffix=" DA">{{ line.balance|floatformat:2 }} DA</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Aucun mouvement sur la période.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card-app">
+  <div class="card-app-header">
+    <span class="card-app-title"><i class="bx bx-package ic-orange me-2" style="font-size:16px;"></i>Livraisons non facturées</span>
+    <span style="font-size:11.5px;color:var(--text-muted);">Informationnel — sans effet sur le solde</span>
+  </div>
+  <div class="card-app-body">
+    {% if statement.unbilled_dns %}
+    <ul style="margin:0;padding-left:18px;font-size:12.5px;">
+      {% for dn in statement.unbilled_dns %}
+      <li>{{ dn.reference }} — {{ dn.delivery_date|date:"d/m/Y" }} — <span data-money="{{ dn.total_amount_ht }}" data-money-suffix=" DA">{{ dn.total_amount_ht|floatformat:2 }} DA</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color:var(--text-muted);font-size:12.5px;margin:0;">Aucune livraison en attente de facturation.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

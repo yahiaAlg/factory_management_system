@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'quality:quality_dashboard' %}">Qualité</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'quality:sampling_plan_list' %}">Plans d'échantillonnage</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ title }}</span>
+{% endblock %}
+
+{% block content %}
+<h1 class="page-title mb-3">{{ title }}</h1>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="card-app" style="max-width:760px;">
+  <div class="card-app-body">
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="alert-banner alert-banner-error mb-3">
+        {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label-app">Point de contrôle <span class="required">*</span></label>
+          {{ form.control_point }}
+          {% if form.control_point.errors %}<div class="form-error">{{ form.control_point.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Matière première</label>
+          {{ form.raw_material }}
+          <div class="form-hint">Gate A uniquement</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Produit fini</label>
+          {{ form.finished_product }}
+          <div class="form-hint">Gate B/C uniquement — laissez tout vide pour un plan "toute cible"</div>
+        </div>
+        {% if form.non_field_errors %}{% endif %}
+        <div class="col-md-6">
+          <label class="form-label-app">Déclencheur</label>
+          {{ form.trigger_description }}
+          <div class="form-hint">Ex : « par ligne de BL », « après mélange », « par OP terminé »</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label-app">Points de contrôle (Gate B)</label>
+          {{ form.checkpoint_labels }}
+          <div class="form-hint">Libellés séparés par des virgules, ex : Après mélange, Avant conditionnement</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label-app">Règle de taille d'échantillon</label>
+          {{ form.sample_size_rule }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-app">Fréquence</label>
+          {{ form.frequency }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label-app">N (si « toutes les N »)</label>
+          {{ form.frequency_n }}
+        </div>
+        <div class="col-12 d-flex align-items-center gap-2">
+          {{ form.is_active }}
+          <label class="form-label-app mb-0" for="{{ form.is_active.id_for_label }}">Plan actif</label>
+        </div>
+        <div class="col-12">
+          <label class="form-label-app">Motif de désactivation (BR-QA-12)</label>
+          {{ form.deactivated_reason }}
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn-primary-app"><i class="bx bx-save me-1"></i> Enregistrer</button>
+        <a href="{% url 'quality:sampling_plan_list' %}" class="btn-secondary-app">Annuler</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

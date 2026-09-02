@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Encaissement — {{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoices_list' %}">Factures Clients</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoice_detail' invoice_id=invoice.id %}">{{ invoice.reference }}</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Encaissement</span>
+{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+  <div class="section-eyebrow">ENCAISSEMENT CLIENT</div>
+  <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin:4px 0 0;">Enregistrer un encaissement</h1>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:flex-start;">
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+        <i class="bx bx-money" style="color:var(--accent);margin-right:6px;"></i> Détails de l'encaissement
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Date d'encaissement <span style="color:#dc2626;">*</span></label>
+          {{ form.payment_date }}
+          {% if form.payment_date.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.payment_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Mode de paiement <span style="color:#dc2626;">*</span></label>
+          {{ form.payment_method }}
+          {% if form.payment_method.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.payment_method.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Montant (DA) <span style="color:#dc2626;">*</span></label>
+          {{ form.amount }}
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Solde dû : <strong style="color:var(--text-primary);"><span data-money="{{ invoice.balance_due }}" data-money-suffix=" DA">{{ invoice.balance_due|floatformat:2 }} DA</span></strong></div>
+          {% if form.amount.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.amount.errors.0 }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Référence bancaire / N° chèque</label>
+          {{ form.bank_reference }}
+          {% if form.bank_reference.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ form.bank_reference.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+      {% if form.non_field_errors %}
+      <div style="margin-top:14px;padding:10px 14px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.2);border-radius:var(--radius-sm);font-size:13px;color:#dc2626;">
+        {{ form.non_field_errors.0 }}
+      </div>
+      {% endif %}
+
+      <div style="margin-top:22px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:12px;">
+          <i class="bx bx-paperclip" style="margin-right:4px;"></i>Document justificatif <span style="color:var(--text-muted); font-weight:400; font-size:12px;">(optionnel)</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div>
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Type de document</label>
+            {{ doc_form.doc_type }}
+            {% if doc_form.doc_type.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ doc_form.doc_type.errors.0 }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Description</label>
+            {{ doc_form.description }}
+            {% if doc_form.description.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ doc_form.description.errors.0 }}</div>{% endif %}
+          </div>
+          <div style="grid-column:1 / -1;">
+            <label style="font-size:12px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.02em;">Fichier joint</label>
+            {{ doc_form.file }}
+            {% if doc_form.file.help_text %}
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">{{ doc_form.file.help_text }} Peut aussi être ajouté plus tard depuis la fiche de la facture.</div>
+            {% endif %}
+            {% if doc_form.file.errors %}<div style="font-size:11px;color:#dc2626;margin-top:4px;">{{ doc_form.file.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:22px;padding-top:16px;border-top:1px solid var(--border);">
+        <button type="submit" class="btn-primary-app" style="padding:10px 24px;">
+          <i class="bx bx-check"></i> Enregistrer l'encaissement
+        </button>
+        <a href="{% url 'sales:client_invoice_detail' invoice_id=invoice.id %}" style="display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text-secondary);background:var(--bg-surface);">
+          Annuler
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Invoice summary sidebar -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:14px;">Facture concernée</div>
+      <div style="font-family:'Inter','Courier New',monospace;font-size:14px;font-weight:600;color:var(--accent);letter-spacing:.03em;margin-bottom:6px;">{{ invoice.reference }}</div>
+      <div style="font-size:13px;color:var(--text-secondary);">{{ invoice.client.raison_sociale }}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Échéance : {{ invoice.due_date|date:"d/m/Y" }}</div>
+      <div style="height:1px;background:var(--border);margin:14px 0;"></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);margin-bottom:6px;">
+        <span>Total TTC</span><span style="font-weight:600;color:var(--text-primary);"><span data-money="{{ invoice.total_ttc }}" data-money-suffix=" DA">{{ invoice.total_ttc|floatformat:2 }} DA</span></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;color:#dc2626;">
+        <span>Solde dû</span><span><span data-money="{{ invoice.balance_due }}" data-money-suffix=" DA">{{ invoice.balance_due|floatformat:2 }} DA</span></span>
+      </div>
+    </div>
+
+    <div style="background:rgba(15,118,110,.05);border:1px solid var(--accent-glow);border-radius:var(--radius-lg);padding:14px;">
+      <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px;"><i class="bx bx-shield-check"></i> Important</div>
+      <div style="font-size:12px;color:var(--text-secondary);">Le montant saisi ne peut pas dépasser le solde dû. Un reçu sera généré automatiquement après enregistrement.</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  form select, form input[type=text], form input[type=date], form input[type=number] {
+    border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px;
+    font-size: 13px; color: var(--text-primary); width: 100%; background: var(--bg-surface);
+  }
+  form select:focus, form input:focus {
+    outline: none; border-color: var(--accent-light); box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+  form input[type=file] {
+    display: block; width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text-primary);
+    font-size: 13px; cursor: pointer;
+  }
+</style>
+
+<script>
+(function () {
+  // ── 1. Pre-fill today's date ──────────────────────────────────────────────
+  const dateField = document.getElementById('id_payment_date');
+  if (dateField && !dateField.value) {
+    const today = new Date();
+    const yyyy  = today.getFullYear();
+    const mm    = String(today.getMonth() + 1).padStart(2, '0');
+    const dd    = String(today.getDate()).padStart(2, '0');
+    dateField.value = `${yyyy}-${mm}-${dd}`;
+  }
+
+  // ── 2. Auto-generate bank_reference ──────────────────────────────────────
+  // Format: {CLIENT_INITIALS}-{METHOD_CODE}-{YYYYMMDDHHmmss}
+  const clientName   = "{{ invoice.client.raison_sociale|escapejs }}";
+  const methodSelect = document.getElementById('id_payment_method');
+  const refField     = document.getElementById('id_bank_reference');
+
+  // Short codes matching your model's payment_method choice values
+  const METHOD_CODES = {
+    'cash':             'ESP',
+    'cheque':           'CHQ',
+    'bank_transfer':    'VIR',
+    'bill_of_exchange': 'EFF',
+    'mobile_payment':   'MOB',
+  };
+
+  function getClientInitials(name) {
+    // First letter of each word, uppercase, max 4 chars
+    return name.trim().split(/\s+/).map(w => w[0] || '').join('').toUpperCase().slice(0, 4);
+  }
+
+  function getDatetimeStamp() {
+    const n = new Date();
+    return [
+      n.getFullYear(),
+      String(n.getMonth() + 1).padStart(2, '0'),
+      String(n.getDate()).padStart(2, '0'),
+      String(n.getHours()).padStart(2, '0'),
+      String(n.getMinutes()).padStart(2, '0'),
+      String(n.getSeconds()).padStart(2, '0'),
+    ].join('');
+  }
+
+  function buildReference() {
+    const initials   = getClientInitials(clientName);
+    const methodCode = METHOD_CODES[methodSelect.value]
+                       || methodSelect.value.slice(0, 3).toUpperCase();
+    return `${initials}-${methodCode}-${getDatetimeStamp()}`;
+  }
+
+  function maybeSetRef() {
+    if (methodSelect.value && (!refField.value || refField.dataset.autoGenerated === 'true')) {
+      refField.value = buildReference();
+      refField.dataset.autoGenerated = 'true';
+    }
+  }
+
+  // Manual edit disables auto-generation
+  refField.addEventListener('input', function () {
+    refField.dataset.autoGenerated = 'false';
+  });
+
+  methodSelect.addEventListener('change', maybeSetRef);
+
+  // Trigger on load if method already selected (e.g. form re-render after error)
+  if (methodSelect.value) maybeSetRef();
+})();
+</script>
+{% endblock %}

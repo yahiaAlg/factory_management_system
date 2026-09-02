@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block content %}
+<h1 class="page-title mb-3">{{ title }}</h1>
+<p class="text-muted small">Spécification verrouillée : {{ sample.quality_specification }} (BR-QA-04)</p>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="table-container mb-3">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Propriété</th>
+          <th>Nominal / Limites</th>
+          <th>Critique</th>
+          <th>Valeur relevée</th>
+          <th>Instrument / méthode</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in spec_lines %}
+        <tr>
+          <td>{{ line.property.name }} <span class="text-muted small">({{ line.property.unit_label }})</span></td>
+          <td class="small text-muted">
+            {% if line.property.result_data_type == "boolean" %}
+              {% if line.expected_boolean is not None %}Attendu : {{ line.expected_boolean|yesno:"Conforme,Non conforme" }}{% else %}Toute valeur reconnue{% endif %}
+            {% elif line.property.result_data_type == "categorical" %}
+              {% if line.accepted_categories %}Accepté : {{ line.accepted_categories }}{% else %}Toute catégorie{% endif %}
+            {% else %}
+              {% if line.nominal_value %}{{ line.nominal_value }} ± {{ line.tolerance_pct|default:"0" }}%{% endif %}
+              {% if line.hard_min or line.hard_max %}[{{ line.hard_min|default:"" }} — {{ line.hard_max|default:"" }}]{% endif %}
+            {% endif %}
+          </td>
+          <td>{% if line.is_critical %}<span class="badge-annule">Critique</span>{% endif %}</td>
+          <td><input type="text" name="value_{{ line.id }}" class="form-control-app"></td>
+          <td><input type="text" name="instrument_{{ line.id }}" class="form-control-app"></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Aucune ligne de spécification pour ce gate.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <button type="submit" class="btn-primary-app"><i class="bx bx-save me-1"></i> Enregistrer les résultats</button>
+  <a href="{% url 'quality:sample_detail' sample.id %}" class="btn-secondary-app">Annuler</a>
+</form>
+{% endblock %}

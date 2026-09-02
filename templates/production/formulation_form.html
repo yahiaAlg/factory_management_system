@@ -1,0 +1,883 @@
+{% extends "base.html" %}
+{% load static %}
+{% load factory_filters %}
+
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:formulations_list' %}">Formulations</a></li>
+    <li class="breadcrumb-item active">{{ title }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.lines-table th { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.line-row td { vertical-align: middle; }
+.delete-col { width: 40px; text-align: center; }
+#lines-tbody tr.marked-delete { opacity: .45; background: #fff5f5; }
+.formset-empty-row { display: none; }
+.add-line-btn { border: 1px dashed var(--border-strong); background: none; color: var(--accent); border-radius: var(--radius-sm); padding: 6px 14px; font-size: 13px; font-weight: 500; cursor: pointer; width: 100%; margin-top: 8px; transition: background .15s; }
+.add-line-btn:hover { background: var(--accent-dim); }
+.badge-planned { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--accent); background: var(--accent-dim); border: 1px solid var(--accent-glow); border-radius: var(--radius-sm); padding: 1px 6px; }
+.form-hint { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.kg-eq-cell { font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; font-family: 'Plus Jakarta Sans', sans-serif; }
+.qty-cell-secondary { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.complement-col { width: 90px; text-align: center; }
+#mass-balance-panel { border-top: 1px solid var(--border-strong); }
+#mass-balance-panel.d-none { display: none !important; }
+.mb-status-ok { color: var(--success, #16a34a); }
+.mb-status-warn { color: var(--danger, #dc2626); }
+.mb-row td { font-size: 13px; }
+.pct-cell { font-size: 13px; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; white-space: nowrap; }
+.pct-cell .pct-bar-track { display: inline-block; width: 40px; height: 5px; border-radius: 3px; background: var(--border); margin-right: 6px; vertical-align: middle; overflow: hidden; }
+.pct-cell .pct-bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+/* Lines with a validation error: make it impossible to miss which row failed. */
+tr.line-row.row-has-error { background: #fef2f2 !important; box-shadow: inset 3px 0 0 #dc2626; }
+tr.line-row.row-has-error:hover { background: #fee2e2 !important; }
+.line-field-error { font-size: 11px; color: #dc2626; margin-top: 3px; font-weight: 500; }
+/* Auto-computed / read-only fields: visibly distinct from editable ones. */
+input.field-auto-computed { background: var(--accent-dim) !important; border-color: var(--accent-glow) !important; color: var(--text-primary); cursor: not-allowed; font-weight: 600; }
+.auto-toggle-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-top: 4px; user-select: none; }
+.auto-toggle-row input[type="checkbox"] { display: inline-block !important; width: 13px; height: 13px; accent-color: var(--accent); cursor: pointer; }
+.auto-toggle-row label { cursor: pointer; margin: 0; }
+#formset-nonform-errors:empty { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="page-title mb-0">{{ title }}</h1>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if form.br_prod_03_locked %}
+<div class="alert-banner alert-banner-warning mb-3">
+  <i class="bx bx-lock-alt me-1"></i>
+  <strong>BR-PROD-03 :</strong> Cette formulation est verrouillée car des ordres de production sont en cours.
+</div>
+{% endif %}
+
+<form method="post" id="formulation-form">
+  {% csrf_token %}
+
+  <div class="row g-3">
+    {# ─── Informations générales ─── #}
+    <div class="col-12">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Informations générales</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label-app">Désignation <span class="text-danger">*</span></label>
+              {{ form.designation }}
+              {% if form.designation.errors %}<div class="form-error">{{ form.designation.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label-app">Produit fini <span class="text-danger">*</span></label>
+              <div class="d-flex gap-2 align-items-start">
+                <div style="flex:1;">
+                  {{ form.finished_product }}
+                  {% if form.finished_product.errors %}<div class="form-error">{{ form.finished_product.errors.0 }}</div>{% endif %}
+                </div>
+                <button type="button" class="btn-secondary-app" style="white-space:nowrap;flex-shrink:0;padding:7px 10px;" title="Créer un nouveau produit fini" data-bs-toggle="modal" data-bs-target="#newProductModal">
+                  <i class="bx bx-plus" style="font-size:16px;"></i>
+                </button>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Quantité de référence par lot <span class="text-danger">*</span></label>
+              {{ form.reference_batch_qty }}
+              {% if form.reference_batch_qty.errors %}<div class="form-error">{{ form.reference_batch_qty.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Unité du lot <span class="text-danger">*</span></label>
+              {{ form.reference_batch_unit }}
+              {% if form.reference_batch_unit.errors %}<div class="form-error">{{ form.reference_batch_unit.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Rendement attendu (%) <span class="text-danger">*</span></label>
+              {{ form.expected_yield_pct }}
+              {% if form.expected_yield_pct.errors %}<div class="form-error">{{ form.expected_yield_pct.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app d-flex align-items-center gap-1">
+                Masse cible du lot (kg)
+                <span class="badge-planned" title="Section 22 — planifié, non déployé">§22 planifié</span>
+              </label>
+              {{ form.target_batch_mass_kg }}
+              <div class="auto-toggle-row">
+                <input type="checkbox" id="targetMassAutoToggle" checked>
+                <label for="targetMassAutoToggle">Auto — calculé depuis la qté de référence et l'unité choisie</label>
+              </div>
+              <div class="form-hint">Requis uniquement si une ligne est marquée « Complément ».</div>
+              {% if form.target_batch_mass_kg.errors %}<div class="form-error">{{ form.target_batch_mass_kg.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                <label class="form-label-app mb-0">Notes techniques</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);cursor:pointer;user-select:none;">
+                    <input type="checkbox" id="liveNotesToggle" style="display:inline-block!important;width:13px;height:13px;accent-color:var(--accent);cursor:pointer;">
+                    <span>Auto</span>
+                  </label>
+                  <button type="button" id="genNotesBtn" style="font-size:11px;font-weight:500;color:var(--accent);background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:var(--radius-sm);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                    <i class="bx bx-refresh"></i> Générer récap
+                  </button>
+                </div>
+              </div>
+              {{ form.technical_notes }}
+            </div>
+          </div>
+          {% if form.non_field_errors %}
+          <div class="alert-banner alert-banner-error mt-2">
+            <i class="bx bx-error-circle" style="font-size:16px;"></i>
+            <div>{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─── Lignes de formulation ─── #}
+    <div class="col-12">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Composition — matières premières</span>
+        </div>
+        <div class="card-app-body p-0">
+          {{ formset.management_form }}
+          {% if formset.non_form_errors %}
+          <div class="alert-banner alert-banner-error mx-3 mt-3" id="formset-nonform-errors">
+            <i class="bx bx-error-circle" style="font-size:16px;"></i>
+            <div>{% for e in formset.non_form_errors %}<div>{{ e }}</div>{% endfor %}</div>
+          </div>
+          {% else %}
+          <div class="alert-banner alert-banner-error mx-3 mt-3 d-none" id="formset-nonform-errors"></div>
+          {% endif %}
+          <div class="table-container" style="border:none;border-radius:0;">
+            <table class="table table-hover mb-0">
+              <thead class="bg-raised">
+                <tr class="lines-table">
+                  <th>Matière première</th>
+                  <th style="width:110px;" title="Valeur de référence pour la production standardisée (§22)">Kg éq.</th>
+                  <th style="width:90px;" title="Part de cette matière dans la masse totale du lot — calculé en direct">% du lot</th>
+                  <th style="width:140px;">Qté / lot</th>
+                  <th style="width:140px;">Unité</th>
+                  <th style="width:120px;">Tolérance (%)</th>
+                  <th class="complement-col" title="Section 22 — planifié, non déployé">Complément</th>
+                  <th class="delete-col"></th>
+                </tr>
+              </thead>
+              <tbody id="lines-tbody">
+                {% for lf in formset %}
+                <tr class="line-row {% if lf.instance.pk and lf.DELETE.value %}marked-delete{% endif %} {% if lf.errors %}row-has-error{% endif %}" data-row-index="{{ forloop.counter0 }}">
+                  <td>
+                    {{ lf.raw_material }}
+                    {% if lf.raw_material.errors %}<div class="form-error">{{ lf.raw_material.errors.0 }}</div>{% endif %}
+                  </td>
+                  <td class="kg-eq-cell">—</td>
+                  <td class="pct-cell">—</td>
+                  <td>
+                    {{ lf.qty_per_batch }}<div class="qty-cell-secondary">qté saisie</div>
+                    {% if lf.qty_per_batch.errors %}<div class="line-field-error">{{ lf.qty_per_batch.errors.0 }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {{ lf.unit_of_measure }}
+                    {% if lf.unit_of_measure.errors %}<div class="line-field-error">{{ lf.unit_of_measure.errors.0 }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {{ lf.tolerance_pct }}
+                    {% if lf.tolerance_pct.errors %}<div class="line-field-error">{{ lf.tolerance_pct.errors.0 }}</div>{% endif %}
+                  </td>
+                  <td class="complement-col">{{ lf.is_complement }}</td>
+                  <td class="delete-col">
+                    {% if lf.instance.pk %}
+                      <div style="display:none;">{{ lf.DELETE }}</div>
+                      <button type="button" class="btn-icon btn-danger-line-toggle" title="Supprimer la ligne">
+                        <i class="bx bx-trash"></i>
+                      </button>
+                    {% else %}
+                      <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer">
+                        <i class="bx bx-x"></i>
+                      </button>
+                    {% endif %}
+                    {% for hidden in lf.hidden_fields %}{{ hidden }}{% endfor %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {# Empty row template for JS cloning #}
+          <div id="empty-form-template" class="formset-empty-row">
+            <table><tbody>
+              <tr class="line-row" data-row-index="__prefix__">
+                {% with formset.empty_form as ef %}
+                <td>{{ ef.raw_material }}</td>
+                <td class="kg-eq-cell">—</td>
+                <td class="pct-cell">—</td>
+                <td>{{ ef.qty_per_batch }}<div class="qty-cell-secondary">qté saisie</div></td>
+                <td>{{ ef.unit_of_measure }}</td>
+                <td>{{ ef.tolerance_pct }}</td>
+                <td class="complement-col">{{ ef.is_complement }}</td>
+                <td class="delete-col">
+                  <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer"><i class="bx bx-x"></i></button>
+                  {% for hidden in ef.hidden_fields %}{{ hidden }}{% endfor %}
+                </td>
+                {% endwith %}
+              </tr>
+            </tbody></table>
+          </div>
+          <div class="px-3 pb-3 pt-2">
+            <button type="button" id="add-line-btn" class="add-line-btn">
+              <i class="bx bx-plus-circle me-1"></i> Ajouter une matière première
+            </button>
+          </div>
+
+          {# ─── Bilan massique (planifié, §22) ─── #}
+          <div id="mass-balance-panel" class="d-none p-3">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="card-app-title" style="font-size:13px;">Bilan massique <span class="badge-planned">§22 planifié</span></span>
+            </div>
+            <table class="table table-sm mb-0">
+              <tbody>
+                <tr class="mb-row">
+                  <td>Masse des ingrédients non-complément</td>
+                  <td id="mb-non-complement" class="text-end fw-600">—</td>
+                </tr>
+                <tr class="mb-row" id="mb-target-row">
+                  <td>Masse cible du lot</td>
+                  <td id="mb-target" class="text-end fw-600">—</td>
+                </tr>
+                <tr class="mb-row" id="mb-complement-row" style="display:none;">
+                  <td>Quantité complément calculée</td>
+                  <td id="mb-complement" class="text-end fw-600">—</td>
+                </tr>
+                <tr class="mb-row">
+                  <td>Statut</td>
+                  <td id="mb-status" class="text-end fw-600">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ─── Actions ─── #}
+    <div class="col-12 d-flex gap-2 justify-content-end pb-4">
+      <a href="{% url 'production:formulations_list' %}" class="btn-secondary-app">Annuler</a>
+      <button type="submit" class="btn-primary-app" {% if form.br_prod_03_locked %}disabled{% endif %}>
+        <i class="bx bx-check me-1"></i> {% if formulation %}Mettre à jour la formulation{% else %}Enregistrer la formulation{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+
+{# ─── Quick-create Produit Fini modal ─── #}
+<div class="modal fade" id="newProductModal" tabindex="-1" aria-labelledby="newProductModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-600" id="newProductModalLabel">
+          <i class="bx bx-package me-1" style="color:var(--accent);"></i>
+          Nouveau produit fini
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div id="new-product-alert" style="display:none;" class="alert-banner alert-banner-error mb-3"></div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label-app">Désignation <span class="text-danger">*</span></label>
+            <input type="text" id="np-designation" class="form-control-app" placeholder="Ex: Bidon PEHD 20L rouge" maxlength="200">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label-app">Unité de vente <span class="text-danger">*</span></label>
+            <select id="np-sales-unit" class="form-control-app">
+              <option value="">---------</option>
+              {% for unit in units_of_measure %}
+              <option value="{{ unit.id }}">{{ unit.name }} ({{ unit.symbol }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label-app">Prix de vente de référence (DA)</label>
+            <input type="number" id="np-price" class="form-control-app" step="0.01" min="0" value="0.00">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label-app">Seuil d'alerte stock</label>
+            <input type="number" id="np-alert-threshold" class="form-control-app" step="0.001" min="0" value="0.000">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" id="btn-save-product" class="btn-primary-app">
+          <i class="bx bx-check me-1"></i> Créer le produit
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+  {# RM → unit mapping for auto-population #}
+  <script>
+  const RM_UNIT_MAP = {{ rm_unit_map_json|safe }};
+  const RM_KG_MAP = {{ rm_kg_map_json|safe }};
+  const FP_UNIT_MAP = {{ fp_unit_map_json|safe }};
+  const FP_KG_MAP = {{ fp_kg_map_json|safe }};
+  const KG_UNIT_ID = {% if kg_unit_id %}{{ kg_unit_id }}{% else %}null{% endif %};
+  const RECONCILIATION_EPSILON = parseFloat("{{ reconciliation_epsilon }}") || 0;
+
+  /* ── Masse cible du lot (kg) — auto-population from the reference batch
+     qty + unit ─────────────────────────────────────────────────────────
+     While the "Auto" toggle is checked, the field mirrors:
+       - reference_batch_qty directly, if reference_batch_unit is KG;
+       - reference_batch_qty × (finished product's kg-per-sales-unit),
+         otherwise (falls back to leaving the field alone if that
+         conversion isn't known for the chosen product).
+     The field becomes read-only while Auto is on, and editable again the
+     moment the user unticks it — matching the "read-only, prepopulated
+     from the chosen unit" behavior requested for this field. */
+  function computeTargetMassKg() {
+    const fpSelect = document.getElementById('id_finished_product');
+    const unitSelect = document.querySelector('[name="reference_batch_unit"]');
+    const qtyInput = document.querySelector('[name="reference_batch_qty"]');
+    if (!fpSelect || !unitSelect || !qtyInput) return null;
+    const qty = parseFloat(qtyInput.value);
+    if (!qty || qty <= 0) return null;
+
+    if (KG_UNIT_ID !== null && String(unitSelect.value) === String(KG_UNIT_ID)) {
+      return qty; // batch already expressed in kg — 1:1
+    }
+    const kgPerUnit = FP_KG_MAP[fpSelect.value];
+    if (kgPerUnit === undefined) return null;
+    return qty * parseFloat(kgPerUnit);
+  }
+
+  function applyTargetMassAuto() {
+    const toggle = document.getElementById('targetMassAutoToggle');
+    const targetInput = document.querySelector('[name="target_batch_mass_kg"]');
+    if (!toggle || !targetInput) return;
+    if (toggle.checked) {
+      targetInput.readOnly = true;
+      targetInput.classList.add('field-auto-computed');
+      const val = computeTargetMassKg();
+      if (val !== null) targetInput.value = val.toFixed(3);
+    } else {
+      targetInput.readOnly = false;
+      targetInput.classList.remove('field-auto-computed');
+    }
+    updateMassBalance();
+    updateLinePercentages();
+  }
+
+  (function initTargetMassAuto() {
+    const toggle = document.getElementById('targetMassAutoToggle');
+    const targetInput = document.querySelector('[name="target_batch_mass_kg"]');
+    if (!toggle || !targetInput) return;
+    // Existing formulations that already carry a manually-set target mass
+    // keep that value on load (Auto starts off) instead of silently
+    // overwriting it; a brand-new formulation starts in Auto mode.
+    toggle.checked = !targetInput.value;
+    toggle.addEventListener('change', applyTargetMassAuto);
+    document.getElementById('id_finished_product')?.addEventListener('change', applyTargetMassAuto);
+    document.querySelector('[name="reference_batch_unit"]')?.addEventListener('change', applyTargetMassAuto);
+    document.querySelector('[name="reference_batch_qty"]')?.addEventListener('input', applyTargetMassAuto);
+    applyTargetMassAuto();
+  })();
+
+  /* ── Live "% du lot" column ──────────────────────────────────────────
+     Independent of the (still-planned §22) mass-balance panel: as soon
+     as two or more lines carry a known kg-equivalent, show each line's
+     share of the total so composition is readable at a glance, the way
+     a manually-built spreadsheet recap would show it. */
+  function updateLinePercentages() {
+    const entries = [];
+    document.querySelectorAll('#lines-tbody tr.line-row').forEach(row => {
+      const pctCell = row.querySelector('.pct-cell');
+      if (row.classList.contains('marked-delete')) { if (pctCell) pctCell.textContent = '—'; return; }
+      const delInput = row.querySelector('input[name$="-DELETE"]');
+      if (delInput && delInput.checked) { if (pctCell) pctCell.textContent = '—'; return; }
+
+      const rmSelect = row.querySelector('select[name$="-raw_material"]');
+      const qtyInput = row.querySelector('input[name$="-qty_per_batch"]');
+      if (!rmSelect || !rmSelect.value || !pctCell) { if (pctCell) pctCell.textContent = '—'; return; }
+
+      const kgData = RM_KG_MAP[rmSelect.value];
+      const qty = parseFloat(qtyInput?.value) || 0;
+      if (!kgData || kgData.kg_per_unit === null || qty <= 0) { pctCell.textContent = '—'; return; }
+
+      const kgEq = qty * parseFloat(kgData.kg_per_unit);
+      entries.push({ pctCell, kgEq });
+    });
+
+    const total = entries.reduce((sum, e) => sum + e.kgEq, 0);
+    entries.forEach(({ pctCell, kgEq }) => {
+      if (total <= 0) { pctCell.textContent = '—'; return; }
+      const pct = (kgEq / total) * 100;
+      pctCell.innerHTML =
+        '<span class="pct-bar-track"><span class="pct-bar-fill" style="width:' + Math.min(pct, 100).toFixed(0) + '%;"></span></span>' +
+        pct.toFixed(1) + '%';
+    });
+  }
+
+  /* Auto-detect the formulation's batch unit from the chosen finished
+     product (mirrors applyRmUnit for composition lines). Runs once per
+     product selection — the user can still override the unit by hand
+     afterwards; picking a different product will re-detect it again. */
+  function applyFpUnit() {
+    const fpSelect = document.getElementById('id_finished_product');
+    const unitSelect = document.querySelector('[name="reference_batch_unit"]');
+    if (!fpSelect || !unitSelect) return;
+    const unitId = FP_UNIT_MAP[fpSelect.value];
+    if (unitId !== undefined) {
+      unitSelect.value = unitId;
+    }
+  }
+  document.getElementById('id_finished_product')?.addEventListener('change', applyFpUnit);
+  // Pre-populate once on load if a product is already selected but the
+  // unit field is still empty (e.g. validation-error redisplay before a
+  // unit was ever chosen).
+  (function () {
+    const fpSelect = document.getElementById('id_finished_product');
+    const unitSelect = document.querySelector('[name="reference_batch_unit"]');
+    if (fpSelect && fpSelect.value && unitSelect && !unitSelect.value) applyFpUnit();
+  })();
+
+  function applyRmUnit(rmSelect) {
+    const row = rmSelect.closest('tr');
+    if (!row) return;
+    const unitSelect = row.querySelector('select[name$="-unit_of_measure"]');
+    if (!unitSelect) return;
+    const unitId = RM_UNIT_MAP[rmSelect.value];
+    if (unitId !== undefined) {
+      unitSelect.value = unitId;
+    }
+  }
+
+  function bindRmUnitListener(row) {
+    const rmSelect = row.querySelector('select[name$="-raw_material"]');
+    if (rmSelect) {
+      rmSelect.addEventListener('change', () => { applyRmUnit(rmSelect); updateMassBalance(); });
+      // Pre-populate on load for existing rows that have no unit set
+      if (rmSelect.value && (!row.querySelector('select[name$="-unit_of_measure"]').value)) {
+        applyRmUnit(rmSelect);
+      }
+    }
+  }
+
+  /* ── §22 (planned) — client-side kg-equivalent / mass-balance preview ──
+     Mirrors the existing scaling-preview pattern (formulation_scaling_ajax):
+     purely informational, computed client-side from RM_KG_MAP, never
+     submitted — the server recomputes and validates the same numbers on
+     save (Formulation.recompute_complement_quantity / .clean()). */
+  function updateMassBalance() {
+    const panel = document.getElementById('mass-balance-panel');
+    const targetInput = document.querySelector('[name="target_batch_mass_kg"]');
+    const targetVal = targetInput && targetInput.value ? parseFloat(targetInput.value) : null;
+
+    let nonComplementMass = 0;
+    let complementRow = null;
+    let complementKgPerUnit = null;
+    let anyRowMissingKg = false;
+    let rowCount = 0;
+
+    document.querySelectorAll('#lines-tbody tr.line-row').forEach(row => {
+      if (row.classList.contains('marked-delete')) return;
+      const delInput = row.querySelector('input[name$="-DELETE"]');
+      if (delInput && delInput.checked) return;
+
+      const rmSelect = row.querySelector('select[name$="-raw_material"]');
+      const qtyInput = row.querySelector('input[name$="-qty_per_batch"]');
+      const complementCb = row.querySelector('input[name$="-is_complement"]');
+      const kgCell = row.querySelector('.kg-eq-cell');
+      if (!rmSelect || !rmSelect.value) { if (kgCell) kgCell.textContent = '—'; return; }
+
+      rowCount++;
+      const kgData = RM_KG_MAP[rmSelect.value];
+      const qty = parseFloat(qtyInput?.value) || 0;
+      const isComplement = !!(complementCb && complementCb.checked);
+
+      // Any row that is NOT (or no longer) the complement must stay a
+      // normal, freely-editable quantity field — undo the read-only /
+      // auto-computed styling the complement branch below applies.
+      if (!isComplement && qtyInput) {
+        qtyInput.readOnly = false;
+        qtyInput.classList.remove('field-auto-computed');
+      }
+
+      if (!kgData || kgData.kg_per_unit === null) {
+        anyRowMissingKg = true;
+        if (kgCell) kgCell.textContent = 'n/a';
+        if (isComplement) { complementRow = row; complementKgPerUnit = null; }
+        return;
+      }
+
+      const kgPerUnit = parseFloat(kgData.kg_per_unit);
+      const kgEq = qty * kgPerUnit;
+      if (kgCell) kgCell.textContent = kgEq.toFixed(3) + ' kg';
+
+      if (isComplement) {
+        complementRow = row;
+        complementKgPerUnit = kgPerUnit;
+      } else {
+        nonComplementMass += kgEq;
+      }
+    });
+
+    // Only show the panel once at least one line carries kg-equivalent data
+    // or a target mass has been entered — keeps the panel out of the way
+    // for factories not using this planned feature yet.
+    const anyKgData = rowCount > 0 && !anyRowMissingKg;
+    if (!targetVal && !complementRow) {
+      panel.classList.add('d-none');
+      updateLinePercentages();
+      return;
+    }
+    panel.classList.remove('d-none');
+
+    document.getElementById('mb-non-complement').textContent = nonComplementMass.toFixed(3) + ' kg';
+
+    const targetRow = document.getElementById('mb-target-row');
+    const complementRowEl = document.getElementById('mb-complement-row');
+    const statusCell = document.getElementById('mb-status');
+
+    if (targetVal) {
+      document.getElementById('mb-target').textContent = targetVal.toFixed(3) + ' kg';
+      targetRow.style.display = '';
+    } else {
+      targetRow.style.display = 'none';
+    }
+
+    if (complementRow) {
+      complementRowEl.style.display = '';
+      const complementQtyInput = complementRow.querySelector('input[name$="-qty_per_batch"]');
+      const complementKgCell = complementRow.querySelector('.kg-eq-cell');
+      // The complement's own quantity is *derived*, not typed — mark it
+      // read-only for as long as the checkbox stays ticked, and keep its
+      // value in sync with the live calculation below.
+      if (complementQtyInput) {
+        complementQtyInput.readOnly = true;
+        complementQtyInput.classList.add('field-auto-computed');
+      }
+      if (complementKgPerUnit && targetVal) {
+        const remainingMass = targetVal - nonComplementMass;
+        if (remainingMass <= 0) {
+          if (complementQtyInput) complementQtyInput.value = '';
+          if (complementKgCell) complementKgCell.textContent = '—';
+          document.getElementById('mb-complement').textContent = '—';
+          statusCell.textContent = 'Pas de place pour le complément';
+          statusCell.className = 'text-end fw-600 mb-status-warn';
+        } else {
+          const complementQty = remainingMass / complementKgPerUnit;
+          if (complementQtyInput) complementQtyInput.value = complementQty.toFixed(3);
+          if (complementKgCell) complementKgCell.textContent = remainingMass.toFixed(3) + ' kg';
+          document.getElementById('mb-complement').textContent =
+            complementQty.toFixed(3) + ' ' + (complementQtyInput?.closest('tr').querySelector('select[name$="-unit_of_measure"]')?.selectedOptions[0]?.textContent.trim() || '');
+          statusCell.textContent = 'OK — calculé automatiquement à l\'enregistrement';
+          statusCell.className = 'text-end fw-600 mb-status-ok';
+        }
+      } else {
+        if (complementQtyInput) complementQtyInput.value = '';
+        if (complementKgCell) complementKgCell.textContent = '—';
+        document.getElementById('mb-complement').textContent = '—';
+        statusCell.textContent = complementKgPerUnit ? 'Renseignez la masse cible du lot' : 'Équivalent kg manquant pour ce matériau';
+        statusCell.className = 'text-end fw-600 mb-status-warn';
+      }
+    } else {
+      complementRowEl.style.display = 'none';
+      if (targetVal) {
+        const delta = Math.abs(nonComplementMass - targetVal);
+        if (delta <= RECONCILIATION_EPSILON) {
+          statusCell.textContent = 'OK — dans la tolérance de réconciliation (' + RECONCILIATION_EPSILON + ' kg)';
+          statusCell.className = 'text-end fw-600 mb-status-ok';
+        } else {
+          statusCell.textContent = 'Écart de ' + delta.toFixed(3) + ' kg — hors tolérance (' + RECONCILIATION_EPSILON + ' kg)';
+          statusCell.className = 'text-end fw-600 mb-status-warn';
+        }
+      } else {
+        statusCell.textContent = '—';
+        statusCell.className = 'text-end fw-600';
+      }
+    }
+    updateLinePercentages();
+  }
+
+  // Only one line may be the complement (§22.4) — enforce client-side too.
+  function bindComplementExclusivity(row) {
+    const cb = row.querySelector('input[name$="-is_complement"]');
+    if (!cb) return;
+    cb.addEventListener('change', () => {
+      if (cb.checked) {
+        document.querySelectorAll('#lines-tbody input[name$="-is_complement"]').forEach(other => {
+          if (other !== cb) other.checked = false;
+        });
+      }
+      updateMassBalance();
+    });
+  }
+  </script>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Apply .form-control-app to all formset inputs/selects
+  function applyInputClass(root) {
+    root.querySelectorAll('input:not([type=hidden]):not([type=checkbox]), select, textarea').forEach(el => {
+      el.classList.add('form-control-app');
+    });
+  }
+  applyInputClass(document);
+
+  const tbody = document.getElementById('lines-tbody');
+  const emptyTemplate = document.getElementById('empty-form-template');
+  const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
+  const addBtn = document.getElementById('add-line-btn');
+
+  addBtn.addEventListener('click', () => {
+    const currentCount = parseInt(totalForms.value, 10);
+    const rawHtml = emptyTemplate.querySelector('tr').outerHTML
+      .replace(/__prefix__/g, currentCount);
+    const tmp = document.createElement('tbody');
+    tmp.innerHTML = rawHtml;
+    const newRow = tmp.querySelector('tr');
+    applyInputClass(newRow);
+    tbody.appendChild(newRow);
+    totalForms.value = currentCount + 1;
+    bindRowActions(newRow);
+    bindRmUnitListener(newRow);
+    bindComplementExclusivity(newRow);
+    updateMassBalance();
+  });
+
+  function bindRowActions(row) {
+    // Remove empty (unsaved) line
+    const removeBtn = row.querySelector('.btn-remove-empty-line');
+    if (removeBtn) removeBtn.addEventListener('click', () => { row.remove(); updateMassBalance(); });
+
+    // Toggle delete for saved lines
+    const deleteBtn = row.querySelector('.btn-danger-line-toggle');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        const deleteInput = row.querySelector('input[name$="-DELETE"]');
+        const marked = row.classList.toggle('marked-delete');
+        if (deleteInput) deleteInput.checked = marked;
+        deleteBtn.innerHTML = marked
+          ? '<i class="bx bx-undo"></i>'
+          : '<i class="bx bx-trash"></i>';
+        updateMassBalance();
+      });
+    }
+  }
+
+  tbody.querySelectorAll('tr.line-row').forEach(row => {
+    bindRowActions(row);
+    bindRmUnitListener(row);
+    bindComplementExclusivity(row);
+  });
+
+  // Recompute the mass-balance preview on any relevant input change
+  document.querySelector('[name="target_batch_mass_kg"]')?.addEventListener('input', updateMassBalance);
+  tbody.addEventListener('input', (e) => {
+    if (e.target.matches('input[name$="-qty_per_batch"]')) updateMassBalance();
+  });
+  tbody.addEventListener('change', (e) => {
+    if (e.target.matches('select[name$="-raw_material"], select[name$="-unit_of_measure"]')) updateMassBalance();
+  });
+  updateMassBalance();
+})();
+</script>
+
+<script>
+(function () {
+  const modal     = document.getElementById('newProductModal');
+  const saveBtn   = document.getElementById('btn-save-product');
+  const alertBox  = document.getElementById('new-product-alert');
+  const select    = document.getElementById('id_finished_product');
+
+  function showAlert(msg) {
+    alertBox.textContent = msg;
+    alertBox.style.display = '';
+  }
+  function clearAlert() { alertBox.style.display = 'none'; alertBox.textContent = ''; }
+
+  // Clear form when modal opens
+  modal.addEventListener('show.bs.modal', function () {
+    clearAlert();
+    document.getElementById('np-designation').value = '';
+    document.getElementById('np-sales-unit').value  = '';
+    document.getElementById('np-price').value       = '0.00';
+    document.getElementById('np-alert-threshold').value = '0.000';
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer le produit';
+  });
+
+  saveBtn.addEventListener('click', function () {
+    clearAlert();
+    const designation = document.getElementById('np-designation').value.trim();
+    const salesUnit   = document.getElementById('np-sales-unit').value;
+    const price       = document.getElementById('np-price').value;
+    const threshold   = document.getElementById('np-alert-threshold').value;
+
+    if (!designation) { showAlert('La désignation est obligatoire.'); return; }
+    if (!salesUnit)    { showAlert("L'unité de vente est obligatoire."); return; }
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin me-1"></i> Création…';
+
+    fetch("{% url 'catalog:finished_product_quick_create' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      },
+      body: JSON.stringify({
+        designation:     designation,
+        sales_unit:      salesUnit,
+        reference_selling_price: price,
+        alert_threshold: threshold,
+      }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        // Inject the new option and select it
+        const opt = new Option(data.label, data.id, true, true);
+        select.appendChild(opt);
+        select.value = data.id;
+        bootstrap.Modal.getInstance(modal).hide();
+      } else {
+        showAlert(data.error || 'Erreur lors de la création.');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer le produit';
+      }
+    })
+    .catch(() => {
+      showAlert('Erreur réseau — veuillez réessayer.');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer le produit';
+    });
+  });
+})();
+</script>
+
+<script>
+/* ── Notes techniques — récap automatique ───────────────────────── */
+(function () {
+
+  function buildNotesRecap() {
+    /* ── Header fields ── */
+    var designation = (document.querySelector('[name="designation"]')?.value || '').trim();
+
+    var fpSel  = document.getElementById('id_finished_product');
+    var fpName = fpSel ? (fpSel.options[fpSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+
+    var batchQty     = (document.querySelector('[name="reference_batch_qty"]')?.value  || '').trim();
+    var batchUnitSel = document.querySelector('[name="reference_batch_unit"]');
+    var batchUnit    = batchUnitSel ? (batchUnitSel.options[batchUnitSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+    var yieldPct     = (document.querySelector('[name="expected_yield_pct"]')?.value || '').trim();
+
+    /* ── Composition lines ── */
+    var rows        = document.querySelectorAll('#lines-tbody tr.line-row');
+    var ingredients = [];
+    var totalQty    = 0;
+
+    rows.forEach(function (row) {
+      if (row.classList.contains('marked-delete')) return;
+      var delInput = row.querySelector('input[name$="-DELETE"]');
+      if (delInput && delInput.checked) return;
+
+      var rmSel  = row.querySelector('select[name$="-raw_material"]');
+      var qtyInp = row.querySelector('input[name$="-qty_per_batch"]');
+      var uomSel = row.querySelector('select[name$="-unit_of_measure"]');
+      var tolInp = row.querySelector('input[name$="-tolerance_pct"]');
+
+      var rmName  = rmSel  ? (rmSel.options[rmSel.selectedIndex]?.text   || '').replace(/^-+$/, '').trim() : '';
+      var uomName = uomSel ? (uomSel.options[uomSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+      var qty     = parseFloat(qtyInp?.value) || 0;
+      var tol     = parseFloat(tolInp?.value);
+
+      if (!rmName || qty === 0) return;
+      totalQty += qty;
+
+      var tolPart = (!isNaN(tol) && tol > 0) ? ' ±' + tol + '%' : '';
+      var uomPart = uomName ? ' ' + uomName : '';
+      ingredients.push('  • ' + rmName + ' : ' + qty + uomPart + tolPart);
+    });
+
+    if (!designation && !fpName && ingredients.length === 0) return '';
+
+    /* ── Assemble ── */
+    var out = [];
+    if (designation) out.push('Formulation : ' + designation);
+    if (fpName)      out.push('Produit fini : ' + fpName);
+    if (batchQty)    out.push('Lot de référence : ' + batchQty + (batchUnit ? ' ' + batchUnit : ''));
+    if (yieldPct)    out.push('Rendement attendu : ' + yieldPct + ' %');
+
+    if (ingredients.length) {
+      out.push('');
+      out.push('Composition (' + ingredients.length + ' matière' + (ingredients.length > 1 ? 's' : '') + ') :');
+      ingredients.forEach(function (l) { out.push(l); });
+      out.push('');
+      out.push('Total matières / lot : ' + totalQty.toFixed(3) + (batchUnit ? ' ' + batchUnit : ''));
+    }
+
+    return out.join('\n');
+  }
+
+  var notesTA    = document.getElementById('id_technical_notes');
+  var liveToggle = document.getElementById('liveNotesToggle');
+  var genBtn     = document.getElementById('genNotesBtn');
+  if (!notesTA || !genBtn) return;
+
+  genBtn.addEventListener('click', function () {
+    var txt = buildNotesRecap();
+    if (txt) notesTA.value = txt;
+  });
+
+  function triggerLiveNotes() {
+    if (liveToggle && liveToggle.checked) notesTA.value = buildNotesRecap();
+  }
+
+  /* Header fields */
+  ['designation', 'reference_batch_qty', 'expected_yield_pct'].forEach(function (n) {
+    document.querySelector('[name="' + n + '"]')?.addEventListener('input', triggerLiveNotes);
+  });
+  document.getElementById('id_finished_product')?.addEventListener('change', triggerLiveNotes);
+  document.querySelector('[name="reference_batch_unit"]')?.addEventListener('change', triggerLiveNotes);
+
+  /* Composition table — any input / select change */
+  document.getElementById('lines-tbody')?.addEventListener('input',  triggerLiveNotes);
+  document.getElementById('lines-tbody')?.addEventListener('change', triggerLiveNotes);
+
+  /* Add / remove row buttons */
+  document.getElementById('add-line-btn')?.addEventListener('click', function () {
+    setTimeout(triggerLiveNotes, 60);
+  });
+  document.getElementById('lines-tbody')?.addEventListener('click', function (e) {
+    if (e.target.closest('.btn-danger-line-toggle') || e.target.closest('.btn-remove-empty-line')) {
+      setTimeout(triggerLiveNotes, 60);
+    }
+  });
+
+})();
+</script>
+
+{% endblock %}

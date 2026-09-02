@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'quality:quality_dashboard' %}">Qualité</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'quality:property_list' %}">Propriétés / Tests</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ title }}</span>
+{% endblock %}
+
+{% block content %}
+<h1 class="page-title mb-3">{{ title }}</h1>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="card-app" style="max-width:720px;">
+  <div class="card-app-body">
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="alert-banner alert-banner-error mb-3">
+        {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label-app">Nom de la propriété <span class="required">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}<div class="form-error">{{ form.name.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">S'applique à</label>
+          {{ form.applies_to }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Unité</label>
+          {{ form.unit_label }}
+          <div class="form-hint">Ex : %, pH, cP, g/cm³, µm, ΔE, °Brix, MPa, CFU/g</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Type de résultat</label>
+          {{ form.result_data_type }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Précision (décimales)</label>
+          {{ form.default_precision }}
+        </div>
+        <div class="col-12">
+          <label class="form-label-app">Méthode / référence d'essai</label>
+          {{ form.test_method_reference }}
+        </div>
+        <div class="col-12 d-flex align-items-center gap-2">
+          {{ form.is_active }}
+          <label class="form-label-app mb-0" for="{{ form.is_active.id_for_label }}">Propriété active</label>
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn-primary-app"><i class="bx bx-save me-1"></i> Enregistrer</button>
+        <a href="{% url 'quality:property_list' %}" class="btn-secondary-app">Annuler</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% load static %}
+{% load factory_filters %}
+
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:production_orders_list' %}">Ordres de production</a></li>
+    <li class="breadcrumb-item active">{{ title }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.scaling-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.scaling-table td { font-size: 13px; font-family: 'Inter', sans-serif; }
+.stock-ok { color: #16a34a; font-weight: 600; }
+.stock-ko { color: #dc2626; font-weight: 600; }
+.scaling-panel { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin-top: 12px; }
+.scaling-loading { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="page-title mb-0">{{ title }}</h1>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<form method="post" id="po-form">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card-app">
+        <div class="card-app-header"><span class="card-app-title">Paramètres de l'ordre</span></div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-app">Site <span class="text-danger">*</span></label>
+              {{ form.site }}
+              {% if form.site.errors %}<div class="form-error">{{ form.site.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Formulation <span class="text-danger">*</span></label>
+              {{ form.formulation }}
+              {% if form.formulation.errors %}<div class="form-error">{{ form.formulation.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-5">
+              <label class="form-label-app">Quantité cible <span class="text-danger">*</span></label>
+              {{ form.target_qty }}
+              {% if form.target_qty.errors %}<div class="form-error">{{ form.target_qty.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label-app">Unité <span class="text-danger">*</span></label>
+              {{ form.target_unit }}
+              {% if form.target_unit.errors %}<div class="form-error">{{ form.target_unit.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label-app">Date de lancement <span class="text-danger">*</span></label>
+              {{ form.launch_date }}
+              {% if form.launch_date.errors %}<div class="form-error">{{ form.launch_date.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                <label class="form-label-app mb-0">Notes</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);cursor:pointer;user-select:none;">
+                    <input type="checkbox" id="liveNotesToggle" style="display:inline-block!important;width:13px;height:13px;accent-color:var(--accent);cursor:pointer;">
+                    <span>Auto</span>
+                  </label>
+                  <button type="button" id="genNotesBtn" style="font-size:11px;font-weight:500;color:var(--accent);background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:var(--radius-sm);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                    <i class="bx bx-refresh"></i> Générer récap
+                  </button>
+                </div>
+              </div>
+              {{ form.notes }}
+            </div>
+          </div>
+          {% if form.non_field_errors %}
+          <div class="form-error mt-2">{{ form.non_field_errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─── Live scaling preview ─── #}
+    <div class="col-lg-5">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Besoins théoriques en MP</span>
+          <span class="scaling-loading text-muted small"><i class="bx bx-loader-alt bx-spin me-1"></i>Calcul…</span>
+        </div>
+        <div class="card-app-body p-0">
+          <div id="scaling-placeholder" class="empty-state" style="padding:28px 16px;">
+            <i class="bx bx-calculator"></i>
+            <p class="mb-0 small">Sélectionnez une formulation et une quantité cible pour prévisualiser les besoins matières</p>
+          </div>
+          <div id="scaling-result" style="display:none;">
+            <div class="px-3 pt-3 pb-1">
+              <span class="text-muted small">Facteur d'échelle : <strong id="scaling-factor">—</strong></span>
+              <span class="text-muted small ms-2" id="scaling-total-kg-wrap" style="display:none;">— Masse totale du lot : <strong id="scaling-total-kg">—</strong> kg</span>
+            </div>
+            <div class="table-container" style="border:none;border-radius:0;">
+              <table class="table mb-0 scaling-table">
+                <thead class="bg-raised">
+                  <tr>
+                    <th>Matière première</th>
+                    <th class="text-end">Besoin</th>
+                    <th class="text-end">% du lot</th>
+                    <th class="text-end">Stock dispo</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="scaling-tbody"></tbody>
+              </table>
+            </div>
+            <div id="scaling-warning" class="px-3 pb-3" style="display:none;">
+              <div class="alert-banner alert-banner-warning mt-2">
+                <i class="bx bx-error me-1"></i> Stock insuffisant pour certaines matières — l'OP peut quand même être créé.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex gap-2 justify-content-end pb-4">
+      <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app">Annuler</a>
+      <button type="submit" class="btn-primary-app">
+        <i class="bx bx-check me-1"></i> Créer l'ordre
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Apply design-system class to all inputs — outside IIFE so a JS error never kills this
+  document.querySelectorAll('#po-form input:not([type=hidden]), #po-form select, #po-form textarea')
+    .forEach(el => el.classList.add('form-control-app'));
+</script>
+<script>
+(function () {
+  const formulationSel = document.getElementById('id_formulation');
+  const targetQtyInput = document.getElementById('id_target_qty');
+  const placeholder    = document.getElementById('scaling-placeholder');
+  const resultPanel    = document.getElementById('scaling-result');
+  const loadingEl      = document.querySelector('.scaling-loading');
+  const scalingTbody   = document.getElementById('scaling-tbody');
+  const scalingFactor  = document.getElementById('scaling-factor');
+  const scalingWarning = document.getElementById('scaling-warning');
+
+  let debounceTimer;
+
+  function fetchScaling() {
+    const fId = formulationSel.value;
+    const qty  = targetQtyInput.value;
+    if (!fId || !qty || parseFloat(qty) <= 0) {
+      placeholder.style.display = '';
+      resultPanel.style.display  = 'none';
+      return;
+    }
+    loadingEl.style.display = '';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const url = `{% url 'production:formulation_scaling_ajax' %}?formulation_id=${fId}&target_qty=${qty}`;
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+          loadingEl.style.display = 'none';
+          if (!data.success) { return; }
+          placeholder.style.display = 'none';
+          resultPanel.style.display = '';
+          scalingFactor.textContent = parseFloat(data.scaling_factor).toFixed(4);
+          const totalKgWrap = document.getElementById('scaling-total-kg-wrap');
+          if (data.total_kg) {
+            document.getElementById('scaling-total-kg').textContent = parseFloat(data.total_kg).toFixed(3);
+            totalKgWrap.style.display = '';
+          } else {
+            totalKgWrap.style.display = 'none';
+          }
+          let hasShortage = false;
+          scalingTbody.innerHTML = data.lines.map(l => {
+            if (!l.sufficient) hasShortage = true;
+            const cls = l.sufficient ? 'stock-ok' : 'stock-ko';
+            const icon = l.sufficient ? '<i class="bx bx-check-circle" style="color:#16a34a;"></i>' : '<i class="bx bx-x-circle" style="color:#dc2626;"></i>';
+            const pct = l.percentage !== null ? `${parseFloat(l.percentage).toFixed(2)}%` : '—';
+            return `<tr>
+              <td>${l.material_name}</td>
+              <td class="text-end fw-500">${parseFloat(l.theoretical_qty).toFixed(3)} ${l.unit}</td>
+              <td class="text-end text-muted">${pct}</td>
+              <td class="text-end ${cls}">${parseFloat(l.available_qty).toFixed(3)}</td>
+              <td class="text-center">${icon}</td>
+            </tr>`;
+          }).join('');
+          scalingWarning.style.display = hasShortage ? '' : 'none';
+        })
+        .catch(() => { loadingEl.style.display = 'none'; });
+    }, 400);
+  }
+
+  formulationSel.addEventListener('change', fetchScaling);
+  targetQtyInput.addEventListener('input',  fetchScaling);
+
+  // Pre-fill formulation from query string (when coming from formulation detail)
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('formulation') && formulationSel) {
+    formulationSel.value = params.get('formulation');
+    fetchScaling();
+  }
+
+})();
+
+// ── Auto-populate target_unit from selected formulation ──
+(function () {
+  const FORM_UNIT_MAP = {{ formulation_unit_map_json|default:'{}'|safe }};
+  const formulationSel = document.getElementById('id_formulation');
+  const targetUnitSel  = document.getElementById('id_target_unit');
+
+  function applyFormulationUnit(val) {
+    const unitId = FORM_UNIT_MAP[val];
+    if (unitId !== undefined && targetUnitSel) targetUnitSel.value = unitId;
+  }
+
+  if (formulationSel) {
+    formulationSel.addEventListener('change', () => applyFormulationUnit(formulationSel.value));
+    if (formulationSel.value) applyFormulationUnit(formulationSel.value);
+  }
+})();
+</script>
+<style>.spin{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}</style>
+
+<script>
+/* ── Notes — récap automatique Ordre de Production ───────────────── */
+(function () {
+
+  function buildRecap() {
+    var fSel    = document.getElementById('id_formulation');
+    var fName   = fSel ? (fSel.options[fSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+    var qty     = (document.getElementById('id_target_qty')?.value  || '').trim();
+    var uSel    = document.getElementById('id_target_unit');
+    var uName   = uSel  ? (uSel.options[uSel.selectedIndex]?.text  || '').replace(/^-+$/, '').trim() : '';
+    var dateVal = (document.getElementById('id_launch_date')?.value || '').trim();
+    var dateStr = '';
+    if (dateVal) {
+      var p = dateVal.split('-');
+      if (p.length === 3) dateStr = p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    if (!fName && !qty) return '';
+
+    var out = [];
+    if (fName)   out.push('Formulation : ' + fName);
+    if (qty)     out.push('Quantité cible : ' + parseFloat(qty).toFixed(3) + (uName ? ' ' + uName : ''));
+    if (dateStr) out.push('Lancement : ' + dateStr);
+
+    /* Pull scaling rows if the preview panel is visible */
+    var rows = document.querySelectorAll('#scaling-tbody tr');
+    if (rows.length) {
+      out.push('');
+      out.push('Besoins théoriques en MP :');
+      rows.forEach(function (row) {
+        var cells = row.querySelectorAll('td');
+        if (cells.length < 5) return;
+        var mat    = cells[0].textContent.trim();
+        var besoin = cells[1].textContent.trim();
+        var pct    = cells[2].textContent.trim();
+        var stock  = cells[3].textContent.trim();
+        var ok     = cells[4]?.querySelector('.bx-check-circle') ? '✓' : '✗';
+        out.push('  ' + ok + ' ' + mat + ' — besoin : ' + besoin + ' (' + pct + ') | stock : ' + stock);
+      });
+
+      var factor = document.getElementById('scaling-factor')?.textContent.trim();
+      if (factor && factor !== '—') out.push('Facteur d\'échelle : ' + factor);
+    }
+
+    return out.join('\n');
+  }
+
+  var notesTA    = document.getElementById('id_notes');
+  var liveToggle = document.getElementById('liveNotesToggle');
+  var genBtn     = document.getElementById('genNotesBtn');
+  if (!notesTA || !genBtn) return;
+
+  genBtn.addEventListener('click', function () {
+    var txt = buildRecap();
+    if (txt) notesTA.value = txt;
+  });
+
+  function triggerLive() {
+    if (liveToggle && liveToggle.checked) notesTA.value = buildRecap();
+  }
+
+  document.getElementById('id_formulation')?.addEventListener('change', triggerLive);
+  document.getElementById('id_target_qty')?.addEventListener('input',   triggerLive);
+  document.getElementById('id_target_unit')?.addEventListener('change', triggerLive);
+  document.getElementById('id_launch_date')?.addEventListener('change', triggerLive);
+
+  /* Also refresh when the scaling panel updates (MutationObserver on tbody) */
+  var tbody = document.getElementById('scaling-tbody');
+  if (tbody) {
+    new MutationObserver(function () { setTimeout(triggerLive, 50); })
+      .observe(tbody, { childList: true, subtree: true });
+  }
+
+})();
+</script>
+{% endblock %}

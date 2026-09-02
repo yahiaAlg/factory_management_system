@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+{% load static %}
+{% load factory_filters %}
+
+{% block title %}{{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_invoices_list' %}">Factures Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>{{ invoice.reference }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.meta-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:16px; }
+.meta-item label { font-size:11px; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; display:block; margin-bottom:4px; }
+.meta-item .meta-val { font-size:14px; color:var(--text-primary); font-weight:500; }
+.ref-cell { font-family:monospace; font-size:12.5px; color:var(--text-secondary); }
+.amount-cell { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; text-align:right; }
+.total-bar { display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:14px 20px; background:var(--bg-raised); border-top:1px solid var(--border); }
+.fin-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13.5px; }
+.fin-row:last-child { border-bottom:none; }
+.fin-label { color:var(--text-secondary); }
+.fin-value { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; }
+.fin-total { font-size:17px; color:var(--accent); }
+.payment-row { padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.payment-row:last-child { border-bottom:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">{{ invoice.reference }}</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Facture Fournisseur · {{ invoice.invoice_date|date:"d F Y" }}</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'supplier_ops:supplier_invoice_print' invoice.id %}" class="btn-secondary-app" target="_blank">
+      <i class="bx bx-printer"></i> Imprimer
+    </a>
+    {% if can_pay %}
+    <a href="{% url 'supplier_ops:supplier_payment_create' invoice.id %}" class="btn-secondary-app">
+      <i class="bx bx-credit-card"></i> Paiement direct
+    </a>
+    {% endif %}
+    {% if can_settle %}
+    <a href="{% url 'supplier_ops:supplier_account_settlement' invoice.supplier.id %}" class="btn-primary-app">
+      <i class="bx bx-wallet"></i> Régler le compte
+    </a>
+    {% endif %}
+    {% if can_link_expense %}
+    <a href="{% url 'expenses:expense_create' %}?invoice_id={{ invoice.id }}" class="btn-secondary-app">
+      <i class="bx bx-receipt"></i> Créer dépense liée
+    </a>
+    {% endif %}
+    <a href="{% url 'supplier_ops:supplier_invoices_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour
+    </a>
+  </div>
+</div>
+
+<!-- Overdue / dispute banners -->
+{% if invoice.status == 'in_dispute' %}
+<div class="alert-banner alert-banner-error mb-4" style="display:flex;align-items:center;gap:10px;">
+  <i class="bx bx-error-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <span><strong>Facture en litige.</strong> Aucun paiement ne peut être enregistré tant que le litige n'est pas résolu par le Manager.</span>
+</div>
+{% endif %}
+{% if invoice.is_overdue %}
+<div class="alert-banner alert-banner-error mb-4" style="display:flex;align-items:center;gap:10px;">
+  <i class="bx bx-error" style="font-size:18px;flex-shrink:0;"></i>
+  <span><strong>Facture en retard.</strong> Échéance dépassée au {{ invoice.due_date|date:"d/m/Y" }} — solde dû : <span data-money="{{ invoice.balance_due }}" data-money-suffix=" DA">{{ invoice.balance_due|floatformat:2 }} DA</span></span>
+</div>
+{% endif %}
+{% if invoice.balance_due <= 0 and invoice.status != 'paid' and invoice.status != 'in_dispute' and invoice.status != 'cancelled' %}
+<div class="alert-banner mb-4" style="display:flex;align-items:center;gap:10px;background:var(--bg-raised);border:1px solid var(--border);">
+  <i class="bx bx-paperclip" style="font-size:18px;flex-shrink:0;"></i>
+  <span>Le solde est soldé mais la facture ne peut pas passer <strong>Payée</strong> tant qu'un justificatif de paiement (SD-PAY-F) n'est pas joint.</span>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <!-- Main column -->
+  <div class="col-lg-8">
+
+    <!-- Infos -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Informations générales</span>
+        <div>
+          {% if invoice.status == 'entered' %}<span class="badge-en-attente">Saisie</span>
+          {% elif invoice.status == 'verified' %}<span class="badge-valide">Vérifiée</span>
+          {% elif invoice.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+          {% elif invoice.status == 'unpaid' %}<span class="badge-non-paye">Impayée</span>
+          {% elif invoice.status == 'partially_paid' %}<span class="badge-partiellement">Part. payée</span>
+          {% elif invoice.status == 'paid' %}<span class="badge-paye">Payée</span>
+          {% elif invoice.status == 'cancelled' %}<span class="badge-annule">Annulée</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-app-body">
+        <div class="meta-grid">
+          <div class="meta-item">
+            <label>Référence</label>
+            <div class="meta-val" style="font-family:monospace;">{{ invoice.reference }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Réf. Fournisseur</label>
+            <div class="meta-val">{{ invoice.external_reference }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Fournisseur</label>
+            <div class="meta-val">{{ invoice.supplier.raison_sociale }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Date facture</label>
+            <div class="meta-val">{{ invoice.invoice_date|date:"d/m/Y" }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Date d'échéance</label>
+            <div class="meta-val {% if invoice.is_overdue %}text-danger{% endif %}">{{ invoice.due_date|date:"d/m/Y" }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Créé par</label>
+            <div class="meta-val">{{ invoice.created_by.get_full_name|default:invoice.created_by.username }}</div>
+          </div>
+          <div class="meta-item">
+            <label>Créé le</label>
+            <div class="meta-val">{{ invoice.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BL liés -->
+    {% if linked_dns %}
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Bons de livraison liés</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Référence BL</th>
+                <th>Date livraison</th>
+                <th style="text-align:right;">Total HT</th>
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dn in linked_dns %}
+              <tr>
+                <td><a href="{% url 'supplier_ops:supplier_dn_detail' dn.id %}" style="color:var(--accent);font-family:monospace;">{{ dn.reference }}</a></td>
+                <td style="color:var(--text-secondary);">{{ dn.delivery_date|date:"d/m/Y" }}</td>
+                <td class="amount-cell"><span data-money="{{ dn.total_amount_ht }}" data-money-suffix=" DA">{{ dn.total_amount_ht|floatformat:2 }} DA</span></td>
+                <td><span class="badge-valide">Validé</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Lignes facturées -->
+    <div class="card-app mb-4">
+      <div class="card-app-header">
+        <span class="card-app-title">Lignes facturées</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Réf. MP</th>
+                <th>Désignation</th>
+                <th style="text-align:right;">Qté facturée</th>
+                <th style="text-align:right;">Prix unitaire</th>
+                <th style="text-align:right;">Montant HT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in lines %}
+              <tr>
+                <td><span class="ref-cell">{{ line.raw_material.reference }}</span></td>
+                <td>{{ line.designation }}</td>
+                <td style="text-align:right;font-weight:500;">{{ line.quantity_invoiced|floatformat:3 }}</td>
+                <td class="amount-cell"><span data-money="{{ line.unit_price_invoiced }}" data-money-suffix="">{{ line.unit_price_invoiced|floatformat:2 }}</span></td>
+                <td class="amount-cell"><span data-money="{{ line.line_amount }}" data-money-suffix=" DA">{{ line.line_amount|floatformat:2 }} DA</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="total-bar">
+          <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">Total HT :</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:18px;font-weight:700;color:var(--accent);"><span data-money="{{ invoice.total_ht }}" data-money-suffix=" DA">{{ invoice.total_ht|floatformat:2 }} DA</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paiements -->
+    {% if payments %}
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Historique des paiements</span>
+      </div>
+      <div class="card-app-body p-0">
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Référence</th>
+                <th>Date</th>
+                <th>Mode</th>
+                <th>Réf. bancaire</th>
+                <th style="text-align:right;">Montant</th>
+                <th>Par</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in payments %}
+              <tr>
+                <td>
+                  <span class="ref-cell">{{ p.reference }}</span>
+                  {% if p.has_supporting_doc %}
+                  <i class="bx bx-paperclip" style="font-size:12px;color:var(--accent);margin-left:4px;" data-bs-toggle="tooltip" title="Document joint"></i>
+                  {% endif %}
+                </td>
+                <td style="color:var(--text-secondary);">{{ p.payment_date|date:"d/m/Y" }}</td>
+                <td style="color:var(--text-secondary);">{{ p.get_payment_method_display }}</td>
+                <td style="color:var(--text-muted);font-size:12px;">{{ p.bank_reference|default:"—" }}</td>
+                <td class="amount-cell" style="color:#166534;"><span data-money="{{ p.amount }}" data-money-suffix=" DA">{{ p.amount|floatformat:2 }} DA</span></td>
+                <td style="font-size:12.5px;color:var(--text-muted);">{{ p.recorded_by.get_full_name|default:p.recorded_by.username }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Documents justificatifs -->
+    <div class="card-app mt-4">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-paperclip me-2" style="font-size:15px;"></i>Documents justificatifs</span>
+        {% if invoice.status != 'cancelled' %}
+        <a href="{% url 'supplier_ops:supplier_invoice_add_document' invoice.id %}" class="btn-secondary-app" style="font-size:12px;">
+          <i class="bx bx-plus"></i> Ajouter
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-app-body p-0">
+        {% if supporting_docs %}
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Description</th>
+                <th>Ajouté par</th>
+                <th>Date</th>
+                <th>Fichier</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for doc in supporting_docs %}
+              <tr>
+                <td><span class="badge-en-attente" style="font-size:11px;">{{ doc.get_type_document_display }}</span></td>
+                <td style="font-size:12.5px;color:var(--text-muted);">{{ doc.source_label }}</td>
+                <td style="font-size:13px;">{{ doc.description }}</td>
+                <td style="font-size:12.5px;color:var(--text-muted);">{{ doc.uploaded_by.get_full_name|default:doc.uploaded_by.username }}</td>
+                <td style="font-size:12.5px;color:var(--text-muted);">{{ doc.created_at|date:"d/m/Y H:i" }}</td>
+                <td>
+                  {% if doc.fichier %}
+                  <a href="{{ doc.fichier.url }}" target="_blank" class="btn-secondary-app" style="font-size:11px;padding:4px 10px;">
+                    <i class="bx bx-download"></i> Télécharger
+                  </a>
+                  {% else %}
+                  <span style="color:var(--text-muted);font-size:12px;">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <form method="post" action="{% url 'core:piece_jointe_delete' doc.pk %}" onsubmit="return confirm('Supprimer ce document ?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}" />
+                    <button type="submit" class="btn-secondary-app" style="font-size:11px;padding:4px 10px;color:#dc2626;">
+                      <i class="bx bx-trash"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:32px 20px;">
+          <i class="bx bx-file-blank" style="font-size:32px;color:var(--text-muted);display:block;margin-bottom:8px;"></i>
+          <div class="empty-state-title" style="font-size:13px;">Aucun document justificatif</div>
+          {% if invoice.status != 'cancelled' %}
+          <a href="{% url 'supplier_ops:supplier_invoice_add_document' invoice.id %}" class="btn-primary-app mt-3" style="font-size:12px;">
+            <i class="bx bx-plus"></i> Ajouter un justificatif
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right sidebar -->
+  <div class="col-lg-4">
+
+    <!-- Financial summary -->
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title">Récapitulatif financier</span>
+      </div>
+      <div class="card-app-body">
+        <div class="fin-row">
+          <span class="fin-label">Total HT</span>
+          <span class="fin-value"><span data-money="{{ invoice.total_ht }}" data-money-suffix=" DA">{{ invoice.total_ht|floatformat:2 }} DA</span></span>
+        </div>
+        <div class="fin-row">
+          <span class="fin-label">TVA (19%)</span>
+          <span class="fin-value"><span data-money="{{ invoice.vat_amount }}" data-money-suffix=" DA">{{ invoice.vat_amount|floatformat:2 }} DA</span></span>
+        </div>
+        <div class="fin-row" style="border-bottom:2px solid var(--border-strong);">
+          <span class="fin-label" style="font-weight:600;">Total TTC</span>
+          <span class="fin-value fin-total"><span data-money="{{ invoice.total_ttc }}" data-money-suffix=" DA">{{ invoice.total_ttc|floatformat:2 }} DA</span></span>
+        </div>
+        {% if invoice.timbre_fiscal > 0 %}
+        <div class="fin-row" style="color:#92400e;">
+          <span class="fin-label" style="font-size:12.5px;">Timbre fiscal</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;">+ <span data-money="{{ invoice.timbre_fiscal }}" data-money-suffix=" DA">{{ invoice.timbre_fiscal|floatformat:2 }} DA</span></span>
+        </div>
+        <div class="fin-row" style="background:#fef3c7;border-radius:6px;padding:6px 8px;">
+          <span class="fin-label" style="font-weight:600;font-size:13px;color:#92400e;">Net à payer</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:14px;color:#92400e;"><span data-money="{{ invoice.total_net }}" data-money-suffix=" DA">{{ invoice.total_net|floatformat:2 }} DA</span></span>
+        </div>
+        {% endif %}
+        <div class="fin-row" style="padding-bottom:6px;">
+          <span class="fin-label" style="font-size:12px;color:var(--text-secondary);">Mode de règlement</span>
+          <span style="font-size:12.5px;font-weight:600;">{{ invoice.get_payment_method_display }}</span>
+        </div>
+        {% for p in payments %}
+        <div class="fin-row" style="color:#166534;">
+          <span style="font-size:12.5px;">Paiement {{ p.payment_date|date:"d/m/Y" }}</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">- <span data-money="{{ p.amount }}" data-money-suffix=" DA">{{ p.amount|floatformat:2 }} DA</span></span>
+        </div>
+        {% endfor %}
+        <div class="fin-row" style="border-top:2px solid var(--border-strong);padding-top:12px;">
+          <span class="fin-label" style="font-weight:700;font-size:14px;">Solde dû</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:18px;{% if invoice.balance_due > 0 %}color:#dc2626;{% else %}color:#166534;{% endif %}">
+            <span data-money="{{ invoice.balance_due }}" data-money-suffix=" DA">{{ invoice.balance_due|floatformat:2 }} DA</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Supplier -->
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title">Fournisseur</span>
+      </div>
+      <div class="card-app-body">
+        <div style="font-weight:600;margin-bottom:4px;">{{ invoice.supplier.raison_sociale }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">{{ invoice.supplier.code }}</div>
+        {% if invoice.supplier.nif %}<div style="font-size:12px;color:var(--text-secondary);">NIF: {{ invoice.supplier.nif }}</div>{% endif %}
+        {% if invoice.supplier.nis %}<div style="font-size:12px;color:var(--text-secondary);">NIS: {{ invoice.supplier.nis }}</div>{% endif %}
+        {% if invoice.supplier.rc %}<div style="font-size:12px;color:var(--text-secondary);">RC: {{ invoice.supplier.rc }}</div>{% endif %}
+        {% if invoice.supplier.ai %}<div style="font-size:12px;color:var(--text-secondary);">AI: {{ invoice.supplier.ai }}</div>{% endif %}
+        {% if invoice.supplier.phone %}<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;">Tél: {{ invoice.supplier.phone }}</div>{% endif %}
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Délai: {{ invoice.supplier.payment_terms }} jours</div>
+      </div>
+    </div>
+
+    <!-- Linked expense -->
+    {% if linked_expense %}
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-receipt ic-teal me-2" style="font-size:15px;"></i>Dépense liée</span>
+      </div>
+      <div class="card-app-body">
+        <div style="font-family:monospace;font-weight:600;margin-bottom:4px;">{{ linked_expense.reference }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">{{ linked_expense.description|truncatechars:60 }}</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+          <span style="color:var(--text-secondary);">Montant</span>
+          <span style="font-weight:600;"><span data-money="{{ linked_expense.amount }}" data-money-suffix=" DA">{{ linked_expense.amount|floatformat:2 }} DA</span></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;">
+          <span style="color:var(--text-secondary);">Statut</span>
+          <span>
+            {% if linked_expense.status == 'recorded' %}<span class="badge-en-attente">Enregistrée</span>
+            {% elif linked_expense.status == 'validated' %}<span class="badge-valide">Validée</span>
+            {% elif linked_expense.status == 'paid' %}<span class="badge-paye">Payée</span>
+            {% elif linked_expense.status == 'rejected' %}<span class="badge-annule">Rejetée</span>
+            {% endif %}
+          </span>
+        </div>
+        <a href="{% url 'expenses:expense_detail' linked_expense.id %}" class="btn-secondary-app w-100 text-center" style="font-size:12px;">
+          <i class="bx bx-show"></i> Voir la dépense
+        </a>
+      </div>
+    </div>
+    {% elif can_link_expense %}
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-receipt ic-blue me-2" style="font-size:15px;"></i>Dépense liée</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:12px;">Aucune dépense liée à cette facture.</p>
+        <a href="{% url 'expenses:expense_create' %}?invoice_id={{ invoice.id }}" class="btn-secondary-app w-100 text-center" style="font-size:12px;">
+          <i class="bx bx-plus"></i> Créer une dépense liée
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Status Management -->
+    <div class="card-app mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-transfer-alt me-2" style="font-size:15px;"></i>Changer le statut</span>
+      </div>
+      <div class="card-app-body">
+
+        {% if request.user.userprofile.role == 'manager' %}
+        <!-- MANAGER: guided next-step buttons + free select -->
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+          Statut actuel : <strong>{{ invoice.get_status_display }}</strong>
+        </p>
+        {% with next_transitions=invoice.get_next_transitions %}
+        {% if next_transitions %}
+          {% for val, label, icon, btn_class in next_transitions %}
+          <form method="post" action="{% url 'supplier_ops:supplier_invoice_change_status' invoice.id %}" class="mb-2"{% if val == 'paid' %} enctype="multipart/form-data"{% endif %}>
+            {% csrf_token %}
+            <input type="hidden" name="new_status" value="{{ val }}">
+            {% if val == 'paid' and not invoice.has_sd_pay_f %}
+            <div class="mb-2" style="font-size:11.5px;">
+              <label style="color:var(--text-muted);display:block;margin-bottom:4px;">
+                Justificatif paiement (SD-PAY-F) <span style="font-weight:400;">— requis si non déjà joint</span>
+              </label>
+              <input type="file" name="sd_pay_f_file" accept=".pdf,.jpg,.jpeg,.png"
+                style="display:block;width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-primary);">
+            </div>
+            {% endif %}
+            <button type="submit" class="{{ btn_class }} w-100" style="font-size:13px;">
+              <i class="bx {{ icon }} me-1"></i> {{ label }}
+            </button>
+          </form>
+          {% endfor %}
+        {% endif %}
+        {% endwith %}
+        <hr style="border-color:var(--border);margin:12px 0;">
+        <p style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Transition forcée</p>
+        <form method="post" action="{% url 'supplier_ops:supplier_invoice_change_status' invoice.id %}">
+          {% csrf_token %}
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select name="new_status" class="form-control-app" style="flex:1;font-size:13px;">
+              {% for val, label in invoice.STATUS_CHOICES %}
+                {% if val != invoice.status %}
+                <option value="{{ val }}">{{ label }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-primary-app" style="white-space:nowrap;font-size:12px;padding:8px 14px;">
+              <i class="bx bx-check"></i>
+            </button>
+          </div>
+        </form>
+
+        {% else %}
+        <!-- NON-MANAGER: guided next-step buttons based on VALID_TRANSITIONS -->
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+          Statut actuel : <strong>{{ invoice.get_status_display }}</strong>
+        </p>
+        {% with next_transitions=invoice.get_next_transitions %}
+        {% if next_transitions %}
+          {% for val, label, icon, btn_class in next_transitions %}
+          <form method="post" action="{% url 'supplier_ops:supplier_invoice_change_status' invoice.id %}" class="mb-2"{% if val == 'paid' %} enctype="multipart/form-data"{% endif %}>
+            {% csrf_token %}
+            <input type="hidden" name="new_status" value="{{ val }}">
+            {% if val == 'paid' and not invoice.has_sd_pay_f %}
+            <div class="mb-2" style="font-size:11.5px;">
+              <label style="color:var(--text-muted);display:block;margin-bottom:4px;">
+                Justificatif paiement (SD-PAY-F) <span style="font-weight:400;">— requis si non déjà joint</span>
+              </label>
+              <input type="file" name="sd_pay_f_file" accept=".pdf,.jpg,.jpeg,.png"
+                style="display:block;width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-surface);color:var(--text-primary);">
+            </div>
+            {% endif %}
+            <button type="submit" class="{{ btn_class }} w-100" style="font-size:13px;">
+              <i class="bx {{ icon }} me-1"></i> {{ label }}
+            </button>
+          </form>
+          {% endfor %}
+        {% else %}
+          <p style="font-size:12.5px;color:var(--text-muted);">Aucune transition disponible depuis ce statut.</p>
+        {% endif %}
+        {% endwith %}
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Dispute banner (manager only) -->
+    {% if request.user.userprofile.role == 'manager' and invoice.status == 'in_dispute' %}
+    <div class="card-app danger-zone mb-3">
+      <div class="card-app-header">
+        <span class="card-app-title" style="color:#dc2626;"><i class="bx bx-error-circle me-1"></i>Litige actif</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:13px;color:var(--text-secondary);margin:0;">Utilisez le sélecteur ci-dessus pour résoudre le litige et autoriser les paiements.</p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

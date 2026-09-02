@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Tableau de bord — Reporting{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Rapports</span>
+{% endblock %}
+
+{% block extra_css %}
+{% include "reporting/_shared_css.html" %}
+<style>
+  .period-toggle { display:flex; gap:4px; }
+  .period-btn {
+    padding:6px 14px; border-radius:var(--radius-sm); border:1px solid var(--border);
+    background:var(--bg-surface); font-family:'Plus Jakarta Sans',sans-serif; font-weight:600;
+    font-size:12.5px; color:var(--text-secondary); cursor:pointer; transition:all .15s;
+  }
+  .period-btn:hover { border-color:var(--border-strong); color:var(--text-primary); background:var(--bg-raised); }
+  .period-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  .custom-range {
+    display:flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:var(--radius-sm); border:1px solid var(--border);
+    background:var(--bg-surface); transition:border-color .15s,box-shadow .15s;
+  }
+  .custom-range.active { border-color:var(--accent); box-shadow:0 0 0 2px rgba(15,118,110,.12); }
+  .custom-range label { font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; font-size:11.5px; color:var(--text-muted); white-space:nowrap; margin:0; }
+  .custom-range input[type="date"] {
+    background:transparent; border:none; outline:none;
+    font-family:'Inter',sans-serif; font-size:12.5px; color:var(--text-primary);
+    padding:2px 4px; cursor:pointer; width:130px;
+  }
+  .custom-range .range-sep { color:var(--text-muted); font-size:12px; }
+  .range-apply-btn {
+    padding:5px 11px; border-radius:var(--radius-sm); border:1px solid var(--accent);
+    background:var(--accent); font-family:'Plus Jakarta Sans',sans-serif; font-weight:600;
+    font-size:12px; color:#fff; cursor:pointer; transition:opacity .15s; white-space:nowrap;
+  }
+  .range-apply-btn:hover { opacity:.85; }
+
+  .report-link-card {
+    background:var(--bg-surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+    padding:14px 16px; text-decoration:none; color:inherit;
+    display:flex; align-items:center; gap:12px;
+    transition:border-color .15s,box-shadow .15s,transform .12s;
+    box-shadow:0 1px 3px rgba(15,23,42,.04);
+  }
+  .report-link-card:hover { border-color:var(--border-strong); box-shadow:0 4px 12px rgba(15,23,42,.08); transform:translateY(-1px); color:inherit; }
+  .report-link-card h6 { font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:13px; color:var(--text-primary); margin:0 0 2px; }
+  .report-link-card p  { font-size:11.5px; color:var(--text-muted); margin:0; }
+
+  .exec-item { display:flex; align-items:center; gap:10px; padding:9px 20px; border-bottom:1px solid var(--border); }
+  .exec-item:last-child { border-bottom:none; }
+  .exec-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .exec-dot.completed { background:#15803d; }
+  .exec-dot.running   { background:#d97706; }
+  .exec-dot.failed    { background:#dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rpt-page-header">
+  <div>
+    <p class="rpt-page-title">Tableau de bord reporting</p>
+    <p class="rpt-page-sub"><i class="bx bx-calendar me-1"></i>{% now "d F Y" %}</p>
+  </div>
+  <div class="period-toggle" style="flex-wrap:wrap;gap:6px;align-items:center;">
+    <button class="period-btn active" data-period="month">Mois</button>
+    <button class="period-btn" data-period="quarter">Trimestre</button>
+    <button class="period-btn" data-period="year">Année</button>
+    <div class="custom-range" id="customRange">
+      <label>Du</label>
+      <input type="date" id="dateFrom">
+      <span class="range-sep">→</span>
+      <label>Au</label>
+      <input type="date" id="dateTo">
+      <button class="range-apply-btn" id="applyRange"><i class="bx bx-check"></i> Appliquer</button>
+    </div>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-teal"><i class="bx bx-trending-up"></i></div>
+      <div>
+        <div class="metric-label">Revenus facturés</div>
+        <div class="metric-value" id="kpi-revenue">—</div>
+        <div class="metric-sub">DA — période</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-red"><i class="bx bx-trending-down"></i></div>
+      <div>
+        <div class="metric-label">Charges totales</div>
+        <div class="metric-value" id="kpi-charges">—</div>
+        <div class="metric-sub">Fournisseurs + opérationnel</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-green"><i class="bx bx-bar-chart-alt-2"></i></div>
+      <div>
+        <div class="metric-label">Résultat net</div>
+        <div class="metric-value" id="kpi-result">—</div>
+        <div id="kpi-result-delta"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-amber"><i class="bx bx-receipt"></i></div>
+      <div>
+        <div class="metric-label">Dépenses opérat.</div>
+        <div class="metric-value" id="kpi-opex">—</div>
+        <div class="metric-sub">Validées et payées</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="chart-card h-100">
+      <div class="chart-card-header">
+        <span class="chart-card-title">Revenus vs Charges</span>
+        <span class="chart-card-sub">mis à jour automatiquement</span>
+      </div>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:230px"><canvas id="revenueChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="chart-card h-100">
+      <div class="chart-card-header"><span class="chart-card-title">Répartition des charges</span></div>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:230px"><canvas id="chargesDonut"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Report links + executions -->
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-card-header"><span class="chart-card-title">Accès rapide aux rapports</span></div>
+      <div class="chart-card-body">
+        <div class="row g-2">
+          {% for url_name, icon, color, title, sub in report_links %}{% endfor %}
+          <div class="col-sm-6"><a href="{% url 'reporting:financial_result_report' %}" class="report-link-card"><div class="metric-icon ic-teal"><i class="bx bx-line-chart"></i></div><div><h6>Résultat financier</h6><p>P&L théorique et trésorerie</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:receivables_aging_report' %}" class="report-link-card"><div class="metric-icon ic-blue"><i class="bx bx-group"></i></div><div><h6>Échéancier clients</h6><p>Créances par ancienneté</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:payables_aging_report' %}" class="report-link-card"><div class="metric-icon ic-amber"><i class="bx bx-building-house"></i></div><div><h6>Échéancier fournisseurs</h6><p>Dettes par ancienneté</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:production_yield_report' %}" class="report-link-card"><div class="metric-icon ic-green"><i class="bx bx-cog"></i></div><div><h6>Rendements production</h6><p>Analyse des ordres de production</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:expense_breakdown_report' %}" class="report-link-card"><div class="metric-icon ic-red"><i class="bx bx-wallet"></i></div><div><h6>Répartition dépenses</h6><p>Par catégorie et bénéficiaire</p></div></a></div>
+          <div class="col-sm-6"><a href="{% url 'reporting:stock_valuation_report' %}" class="report-link-card"><div class="metric-icon ic-purple"><i class="bx bx-package"></i></div><div><h6>Valorisation stocks</h6><p>MP et produits finis</p></div></a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="chart-card h-100">
+      <div class="chart-card-header"><span class="chart-card-title">Dernières exécutions</span></div>
+      {% if recent_executions %}
+        {% for exec in recent_executions %}
+        <div class="exec-item">
+          <span class="exec-dot {{ exec.status }}"></span>
+          <div style="min-width:0;flex:1">
+            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ exec.template.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">{{ exec.execution_date|date:"d/m/Y H:i" }} — <span style="color:{% if exec.status == 'completed' %}#15803d{% elif exec.status == 'failed' %}#dc2626{% else %}#d97706{% endif %}">{{ exec.get_status_display }}</span></div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">Aucune exécution enregistrée.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size   = 12;
+Chart.defaults.color       = '#94a3b8';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.padding = 14;
+
+const KPI_URL = "{% url 'reporting:kpi_dashboard_ajax' %}";
+let revenueChart, chargesDonut;
+
+function fmtDA(n) {
+  return parseFloat(n).toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DA';
+}
+
+function initCharts() {
+  revenueChart = new Chart(document.getElementById('revenueChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Revenus','Ch. fournisseurs','Dép. opérat.'],
+      datasets: [{
+        data: [0,0,0],
+        backgroundColor: ['rgba(15,118,110,.15)','rgba(220,38,38,.12)','rgba(217,119,6,.12)'],
+        borderColor:     ['#0f766e','#dc2626','#d97706'],
+        borderWidth: 2, borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { grid: { color: '#f1f5f9' }, border: { display: false }, ticks: { callback: v => (v/1000000).toFixed(1)+'M' } },
+        x: { grid: { display: false }, border: { display: false } }
+      }
+    }
+  });
+
+  chargesDonut = new Chart(document.getElementById('chargesDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Ch. fournisseurs','Dép. opérationnel'],
+      datasets: [{ data:[0,0], backgroundColor:['#0f766e','#d97706'], borderWidth:0, hoverOffset:4 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout:'70%', plugins:{ legend:{ position:'bottom' } } }
+  });
+}
+
+function loadKPIs(period, dateFrom, dateTo) {
+  let url = `${KPI_URL}?period=${period}`;
+  if (dateFrom && dateTo) url += `&date_from=${dateFrom}&date_to=${dateTo}`;
+  fetch(url)
+    .then(r => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then(d => {
+      if (!d.success) return;
+      const rev  = parseFloat(d.revenue);
+      const sup  = parseFloat(d.supplier_charges);
+      const opex = parseFloat(d.op_expenses);
+      const res  = parseFloat(d.result);
+      document.getElementById('kpi-revenue').textContent = fmtDA(rev);
+      document.getElementById('kpi-charges').textContent = fmtDA(parseFloat(d.total_charges));
+      document.getElementById('kpi-result').textContent  = fmtDA(res);
+      document.getElementById('kpi-opex').textContent    = fmtDA(opex);
+      document.getElementById('kpi-result-delta').innerHTML = res >= 0
+        ? '<span class="metric-delta pos"><i class="bx bx-trending-up"></i> Bénéfice</span>'
+        : '<span class="metric-delta neg"><i class="bx bx-trending-down"></i> Déficit</span>';
+      revenueChart.data.datasets[0].data = [rev, sup, opex];
+      revenueChart.update('active');
+      chargesDonut.data.datasets[0].data = [sup, opex];
+      chargesDonut.update('active');
+    })
+    .catch(err => console.warn('KPI fetch failed:', err));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Default date inputs to current month
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const fmt = d => d.toISOString().slice(0,10);
+  document.getElementById('dateFrom').value = fmt(firstDay);
+  document.getElementById('dateTo').value   = fmt(lastDay);
+
+  initCharts();
+  loadKPIs('month');
+
+  const periodBtns  = document.querySelectorAll('.period-btn');
+  const customRange = document.getElementById('customRange');
+
+  periodBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      periodBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      customRange.classList.remove('active');
+      loadKPIs(btn.dataset.period);
+    });
+  });
+
+  // Highlight custom range when a date input is focused/changed
+  ['dateFrom','dateTo'].forEach(id => {
+    document.getElementById(id).addEventListener('focus', () => {
+      periodBtns.forEach(b => b.classList.remove('active'));
+      customRange.classList.add('active');
+    });
+  });
+
+  document.getElementById('applyRange').addEventListener('click', () => {
+    const from = document.getElementById('dateFrom').value;
+    const to   = document.getElementById('dateTo').value;
+    if (!from || !to) return;
+    if (from > to) { alert('La date de début doit être antérieure à la date de fin.'); return; }
+    periodBtns.forEach(b => b.classList.remove('active'));
+    customRange.classList.add('active');
+    loadKPIs('custom', from, to);
+  });
+});
+</script>
+{% endblock %}

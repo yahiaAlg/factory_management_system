@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% load static l10n %}
+{% block title %}Résultat financier{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'reporting:reporting_dashboard' %}">Rapports</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Résultat financier</span>
+{% endblock %}
+
+{% block extra_css %}
+{% include "reporting/_shared_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="rpt-page-header">
+  <div>
+    <p class="rpt-page-title">Résultat financier</p>
+    <p class="rpt-page-sub">Analyse P&L — engagé vs trésorerie</p>
+  </div>
+  {% if report_data %}
+  <a href="{% url 'reporting:export_report_csv' 'financial_result' %}?date_from={{ date_from }}&date_to={{ date_to }}" class="btn-secondary-app">
+    <i class="bx bx-download"></i> Exporter CSV
+  </a>
+  {% endif %}
+</div>
+
+<!-- Filter -->
+<div class="filter-panel">
+  <div class="filter-panel-label"><i class="bx bx-filter-alt me-1"></i>Période</div>
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-sm-4">
+      <label>Date de début</label>
+      <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 12px;width:100%;">
+    </div>
+    <div class="col-sm-4">
+      <label>Date de fin</label>
+      <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);font-family:'Inter',sans-serif;font-size:13.5px;padding:8px 12px;width:100%;">
+    </div>
+    <div class="col-sm-4">
+      <button type="submit" class="btn-primary-app w-100 justify-content-center">
+        <i class="bx bx-refresh"></i> Actualiser
+      </button>
+    </div>
+    {% if form.errors %}<div class="col-12"><div class="alert alert-danger py-2" style="font-size:13px">{{ form.errors }}</div></div>{% endif %}
+  </form>
+</div>
+
+{% if report_data %}{% with d=report_data %}
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-teal"><i class="bx bx-trending-up"></i></div>
+      <div>
+        <div class="metric-label">Revenus facturés</div>
+        <div class="metric-value"><span data-money="{{ d.invoiced_revenue }}" data-money-suffix="">{{ d.invoiced_revenue|floatformat:2 }}</span></div>
+        <div class="metric-sub">DA engagés</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon ic-blue"><i class="bx bx-money"></i></div>
+      <div>
+        <div class="metric-label">Revenus encaissés</div>
+        <div class="metric-value"><span data-money="{{ d.collected_revenue }}" data-money-suffix="">{{ d.collected_revenue|floatformat:2 }}</span></div>
+        <div class="metric-sub">
+          Recouvrement :
+          <span class="{% if d.collection_rate >= 80 %}text-pos{% else %}text-warn{% endif %}">
+            {{ d.collection_rate|floatformat:1 }}%
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon {% if d.theoretical_result >= 0 %}ic-green{% else %}ic-red{% endif %}">
+        <i class="bx bx-bar-chart-alt-2"></i>
+      </div>
+      <div>
+        <div class="metric-label">Résultat théorique</div>
+        <div class="metric-value {% if d.theoretical_result >= 0 %}text-pos{% else %}text-neg{% endif %}"><span data-money="{{ d.theoretical_result }}" data-money-suffix="">{{ d.theoretical_result|floatformat:2 }}</span></div>
+        <div class="metric-sub">DA — engagé</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6">
+    <div class="metric-card">
+      <div class="metric-icon {% if d.actual_cash_result >= 0 %}ic-green{% else %}ic-red{% endif %}">
+        <i class="bx bx-wallet"></i>
+      </div>
+      <div>
+        <div class="metric-label">Résultat trésorerie</div>
+        <div class="metric-value {% if d.actual_cash_result >= 0 %}text-pos{% else %}text-neg{% endif %}"><span data-money="{{ d.actual_cash_result }}" data-money-suffix="">{{ d.actual_cash_result|floatformat:2 }}</span></div>
+        <div class="metric-sub">DA — encaissé / décaissé</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-card-header"><span class="chart-card-title">Revenus vs Charges — comparé</span></div>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:250px"><canvas id="finBarChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="chart-card">
+      <div class="chart-card-header"><span class="chart-card-title">Structure des charges</span></div>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:250px"><canvas id="chargesDonut"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rate gauges -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="chart-card">
+      <div class="chart-card-header"><span class="chart-card-title">Taux de recouvrement clients</span><span class="chart-card-sub">{{ d.collection_rate|floatformat:1 }}%</span></div>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:140px"><canvas id="collectionGauge"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="chart-card">
+      <div class="chart-card-header"><span class="chart-card-title">Taux de règlement fournisseurs</span><span class="chart-card-sub">{{ d.settlement_rate|floatformat:1 }}%</span></div>
+      <div class="chart-card-body">
+        <div class="chart-wrap" style="height:140px"><canvas id="settlementGauge"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Detail table -->
+<div class="table-container">
+  <div class="table-container-header">
+    <span class="table-container-title"><i class="bx bx-table me-2"></i>Détail des indicateurs</span>
+    <span style="font-size:12px;color:var(--text-muted)">{{ date_from|date:"d/m/Y" }} → {{ date_to|date:"d/m/Y" }}</span>
+  </div>
+  <table class="table rpt-table mb-0">
+    <thead><tr>
+      <th>Indicateur</th>
+      <th class="text-end">Engagé / Théorique (DA)</th>
+      <th class="text-end">Réel / Trésorerie (DA)</th>
+    </tr></thead>
+    <tbody>
+      <tr><td style="color:var(--text-primary);font-weight:600">Revenus</td>
+          <td class="num-cell"><span data-money="{{ d.invoiced_revenue }}" data-money-suffix="">{{ d.invoiced_revenue|floatformat:2 }}</span></td>
+          <td class="num-cell"><span data-money="{{ d.collected_revenue }}" data-money-suffix="">{{ d.collected_revenue|floatformat:2 }}</span></td></tr>
+      <tr><td class="ps-4">→ Charges fournisseurs</td>
+          <td class="num-cell text-neg"><span data-money="{{ d.committed_supplier_charges }}" data-money-suffix="">{{ d.committed_supplier_charges|floatformat:2 }}</span></td>
+          <td class="num-cell text-neg"><span data-money="{{ d.paid_supplier_charges }}" data-money-suffix="">{{ d.paid_supplier_charges|floatformat:2 }}</span></td></tr>
+      <tr><td class="ps-4">→ Dépenses opérationnelles</td>
+          <td class="num-cell text-neg"><span data-money="{{ d.committed_operational_expenses }}" data-money-suffix="">{{ d.committed_operational_expenses|floatformat:2 }}</span></td>
+          <td class="num-cell text-neg"><span data-money="{{ d.paid_operational_expenses }}" data-money-suffix="">{{ d.paid_operational_expenses|floatformat:2 }}</span></td></tr>
+      <tr style="background:var(--bg-raised)">
+          <td style="font-weight:700;color:var(--text-primary)">Total charges</td>
+          <td class="num-cell text-neg"><span data-money="{{ d.total_committed_charges }}" data-money-suffix="">{{ d.total_committed_charges|floatformat:2 }}</span></td>
+          <td class="num-cell text-neg"><span data-money="{{ d.total_paid_charges }}" data-money-suffix="">{{ d.total_paid_charges|floatformat:2 }}</span></td></tr>
+    </tbody>
+    <tfoot><tr>
+      <td>Résultat net</td>
+      <td class="text-end {% if d.theoretical_result >= 0 %}text-pos{% else %}text-neg{% endif %}"><span data-money="{{ d.theoretical_result }}" data-money-suffix="">{{ d.theoretical_result|floatformat:2 }}</span></td>
+      <td class="text-end {% if d.actual_cash_result >= 0 %}text-pos{% else %}text-neg{% endif %}"><span data-money="{{ d.actual_cash_result }}" data-money-suffix="">{{ d.actual_cash_result|floatformat:2 }}</span></td>
+    </tr></tfoot>
+  </table>
+</div>
+
+{% endwith %}{% else %}
+<div class="empty-state">
+  <i class="bx bx-line-chart"></i>
+  <div class="empty-state-title">Aucune donnée</div>
+  <div class="empty-state-text">Sélectionnez une période pour générer le rapport.</div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% if report_data %}
+{% localize off %}
+<script>
+Chart.defaults.font.family = "'Inter',sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#94a3b8';
+
+const D = {
+  invoiced:  {{ report_data.invoiced_revenue|stringformat:".2f" }},
+  collected: {{ report_data.collected_revenue|stringformat:".2f" }},
+  suppComm:  {{ report_data.committed_supplier_charges|stringformat:".2f" }},
+  suppPaid:  {{ report_data.paid_supplier_charges|stringformat:".2f" }},
+  opComm:    {{ report_data.committed_operational_expenses|stringformat:".2f" }},
+  opPaid:    {{ report_data.paid_operational_expenses|stringformat:".2f" }},
+  collRate:  {{ report_data.collection_rate|stringformat:".2f" }},
+  settlRate: {{ report_data.settlement_rate|stringformat:".2f" }},
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Grouped bar
+  new Chart(document.getElementById('finBarChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Revenus','Ch. fournisseurs','Dép. opérat.'],
+      datasets: [
+        { label:'Engagé / Facturé', data:[D.invoiced, D.suppComm, D.opComm],
+          backgroundColor:'rgba(15,118,110,.15)', borderColor:'#0f766e', borderWidth:2, borderRadius:6 },
+        { label:'Réel / Encaissé',  data:[D.collected, D.suppPaid, D.opPaid],
+          backgroundColor:'rgba(59,130,246,.12)', borderColor:'#3b82f6', borderWidth:2, borderRadius:6 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'top', labels:{ usePointStyle:true } } },
+      scales:{
+        y:{ grid:{ color:'#f1f5f9' }, border:{ display:false }, ticks:{ callback:v=>(v/1000000).toFixed(1)+'M' } },
+        x:{ grid:{ display:false }, border:{ display:false } }
+      }
+    }
+  });
+
+  // Structure donut
+  new Chart(document.getElementById('chargesDonut'), {
+    type: 'doughnut',
+    data: {
+      labels:['Ch. fournisseurs (eng.)','Dép. opérat. (eng.)'],
+      datasets:[{ data:[D.suppComm, D.opComm], backgroundColor:['#0f766e','#d97706'], borderWidth:0, hoverOffset:4 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'68%', plugins:{ legend:{ position:'bottom' } } }
+  });
+
+  // Gauge helper — semicircle doughnut
+  function makeGauge(id, val, color) {
+    new Chart(document.getElementById(id), {
+      type: 'doughnut',
+      data: { datasets:[{ data:[val, 100-val], backgroundColor:[color,'#f1f5f9'], borderWidth:0 }] },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        circumference:180, rotation:-90, cutout:'78%',
+        plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }
+      },
+      plugins:[{
+        id:'gaugeText',
+        afterDraw(chart) {
+          const { ctx, chartArea:{ left, right, bottom } } = chart;
+          ctx.save();
+          ctx.font = "700 20px 'Plus Jakarta Sans', sans-serif";
+          ctx.fillStyle = '#0f172a';
+          ctx.textAlign = 'center';
+          ctx.fillText(val.toFixed(1)+'%', (left+right)/2, bottom - 8);
+          ctx.restore();
+        }
+      }]
+    });
+  }
+
+  makeGauge('collectionGauge', parseFloat(D.collRate),  D.collRate  >= 80 ? '#0f766e' : '#d97706');
+  makeGauge('settlementGauge', parseFloat(D.settlRate), D.settlRate >= 80 ? '#3b82f6' : '#d97706');
+});
+</script>
+{% endlocalize %}
+{% endif %}
+{% endblock %}

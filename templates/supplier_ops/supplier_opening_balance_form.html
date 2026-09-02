@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:suppliers_list' %}">Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}">{{ supplier.code }}</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Solde d'ouverture</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+#ob-form input[type=date], #ob-form input[type=number], #ob-form textarea {
+  display:block; width:100%; padding:8px 12px; font-size:13px; font-family:inherit;
+  color:var(--text-primary); background:var(--bg-surface);
+  border:1px solid var(--border-strong); border-radius:var(--radius-sm);
+  outline:none; transition:border-color .15s, box-shadow .15s;
+}
+#ob-form input:focus, #ob-form textarea:focus {
+  border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent);
+}
+.field-error { color:#dc2626; font-size:12px; margin-top:3px; }
+
+.preview-card { background:var(--bg-raised); border-radius:var(--radius-sm); padding:14px 16px; margin-top:16px; }
+.preview-row { display:flex; align-items:center; justify-content:space-between; font-size:12.5px; padding:6px 0; }
+.preview-row + .preview-row { border-top:1px solid var(--border-strong); }
+.preview-label { color:var(--text-muted); }
+.preview-value { font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; }
+.preview-value.accent { color:var(--accent); }
+.preview-value.ok { color:#16a34a; }
+.preview-bar-wrap { height:8px; background:var(--bg-surface); border-radius:4px; overflow:hidden; margin:10px 0 2px; }
+.preview-bar { height:100%; width:0%; border-radius:4px; background:var(--accent); transition:width .2s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Enregistrer un solde d'ouverture</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">
+      {{ supplier.raison_sociale }} · §23 planifié — Administrateur uniquement
+    </p>
+  </div>
+  <a href="{% url 'suppliers:supplier_detail' supplier_id=supplier.id %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-history ic-orange me-2" style="font-size:16px;"></i>Dette pré-existante</span>
+      </div>
+      <div class="card-app-body">
+        <p style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px;">
+          Enregistre une dette réelle envers ce fournisseur, antérieure à l'entrée dans le système, sans BL derrière.
+          Crée une facture normale (marquée « solde d'ouverture ») qui participe ensuite exactement comme les autres
+          à la dette globale, au vieillissement et au règlement FIFO.
+        </p>
+        <form method="post" id="ob-form">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert-banner alert-banner-error mb-3">
+            {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+          </div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label-app">Montant (DA) <span style="color:#dc2626">*</span></label>
+              {{ form.amount }}
+              {% if form.amount.errors %}<div class="field-error">{{ form.amount.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-12">
+              <label class="form-label-app">Motif (explication requise) <span style="color:#dc2626">*</span></label>
+              {{ form.motif }}
+              {% if form.motif.errors %}<div class="field-error">{{ form.motif.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-6">
+              <label class="form-label-app">Date de référence</label>
+              {{ form.reference_date }}
+            </div>
+            <div class="col-6">
+              <label class="form-label-app">Date d'échéance</label>
+              {{ form.due_date }}
+            </div>
+            <div class="col-12 mt-2">
+              <button type="submit" class="btn-primary-app w-100">
+                <i class="bx bx-check-circle"></i> Enregistrer le solde d'ouverture
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div class="preview-card" id="ob-preview">
+          <div class="preview-row">
+            <span class="preview-label">Avance disponible pour ce fournisseur</span>
+            <span class="preview-value" id="preview-avail"><span data-money="{{ available_advance_total }}" data-money-suffix=" DA">{{ available_advance_total|floatformat:2 }} DA</span></span>
+          </div>
+          <div class="preview-bar-wrap"><div class="preview-bar" id="preview-bar"></div></div>
+          <div class="preview-row">
+            <span class="preview-label">Consommée immédiatement sur ce solde</span>
+            <span class="preview-value accent" id="preview-consumed">0 DA</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">Solde restant dû après consommation</span>
+            <span class="preview-value" id="preview-remaining">0 DA</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">Statut résultant de la facture</span>
+            <span class="preview-value ok" id="preview-status">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  // Mirrors utils.create_supplier_opening_balance() -> consume_supplier_advances_fifo():
+  // the entered amount is immediately reduced by whatever advance is available.
+  var AVAILABLE = {{ available_advance_total|default_if_none:0 }};
+  var amountInput = document.querySelector('input[name="amount"]');
+  var bar = document.getElementById('preview-bar');
+  var consumedEl = document.getElementById('preview-consumed');
+  var remainingEl = document.getElementById('preview-remaining');
+  var statusEl = document.getElementById('preview-status');
+  if (!amountInput) return;
+
+  function fmt(n) { return n.toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DA'; }
+
+  function refresh() {
+    var entered = parseFloat(amountInput.value) || 0;
+    var consumed = Math.min(AVAILABLE, entered);
+    var remaining = entered - consumed;
+
+    bar.style.width = (entered > 0 ? (consumed / entered * 100) : 0) + '%';
+    consumedEl.textContent = fmt(consumed);
+    remainingEl.textContent = fmt(remaining);
+
+    if (entered <= 0) {
+      statusEl.textContent = '—';
+      statusEl.className = 'preview-value';
+    } else if (remaining <= 0) {
+      statusEl.textContent = 'Payée';
+      statusEl.className = 'preview-value ok';
+    } else if (consumed > 0) {
+      statusEl.textContent = 'Partiellement payée';
+      statusEl.className = 'preview-value accent';
+    } else {
+      statusEl.textContent = 'Impayée';
+      statusEl.className = 'preview-value';
+    }
+  }
+
+  amountInput.addEventListener('input', refresh);
+  refresh();
+})();
+</script>
+{% endblock %}

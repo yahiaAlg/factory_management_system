@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item active">Tableau de bord Qualité</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Ops metric cards (matches core dashboard) ── */
+  .metric-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    transition: box-shadow 0.18s, transform 0.12s;
+    text-decoration: none;
+    color: inherit;
+  }
+  a.metric-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+    color: inherit;
+  }
+  .metric-icon {
+    width: 44px; height: 44px;
+    border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .metric-body { flex: 1; min-width: 0; }
+  .metric-value {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700; font-size: 22px;
+    color: var(--text-primary); line-height: 1.1;
+  }
+  .metric-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── Chart panels ── */
+  .chart-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .chart-panel-header {
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-raised);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .chart-panel-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .chart-panel-title .bx { color: var(--accent); font-size: 16px; }
+  .chart-panel-body { padding: 18px; }
+
+  /* ── Table compact ── */
+  .table-compact { font-size: 13px; margin-bottom: 0; }
+  .table-compact thead th {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .table-compact tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    color: var(--text-primary);
+  }
+  .table-compact tbody tr:last-child td { border-bottom: none; }
+  .table-compact tbody tr:hover td { background: var(--bg-hover); }
+
+  /* ── Progress bar (conformity rate) ── */
+  .yield-bar-wrap { background: var(--bg-raised); border-radius: 99px; height: 6px; overflow: hidden; }
+  .yield-bar { height: 100%; border-radius: 99px; transition: width 0.5s ease; }
+
+  /* ── Gate letter avatar ── */
+  .gate-avatar {
+    width: 32px; height: 32px; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* ── Gate conformity row ── */
+  .gate-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .gate-row:last-child { border-bottom: none; }
+  .gate-row-body { flex: 1; min-width: 0; }
+  .gate-row-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; gap: 8px; }
+  .gate-row-name { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 13px; color: var(--text-primary); }
+  .gate-row-desc { font-size: 11.5px; color: var(--text-muted); }
+  .gate-row-frac { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+  .gate-row-pct { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; white-space: nowrap; }
+
+  /* ── NCR aging list ── */
+  .activity-item { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; }
+  .activity-item:last-child { border-bottom: none; }
+  a.activity-item:hover { color: inherit; }
+  a.activity-item:hover .activity-text strong { color: var(--accent); }
+  .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .dot-teal  { background: var(--accent); }
+  .dot-amber { background: #d97706; }
+  .dot-red   { background: #dc2626; }
+  .dot-slate { background: #94a3b8; }
+  .activity-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; flex: 1; min-width: 0; }
+  .activity-text strong { color: var(--text-primary); font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; }
+  .activity-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap; }
+  .activity-age { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+  .activity-age.overdue { color: #dc2626; font-weight: 700; }
+
+  /* ── Count pill (frequency tables) ── */
+  .count-cell { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+  .count-bar-wrap { width: 64px; height: 5px; background: var(--bg-raised); border-radius: 99px; overflow: hidden; flex-shrink: 0; }
+  .count-bar { height: 100%; border-radius: 99px; background: var(--accent-light); }
+  .count-num { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 13px; color: var(--text-primary); min-width: 16px; text-align: right; }
+
+  /* ── NCR status badges (local to this page — inherits pill shape from base.html's [class^="badge-"] rule) ── */
+  .badge-ncr-open          { background: #fee2e2; color: #dc2626; }
+  .badge-ncr-under_review  { background: #fef9c3; color: #a16207; }
+  .badge-ncr-dispositioned { background: #dbeafe; color: #1d4ed8; }
+  .badge-ncr-closed        { background: #dcfce7; color: #15803d; }
+
+  /* ── Mini empty row ── */
+  .mini-empty { text-align: center; padding: 28px 12px; color: var(--text-muted); font-size: 12.5px; }
+  .mini-empty .bx { font-size: 22px; opacity: .3; display: block; margin-bottom: 6px; }
+
+  @media (max-width: 600px) {
+    .metric-value { font-size: 19px; }
+    .gate-row-top { flex-direction: column; align-items: flex-start; gap: 2px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title mb-0">Tableau de bord Qualité</h1>
+    <p class="text-muted small mb-0">
+      {% if is_qc_only %}Vos échantillons et NCR — {% endif %}
+      Fenêtre glissante : {{ period_days }} derniers jours
+    </p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'quality:sample_register' %}" class="btn-secondary-app"><i class="bx bx-test-tube me-1"></i> Échantillons</a>
+    <a href="{% url 'quality:ncr_list' %}" class="btn-secondary-app"><i class="bx bx-error-circle me-1"></i> NCR</a>
+    {% if can_configure %}
+    <a href="{% url 'quality:sampling_plan_list' %}" class="btn-primary-app"><i class="bx bx-cog me-1"></i> Configuration</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if nothing_configured and can_configure %}
+<div class="alert-banner alert-banner-warning mb-4">
+  <i class="bx bx-info-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <div>
+    <strong>Aucun plan d'échantillonnage actif n'est configuré.</strong> Tant qu'aucun n'existe, aucun
+    point de contrôle (Gate A/B/C) n'est exigé nulle part dans l'application (BR-QA-01) — c'est pourquoi
+    ce tableau de bord est vide et qu'aucun bouton de prélèvement n'apparaît sur les BL ou les ordres de
+    production. Pour démarrer : créez d'abord au moins une <a href="{% url 'quality:property_create' %}">propriété</a>,
+    puis une <a href="{% url 'quality:specification_create' %}">spécification qualité</a>,
+    puis un <a href="{% url 'quality:sampling_plan_create' %}">plan d'échantillonnage</a> pour l'activer.
+  </div>
+</div>
+{% elif nothing_configured %}
+<div class="alert-banner alert-banner-info mb-4">
+  <i class="bx bx-info-circle" style="font-size:18px;flex-shrink:0;"></i>
+  <div>Aucun plan d'échantillonnage n'est encore configuré pour votre usine — demandez à un responsable QA de le mettre en place.</div>
+</div>
+{% endif %}
+
+<!-- ═══ Performance KPIs ═══ -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-4">
+    <a href="{% url 'quality:sample_register' %}" class="metric-card">
+      <div class="metric-icon ic-blue"><i class="bx bx-test-tube"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">{{ total_samples }}</div>
+        <div class="metric-label">Échantillons ({{ period_days }}j)</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-lg-4">
+    <div class="metric-card">
+      <div class="metric-icon {% if first_pass_yield is None %}ic-slate{% elif first_pass_yield >= 90 %}ic-green{% elif first_pass_yield >= 80 %}ic-amber{% else %}ic-red{% endif %}">
+        <i class="bx bx-trending-up"></i>
+      </div>
+      <div class="metric-body">
+        <div class="metric-value">{% if first_pass_yield is not None %}{{ first_pass_yield }}%{% else %}—{% endif %}</div>
+        <div class="metric-label">Rendement premier passage</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-4">
+    <a href="{% url 'quality:ncr_list' %}" class="metric-card">
+      <div class="metric-icon {% if open_ncrs_count > 0 %}ic-red{% else %}ic-teal{% endif %}"><i class="bx bx-error-circle"></i></div>
+      <div class="metric-body">
+        <div class="metric-value">{{ open_ncrs_count }}</div>
+        <div class="metric-label">NCR ouvertes</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+{% if can_configure %}
+<div class="chart-panel mb-4">
+  <div class="chart-panel-header">
+    <span class="chart-panel-title"><i class="bx bx-slider-alt"></i> Configuration qualité</span>
+    <a href="{% url 'quality:sampling_plan_list' %}" class="btn-secondary-app" style="font-size:12px;padding:4px 12px;">Gérer</a>
+  </div>
+  <div class="chart-panel-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <a href="{% url 'quality:sampling_plan_list' %}" class="metric-card">
+          <div class="metric-icon ic-purple"><i class="bx bx-flag"></i></div>
+          <div class="metric-body">
+            <div class="metric-value">{{ active_plans_count }}</div>
+            <div class="metric-label">Plans d'échantillonnage actifs</div>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="{% url 'quality:specification_list' %}" class="metric-card">
+          <div class="metric-icon ic-purple"><i class="bx bx-clipboard"></i></div>
+          <div class="metric-body">
+            <div class="metric-value">{{ active_specs_count }}</div>
+            <div class="metric-label">Spécifications actives</div>
+          </div>
+        </a>
+      </div>
+      <div class="col-md-4">
+        <a href="{% url 'quality:property_list' %}" class="metric-card">
+          <div class="metric-icon ic-purple"><i class="bx bx-flask"></i></div>
+          <div class="metric-body">
+            <div class="metric-value">{{ properties_count }}</div>
+            <div class="metric-label">Propriétés / tests actifs</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-6">
+
+    <!-- Conformité par gate -->
+    <div class="chart-panel mb-4">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-bar-chart-alt-2"></i> Conformité par gate</span>
+      </div>
+      <div class="chart-panel-body">
+        {% for row in by_gate %}
+        {% widthratio row.conforming row.total 100 as gate_pct %}
+        <div class="gate-row">
+          <div class="gate-avatar {% if gate_pct >= 90 %}ic-green{% elif gate_pct >= 80 %}ic-amber{% else %}ic-red{% endif %}">{{ row.control_point }}</div>
+          <div class="gate-row-body">
+            <div class="gate-row-top">
+              <div>
+                <span class="gate-row-name">Gate {{ row.control_point }}</span>
+                <span class="gate-row-desc">
+                  {% if row.control_point == "A" %}— Pré-production (MP entrante)
+                  {% elif row.control_point == "B" %}— Mi-production (en cours)
+                  {% elif row.control_point == "C" %}— Post-production (PF)
+                  {% endif %}
+                </span>
+              </div>
+              <span class="gate-row-pct" style="color:{% if gate_pct >= 90 %}#15803d{% elif gate_pct >= 80 %}#a16207{% else %}#dc2626{% endif %};">{{ gate_pct }}%</span>
+            </div>
+            <div class="yield-bar-wrap">
+              <div class="yield-bar" style="width:{{ gate_pct }}%;background:{% if gate_pct >= 90 %}#16a34a{% elif gate_pct >= 80 %}#d97706{% else %}#dc2626{% endif %};"></div>
+            </div>
+            <div class="gate-row-frac mt-1">{{ row.conforming }} conforme{{ row.conforming|pluralize }} sur {{ row.total }} échantillon{{ row.total|pluralize }}</div>
+          </div>
+        </div>
+        {% empty %}
+        <div class="mini-empty"><i class="bx bx-bar-chart-alt-2"></i>Aucun échantillon sur la période.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Propriétés en échec -->
+    <div class="chart-panel mb-4">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-x-circle"></i> Propriétés en échec les plus fréquentes</span>
+      </div>
+      <div class="chart-panel-body p-0">
+        <table class="table table-compact">
+          <thead><tr><th>Propriété</th><th class="text-end">Échecs</th></tr></thead>
+          <tbody>
+            {% for row in failing_properties %}
+            <tr>
+              <td>{{ row.spec_line__property__name }}</td>
+              <td>
+                <div class="count-cell">
+                  <div class="count-bar-wrap"><div class="count-bar" style="width:{% widthratio row.total failing_properties.0.total 100 %}%;background:#dc2626;"></div></div>
+                  <span class="count-num">{{ row.total }}</span>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2"><div class="mini-empty"><i class="bx bx-check-shield"></i>Aucun échec récent.</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if not is_qc_only %}
+    <div class="chart-panel mb-4">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-building-house"></i> Non-conformités par fournisseur (Gate A)</span>
+      </div>
+      <div class="chart-panel-body p-0">
+        <table class="table table-compact">
+          <thead><tr><th>Fournisseur</th><th class="text-end">NCR</th></tr></thead>
+          <tbody>
+            {% for row in supplier_ncrs %}
+            <tr>
+              <td>{{ row.supplier_dn_line__supplier_dn__supplier__raison_sociale }}</td>
+              <td>
+                <div class="count-cell">
+                  <div class="count-bar-wrap"><div class="count-bar" style="width:{% widthratio row.total supplier_ncrs.0.total 100 %}%;background:#7c3aed;"></div></div>
+                  <span class="count-num">{{ row.total }}</span>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2"><div class="mini-empty"><i class="bx bx-check-shield"></i>Aucune donnée.</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-6">
+
+    <!-- NCR ouvertes — antériorité -->
+    <div class="chart-panel mb-4">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-time-five"></i> NCR ouvertes — antériorité</span>
+        <a href="{% url 'quality:ncr_list' %}" class="btn-secondary-app" style="font-size:12px;padding:4px 12px;">Voir tout</a>
+      </div>
+      <div class="chart-panel-body">
+        {% for row in ncr_aging %}
+        <a href="{% url 'quality:ncr_detail' row.ncr.id %}" class="activity-item">
+          <span class="activity-dot {% if row.over_sla %}dot-red{% else %}dot-amber{% endif %}"></span>
+          <div class="activity-text">
+            <strong>{{ row.ncr.reference }}</strong> — Gate {{ row.ncr.gate }}
+            <div class="activity-meta">
+              <span class="badge-ncr-{{ row.ncr.status }}">{{ row.ncr.get_status_display }}</span>
+              <span class="activity-age {% if row.over_sla %}overdue{% endif %}">
+                {% if row.over_sla %}<i class="bx bx-error"></i> {% endif %}{{ row.age_days }} j
+              </span>
+            </div>
+          </div>
+        </a>
+        {% empty %}
+        <div class="mini-empty"><i class="bx bx-check-shield"></i>Aucune NCR ouverte.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- NCR par cause racine -->
+    <div class="chart-panel mb-4">
+      <div class="chart-panel-header">
+        <span class="chart-panel-title"><i class="bx bx-list-ul"></i> NCR par cause racine</span>
+      </div>
+      <div class="chart-panel-body p-0">
+        <table class="table table-compact">
+          <thead><tr><th>Cause racine</th><th class="text-end">NCR</th></tr></thead>
+          <tbody>
+            {% for row in ncr_by_root_cause %}
+            <tr>
+              <td>{{ row.root_cause_category }}</td>
+              <td>
+                <div class="count-cell">
+                  <div class="count-bar-wrap"><div class="count-bar" style="width:{% widthratio row.total ncr_by_root_cause.0.total 100 %}%;background:#d97706;"></div></div>
+                  <span class="count-num">{{ row.total }}</span>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="2"><div class="mini-empty"><i class="bx bx-check-shield"></i>Aucune donnée.</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

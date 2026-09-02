@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% load static %}
+{% load factory_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'expenses:expenses_list' %}">Dépenses</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">{% if form.instance.pk %}Modifier{% else %}Nouvelle dépense{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="mb-1" style="font-size:22px; font-weight:700;">{{ title }}</h1>
+    <p class="mb-0" style="color:var(--text-muted); font-size:13px;">
+      Renseignez les informations de la dépense
+    </p>
+  </div>
+  <a href="{% url 'expenses:expenses_list' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<form method="post" enctype="multipart/form-data" novalidate>
+  {% csrf_token %}
+  <div class="row g-4">
+
+    <!-- Main form card -->
+    <div class="col-lg-8">
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Informations de la dépense</span>
+        </div>
+        <div class="card-app-body">
+
+          <!-- Non-field errors -->
+          {% if form.non_field_errors %}
+          <div class="alert-banner alert-banner-error mb-4">
+            <i class="bx bx-error-circle"></i>
+            <div>{{ form.non_field_errors }}</div>
+          </div>
+          {% endif %}
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Date de la dépense <span class="req-star">*</span>
+              </label>
+              {{ form.expense_date }}
+              {% if form.expense_date.errors %}
+              <div class="field-error">{{ form.expense_date.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Catégorie <span class="req-star">*</span>
+              </label>
+              {{ form.category }}
+              {% if form.category.errors %}
+              <div class="field-error">{{ form.category.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-12">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                <label class="form-label-app mb-0">Description <span class="req-star">*</span></label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);cursor:pointer;user-select:none;">
+                    <input type="checkbox" id="liveRecapToggle" style="display:inline-block!important;width:13px;height:13px;accent-color:var(--accent);cursor:pointer;">
+                    <span>Auto</span>
+                  </label>
+                  <button type="button" id="genRecapBtn" style="font-size:11px;font-weight:500;color:var(--accent);background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:var(--radius-sm);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                    <i class="bx bx-refresh"></i> Générer récap
+                  </button>
+                </div>
+              </div>
+              {{ form.description }}
+              {% if form.description.errors %}
+              <div class="field-error">{{ form.description.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Montant (DZD) <span class="req-star">*</span>
+              </label>
+              <div style="position:relative;">
+                {{ form.amount }}
+                <span style="position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--text-muted); font-family:'Plus Jakarta Sans',sans-serif; font-weight:600; pointer-events:none;">
+                  DA
+                </span>
+              </div>
+              {% if form.amount.errors %}
+              <div class="field-error">{{ form.amount.errors.0 }}</div>
+              {% endif %}
+              <div id="thresholdWarning" class="mt-2" style="display:none;">
+                <div class="alert-banner alert-banner-warning" style="padding:8px 12px; font-size:12px;">
+                  <i class="bx bx-error"></i>
+                  <span>Montant supérieur au seuil de délégation — validation Manager requise.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label-app">
+                Bénéficiaire <span class="req-star">*</span>
+              </label>
+              {{ form.beneficiary }}
+              {% if form.beneficiary.errors %}
+              <div class="field-error">{{ form.beneficiary.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar card -->
+    <div class="col-lg-4">
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">Lien facture fournisseur</span>
+        </div>
+        <div class="card-app-body">
+          {% if prefilled_invoice %}
+          <div class="alert-banner alert-banner-warning mb-3" style="padding:8px 12px;font-size:12px;">
+            <i class="bx bx-link"></i>
+            <span>Pré-liée à <strong>{{ prefilled_invoice.reference }}</strong> — {{ prefilled_invoice.supplier.raison_sociale }}</span>
+          </div>
+          {% endif %}
+          <label class="form-label-app">Facture liée <span style="color:var(--text-muted); font-weight:400;">(optionnel)</span></label>
+          {{ form.linked_supplier_invoice }}
+          {% if form.linked_supplier_invoice.errors %}
+          <div class="field-error">{{ form.linked_supplier_invoice.errors.0 }}</div>
+          {% endif %}
+          <p style="font-size:12px; color:var(--text-muted); margin-top:8px; margin-bottom:0;">
+            Associez cette dépense à une facture fournisseur vérifiée ou non réglée.
+          </p>
+        </div>
+      </div>
+
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">Document justificatif <span style="color:var(--text-muted); font-weight:400; font-size:12px;">(optionnel)</span></span>
+        </div>
+        <div class="card-app-body">
+          <div class="col-12 mb-3">
+            <label class="form-label-app">Type de document</label>
+            {{ doc_form.type_document }}
+            {% if doc_form.type_document.errors %}
+            <div class="field-error">{{ doc_form.type_document.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-12 mb-3">
+            <label class="form-label-app">Description</label>
+            {{ doc_form.description }}
+            {% if doc_form.description.errors %}
+            <div class="field-error">{{ doc_form.description.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-12">
+            <label class="form-label-app">Fichier joint</label>
+            {{ doc_form.fichier }}
+            {% if doc_form.fichier.errors %}
+            <div class="field-error">{{ doc_form.fichier.errors.0 }}</div>
+            {% endif %}
+            <p style="font-size:12px; color:var(--text-muted); margin-top:6px; margin-bottom:0;">
+              Formats acceptés : PDF, JPG, PNG. Taille max : 5 Mo. Peut aussi être ajouté plus tard depuis la fiche de la dépense.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">Actions</span>
+        </div>
+        <div class="card-app-body d-flex flex-column gap-2">
+          <button type="submit" class="btn-primary-app w-100">
+            <i class="bx bx-save"></i>
+            {% if form.instance.pk %}Enregistrer les modifications{% else %}Enregistrer la dépense{% endif %}
+          </button>
+          <a href="{% url 'expenses:expenses_list' %}" class="btn-secondary-app w-100 text-center">
+            Annuler
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  // Apply form-control-app class to all form inputs rendered by Django
+  document.querySelectorAll(
+    'input[type="text"], input[type="number"], input[type="date"], select, textarea'
+  ).forEach(function (el) {
+    el.classList.add('form-control-app');
+  });
+
+  // Style the optional supporting-document file input to match the
+  // add_document flow's inline styling.
+  document.querySelectorAll('input[type="file"]').forEach(function (el) {
+    el.style.cssText = 'display:block; width:100%; padding:8px 12px; border:1px solid var(--border-color); border-radius:var(--radius-md, 6px); background:var(--bg-card); color:var(--text-primary); font-size:13px; cursor:pointer;';
+  });
+
+  // Threshold warning (50 000 DA default — mirrors model default)
+  const amountInput = document.querySelector('input[name="amount"]');
+  const warning = document.getElementById('thresholdWarning');
+  const THRESHOLD = 50000;
+
+  if (amountInput && warning) {
+    function checkThreshold() {
+      const val = parseFloat(amountInput.value) || 0;
+      warning.style.display = val > THRESHOLD ? 'block' : 'none';
+    }
+    amountInput.addEventListener('input', checkThreshold);
+    checkThreshold(); // run on load (edit mode)
+  }
+
+  /* ── Description — récap automatique ─────────────────────────── */
+  (function () {
+    function buildRecap() {
+      var dateVal = (document.querySelector('[name="expense_date"]')?.value || '').trim();
+      var dateStr = '';
+      if (dateVal) {
+        var p = dateVal.split('-');
+        if (p.length === 3) dateStr = p[2] + '/' + p[1] + '/' + p[0];
+      }
+
+      var catSel  = document.querySelector('[name="category"]');
+      var catName = catSel ? (catSel.options[catSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+
+      var amount  = (document.querySelector('[name="amount"]')?.value || '').trim();
+      var beneficiary = (document.querySelector('[name="beneficiary"]')?.value || '').trim();
+
+      var invSel  = document.querySelector('[name="linked_supplier_invoice"]');
+      var invName = invSel ? (invSel.options[invSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+      var hasInv  = invName && invName !== '---------';
+
+      if (!dateStr && !catName && !amount && !beneficiary) return '';
+
+      var out = [];
+      if (dateStr)     out.push('Date : ' + dateStr);
+      if (catName)     out.push('Catégorie : ' + catName);
+      if (beneficiary) out.push('Bénéficiaire : ' + beneficiary);
+      if (amount)      out.push('Montant : ' + parseFloat(amount).toFixed(2) + ' DA');
+      if (hasInv)      out.push('Facture liée : ' + invName);
+      return out.join('\n');
+    }
+
+    var descTA     = document.querySelector('[name="description"]');
+    var liveToggle = document.getElementById('liveRecapToggle');
+    var genBtn     = document.getElementById('genRecapBtn');
+    if (!descTA || !genBtn) return;
+
+    genBtn.addEventListener('click', function () {
+      var txt = buildRecap();
+      if (txt) descTA.value = txt;
+    });
+
+    function triggerLive() {
+      if (liveToggle && liveToggle.checked) descTA.value = buildRecap();
+    }
+
+    ['expense_date', 'amount', 'beneficiary'].forEach(function (n) {
+      document.querySelector('[name="' + n + '"]')?.addEventListener('input', triggerLive);
+    });
+    document.querySelector('[name="expense_date"]')?.addEventListener('change', triggerLive);
+    document.querySelector('[name="category"]')?.addEventListener('change', triggerLive);
+    document.querySelector('[name="linked_supplier_invoice"]')?.addEventListener('change', triggerLive);
+  })();
+})();
+</script>
+{% endblock %}

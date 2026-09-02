@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Non-Conformités — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'quality:sample_register' %}">Qualité</a></li>
+    <li class="breadcrumb-item active">Non-Conformités</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<h1 class="page-title mb-3">Non-Conformités (NCR)</h1>
+
+<form method="get" class="filter-bar mb-3 d-flex gap-2">
+  <select name="gate" class="form-control-app">
+    <option value="">Tous les gates</option>
+    <option value="A" {% if request.GET.gate == 'A' %}selected{% endif %}>Gate A</option>
+    <option value="B" {% if request.GET.gate == 'B' %}selected{% endif %}>Gate B</option>
+    <option value="C" {% if request.GET.gate == 'C' %}selected{% endif %}>Gate C</option>
+  </select>
+  <select name="status" class="form-control-app">
+    <option value="">Tous les statuts</option>
+    {% for val, label in status_choices %}
+    <option value="{{ val }}" {% if request.GET.status == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn-secondary-app">Filtrer</button>
+</form>
+
+<div class="table-container">
+  <table class="table table-hover mb-0">
+    <thead>
+      <tr>
+        <th>Référence</th>
+        <th>Gate</th>
+        <th>Déclencheur</th>
+        <th>Lié à</th>
+        <th>Ouverte par</th>
+        <th>Ouverte le</th>
+        <th>Statut</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ncr in ncrs %}
+      <tr onclick="window.location='{% url 'quality:ncr_detail' ncr.id %}'" style="cursor:pointer;">
+        <td><strong>{{ ncr.reference }}</strong></td>
+        <td>{{ ncr.get_gate_display }}</td>
+        <td>{{ ncr.get_trigger_type_display }}</td>
+        <td class="small">
+          {% if ncr.production_order %}OP {{ ncr.production_order.reference }}{% endif %}
+          {% if ncr.supplier_dn_line %}BL {{ ncr.supplier_dn_line.supplier_dn.reference }}{% endif %}
+        </td>
+        <td>{{ ncr.opened_by.username }}</td>
+        <td>{{ ncr.created_at|date:"d/m/Y" }}</td>
+        <td>
+          {% if ncr.status == 'closed' %}<span class="badge-valide">Clôturée</span>
+          {% elif ncr.status == 'dispositioned' %}<span class="badge-commande">Dispositionnée</span>
+          {% else %}<span class="badge-annule">{{ ncr.get_status_display }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="text-center text-muted py-4">Aucune non-conformité.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

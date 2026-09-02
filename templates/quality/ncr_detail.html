@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'quality:ncr_list' %}">NCR</a></li>
+    <li class="breadcrumb-item active">{{ ncr.reference }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="page-title mb-0">{{ ncr.reference }}</h1>
+    <p class="text-muted small mb-0">{{ ncr.get_gate_display }} — {{ ncr.get_trigger_type_display }}</p>
+  </div>
+  <div>
+    {% if ncr.status == 'closed' %}<span class="badge-valide fs-6">Clôturée</span>
+    {% elif ncr.status == 'dispositioned' %}<span class="badge-commande fs-6">Dispositionnée</span>
+    {% else %}<span class="badge-annule fs-6">{{ ncr.get_status_display }}</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card-app p-4 mb-3">
+  <p><strong>Description :</strong> {{ ncr.description }}</p>
+  <div class="row small text-muted">
+    <div class="col-md-4">
+      {% if ncr.sample %}<strong>Échantillon :</strong> <a href="{% url 'quality:sample_detail' ncr.sample_id %}">{{ ncr.sample.reference }}</a><br>{% endif %}
+      {% if ncr.production_order %}<strong>OP :</strong> <a href="{% url 'production:production_order_detail' ncr.production_order_id %}">{{ ncr.production_order.reference }}</a><br>{% endif %}
+      {% if ncr.supplier_dn_line %}<strong>BL :</strong> <a href="{% url 'supplier_ops:supplier_dn_detail' ncr.supplier_dn_line.supplier_dn_id %}">{{ ncr.supplier_dn_line.supplier_dn.reference }}</a><br>{% endif %}
+    </div>
+    <div class="col-md-4">
+      <strong>Ouverte par :</strong> {{ ncr.opened_by.username }}<br>
+      <strong>Le :</strong> {{ ncr.created_at|date:"d/m/Y H:i" }}
+    </div>
+    <div class="col-md-4">
+      {% if ncr.closed_by %}<strong>Clôturée par :</strong> {{ ncr.closed_by.username }}<br>
+      <strong>Le :</strong> {{ ncr.closed_at|date:"d/m/Y H:i" }}{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if ncr.disposition %}
+<div class="card-app p-4 mb-3">
+  <h5>Analyse et disposition</h5>
+  <p><strong>Cause racine :</strong> {{ ncr.get_root_cause_category_display|default:"—" }} — {{ ncr.root_cause_detail }}</p>
+  <p><strong>Action corrective :</strong> {{ ncr.corrective_action }}</p>
+  <p><strong>Disposition :</strong> {{ ncr.get_disposition_display }}</p>
+</div>
+{% endif %}
+
+{% if ncr.pieces_jointes.exists %}
+<div class="mb-3">
+  <strong>Pièces jointes :</strong>
+  <ul>
+    {% for pj in ncr.pieces_jointes.all %}
+    <li><a href="{{ pj.fichier.url }}" target="_blank">{{ pj.description }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if can_disposition %}
+<div class="card-app p-4 mb-3">
+  <h5>Analyser et dispositionner (Responsable QA)</h5>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="mb-3">
+      <label class="form-label-app">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<div class="form-hint">{{ field.help_text }}</div>{% endif %}
+      {% if field.errors %}<div class="form-error">{{ field.errors.0 }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <p class="small text-muted">BR-QA-11 : un document justificatif est requis pour Retour fournisseur / Rebut / Dérogation.</p>
+    <button type="submit" name="disposition_submit" value="1" class="btn-primary-app">Enregistrer la disposition</button>
+  </form>
+</div>
+{% endif %}
+
+{% if can_close %}
+<form method="post">
+  {% csrf_token %}
+  <button type="submit" name="close_submit" value="1" class="btn-primary-app">
+    <i class="bx bx-check-circle me-1"></i> Clôturer la NCR (BR-QA-09)
+  </button>
+</form>
+{% endif %}
+{% endblock %}

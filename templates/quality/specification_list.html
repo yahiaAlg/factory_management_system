@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'quality:quality_dashboard' %}">Qualité</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Spécifications qualité</span>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h1 class="page-title mb-0">{{ title }}</h1>
+    <p class="text-muted small mb-0">Critères d'acceptation par matière première ou produit fini — utilisés à chaque prélèvement pour évaluer conforme / non conforme.</p>
+  </div>
+  <a href="{% url 'quality:specification_create' %}" class="btn-primary-app">
+    <i class="bx bx-plus me-1"></i> Nouvelle spécification
+  </a>
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if not specs %}
+<div class="card-app p-4 text-center">
+  <i class="bx bx-clipboard" style="font-size:32px;color:var(--text-muted);"></i>
+  <p class="text-muted mt-2 mb-3">Aucune spécification qualité définie. Sans spécification active pour une cible, un prélèvement ne peut rien évaluer.</p>
+  <a href="{% url 'quality:specification_create' %}" class="btn-primary-app">
+    <i class="bx bx-plus me-1"></i> Créer la première spécification
+  </a>
+</div>
+{% else %}
+<div class="table-container">
+  <table class="table table-hover mb-0">
+    <thead class="bg-raised">
+      <tr>
+        <th>Cible</th>
+        <th>Version</th>
+        <th>Date d'effet</th>
+        <th>Lignes</th>
+        <th>Approuvée par</th>
+        <th>Statut</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for spec in specs %}
+      <tr>
+        <td class="fw-500">{{ spec.target }}</td>
+        <td class="text-secondary">v{{ spec.version }}</td>
+        <td class="text-secondary">{{ spec.effective_date|date:"d/m/Y" }}</td>
+        <td class="text-secondary">{{ spec.lines.count }}</td>
+        <td class="text-muted small">{{ spec.approved_by.username|default:"—" }}</td>
+        <td>
+          {% if spec.is_active %}<span class="badge-valide">Active</span>
+          {% else %}<span class="badge-annule">Inactive</span>{% endif %}
+        </td>
+        <td class="text-end">
+          <a href="{% url 'quality:specification_edit' spec.id %}" class="btn-icon" title="Modifier"><i class="bx bx-edit-alt"></i></a>
+          <form method="post" action="{% url 'quality:specification_toggle_active' spec.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn-icon" title="{% if spec.is_active %}Désactiver{% else %}Réactiver{% endif %}">
+              <i class="bx {% if spec.is_active %}bx-lock-open-alt{% else %}bx-lock-alt{% endif %}"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

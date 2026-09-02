@@ -1,0 +1,893 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Tableau de bord commercial{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Dashboard Layout ─────────────────────────────────────── */
+.dash-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.dash-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+.dash-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Date Range Bar ───────────────────────────────────────── */
+.range-bar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: .65rem 1rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.range-bar label {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.range-bar input[type="date"] {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .3rem .55rem;
+  font-size: .8rem;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color .15s;
+}
+.range-bar input[type="date"]:focus { border-color: var(--accent); }
+
+/* Quick range chips */
+.quick-chips { display: flex; gap: .35rem; flex-wrap: wrap; }
+.qchip {
+  font-size: .72rem;
+  font-weight: 600;
+  padding: .25rem .65rem;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-raised);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.qchip:hover, .qchip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── KPI Cards ───────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow .2s;
+}
+.kpi-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.kpi-card.kpi-green::before  { background: #10b981; }
+.kpi-card.kpi-blue::before   { background: #3b82f6; }
+.kpi-card.kpi-amber::before  { background: #f59e0b; }
+.kpi-card.kpi-red::before    { background: #ef4444; }
+.kpi-card.kpi-teal::before   { background: var(--accent); }
+.kpi-card.kpi-purple::before { background: #8b5cf6; }
+.kpi-card.kpi-rose::before   { background: #f43f5e; }
+.kpi-card.kpi-sky::before    { background: #0ea5e9; }
+
+.kpi-label {
+  font-size: .7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+}
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.kpi-value.kpi-sm { font-size: 1.2rem; }
+.kpi-sub {
+  font-size: .72rem;
+  color: var(--text-muted);
+}
+.kpi-icon {
+  position: absolute;
+  top: .9rem; right: 1rem;
+  font-size: 1.6rem;
+  opacity: .12;
+}
+
+/* ── Charts Grid ─────────────────────────────────────────── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.chart-col-3  { grid-column: span 3; }
+.chart-col-4  { grid-column: span 4; }
+.chart-col-6  { grid-column: span 6; }
+.chart-col-8  { grid-column: span 8; }
+.chart-col-9  { grid-column: span 9; }
+.chart-col-12 { grid-column: span 12; }
+@media (max-width: 1024px) {
+  .chart-col-3, .chart-col-4, .chart-col-6,
+  .chart-col-8, .chart-col-9 { grid-column: span 12; }
+}
+
+.chart-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+}
+.chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.chart-card-title {
+  font-size: .8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-secondary);
+}
+.chart-canvas-wrap {
+  position: relative;
+}
+
+/* ── Tables ──────────────────────────────────────────────── */
+.section-title {
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+  margin: 0 0 .75rem;
+}
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8rem;
+}
+.dash-table th {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  padding: .4rem .6rem;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  text-align: left;
+}
+.dash-table td {
+  padding: .5rem .6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+.dash-table tr:last-child td { border-bottom: none; }
+.dash-table tr:hover td { background: var(--bg-raised); }
+.dash-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* Status badges */
+.badge-dash {
+  display: inline-block;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .15rem .5rem;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.badge-draft        { background: #f1f5f9; color: #64748b; }
+.badge-validated    { background: #d1fae5; color: #065f46; }
+.badge-delivered    { background: #dbeafe; color: #1e40af; }
+.badge-invoiced     { background: #ede9fe; color: #5b21b6; }
+.badge-cancelled    { background: #fee2e2; color: #991b1b; }
+.badge-issued       { background: #fef9c3; color: #92400e; }
+.badge-partially_paid { background: #ffedd5; color: #9a3412; }
+.badge-paid         { background: #d1fae5; color: #065f46; }
+.badge-in_dispute   { background: #fee2e2; color: #991b1b; }
+.badge-overdue      { background: #fee2e2; color: #991b1b; }
+
+/* Collection rate bar */
+.rate-bar-wrap { display: flex; align-items: center; gap: .5rem; }
+.rate-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-raised);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.rate-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* Tabs */
+.tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1rem;
+}
+.tab-btn {
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .5rem .9rem;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all .15s;
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted);
+  font-size: .8rem;
+}
+.empty-state i { font-size: 2rem; display: block; margin-bottom: .5rem; opacity: .4; }
+
+/* Overdue highlight */
+.overdue-row td { color: #b91c1c; }
+.overdue-row td a { color: #b91c1c; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+  <!-- ── Header ─────────────────────────────────────────── -->
+  <div class="dash-header">
+    <div>
+      <h1 class="dash-title"><i class='bx bx-bar-chart-alt-2' style="color:var(--accent);"></i> Tableau de bord commercial</h1>
+      <div class="dash-subtitle">
+        Période affichée : <strong>{{ date_from|date:"d M Y" }}</strong> → <strong>{{ date_to|date:"d M Y" }}</strong>
+      </div>
+    </div>
+    <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:flex-start;">
+      <a href="{% url 'sales:client_dn_create' %}" class="btn-primary-app">
+        <i class='bx bx-plus'></i> Nouveau BL
+      </a>
+      <a href="{% url 'sales:client_invoice_create' %}" class="btn-secondary-app">
+        <i class='bx bx-plus'></i> Nouvelle Facture
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Date range filter ─────────────────────────────── -->
+  <form method="get" class="range-bar mb-4">
+    <div class="quick-chips">
+      <a href="?quick=7d"        class="qchip {% if quick == '7d' %}active{% endif %}">7 jours</a>
+      <a href="?quick=30d"       class="qchip {% if quick == '30d' %}active{% endif %}">30 jours</a>
+      <a href="?quick=90d"       class="qchip {% if quick == '90d' %}active{% endif %}">90 jours</a>
+      <a href="?quick=last_month" class="qchip {% if quick == 'last_month' %}active{% endif %}">Mois préc.</a>
+      <a href="?quick=ytd"       class="qchip {% if quick == 'ytd' %}active{% endif %}">Depuis jan.</a>
+    </div>
+    <div style="width:1px;height:28px;background:var(--border);margin:0 .25rem;"></div>
+    <label>Du</label>
+    <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}">
+    <label>Au</label>
+    <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}">
+    <button type="submit" class="btn-primary-app">Appliquer</button>
+  </form>
+
+  <!-- ── KPI Cards ─────────────────────────────────────── -->
+  <div class="kpi-grid">
+    <div class="kpi-card kpi-teal">
+      <i class='bx bx-receipt kpi-icon'></i>
+      <div class="kpi-label">CA Facturé (TTC)</div>
+      <div class="kpi-value"><span data-money="{{ total_invoiced }}" data-money-suffix="">{{ total_invoiced|floatformat:2 }}</span> <small style="font-size:.9rem">DA</small></div>
+      <div class="kpi-sub">{{ invoice_count }} facture{{ invoice_count|pluralize }}</div>
+    </div>
+    <div class="kpi-card kpi-green">
+      <i class='bx bx-check-circle kpi-icon'></i>
+      <div class="kpi-label">Encaissements</div>
+      <div class="kpi-value"><span data-money="{{ total_collected }}" data-money-suffix="">{{ total_collected|floatformat:2 }}</span> <small style="font-size:.9rem">DA</small></div>
+      <div class="kpi-sub">{{ payment_count }} règlement{{ payment_count|pluralize }}</div>
+    </div>
+    <div class="kpi-card kpi-blue">
+      <i class='bx bx-trending-up kpi-icon'></i>
+      <div class="kpi-label">Taux d'encaissement</div>
+      <div class="kpi-value kpi-sm">{{ collection_rate }}%</div>
+      <div class="rate-bar-wrap" style="margin-top:.3rem;">
+        <div class="rate-bar-bg"><div class="rate-bar-fill" style="width:{{ collection_rate }}%"></div></div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-amber">
+      <i class='bx bx-time-five kpi-icon'></i>
+      <div class="kpi-label">Créances en cours</div>
+      <div class="kpi-value kpi-sm"><span data-money="{{ outstanding_receivables }}" data-money-suffix="">{{ outstanding_receivables|floatformat:2 }}</span> <small style="font-size:.85rem">DA</small></div>
+      <div class="kpi-sub">Toutes périodes confondues</div>
+    </div>
+    <div class="kpi-card kpi-red">
+      <i class='bx bx-error kpi-icon'></i>
+      <div class="kpi-label">Impayés en retard</div>
+      <div class="kpi-value kpi-sm"><span data-money="{{ overdue_amount }}" data-money-suffix="">{{ overdue_amount|floatformat:2 }}</span> <small style="font-size:.85rem">DA</small></div>
+      <div class="kpi-sub">{{ overdue_count }} facture{{ overdue_count|pluralize }}</div>
+    </div>
+    <div class="kpi-card kpi-sky">
+      <i class='bx bx-package kpi-icon'></i>
+      <div class="kpi-label">Bons de livraison</div>
+      <div class="kpi-value kpi-sm">{{ dn_count }}</div>
+      <div class="kpi-sub">BL sur la période</div>
+    </div>
+  </div>
+
+  <!-- ── Charts Row 1: Revenue line + Invoice donut ──── -->
+  <div class="charts-grid">
+    <div class="chart-card chart-col-8">
+      <div class="chart-card-header">
+        <span class="chart-card-title"><i class='bx bx-line-chart' style="font-size:.9rem;vertical-align:middle;"></i> Évolution mensuelle — Facturé vs Encaissé (12 mois)</span>
+      </div>
+      <div class="chart-canvas-wrap" style="height:240px;">
+        <canvas id="revenueChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card chart-col-4">
+      <div class="chart-card-header">
+        <span class="chart-card-title"><i class='bx bx-pie-chart-alt-2' style="font-size:.9rem;vertical-align:middle;"></i> Statut des factures</span>
+      </div>
+      <div class="chart-canvas-wrap" style="height:240px;">
+        <canvas id="invoiceStatusChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Charts Row 2: Top clients bar + Payment method + DN status ── -->
+  <div class="charts-grid">
+    <div class="chart-card chart-col-6">
+      <div class="chart-card-header">
+        <span class="chart-card-title"><i class='bx bx-trophy' style="font-size:.9rem;vertical-align:middle;"></i> Top clients (CA facturé TTC)</span>
+      </div>
+      <div class="chart-canvas-wrap" style="height:220px;">
+        <canvas id="topClientsChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card chart-col-3">
+      <div class="chart-card-header">
+        <span class="chart-card-title"><i class='bx bx-credit-card' style="font-size:.9rem;vertical-align:middle;"></i> Modes de paiement</span>
+      </div>
+      <div class="chart-canvas-wrap" style="height:220px;">
+        <canvas id="paymentMethodChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-card chart-col-3">
+      <div class="chart-card-header">
+        <span class="chart-card-title"><i class='bx bx-package' style="font-size:.9rem;vertical-align:middle;"></i> Statuts BL</span>
+      </div>
+      <div class="chart-canvas-wrap" style="height:220px;">
+        <canvas id="dnStatusChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Aging chart ───────────────────────────────────── -->
+  <div class="charts-grid mb-0">
+    <div class="chart-card chart-col-12">
+      <div class="chart-card-header">
+        <span class="chart-card-title"><i class='bx bx-time' style="font-size:.9rem;vertical-align:middle;"></i> Vieillissement des créances impayées</span>
+      </div>
+      <div class="chart-canvas-wrap" style="height:130px;">
+        <canvas id="agingChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Activity Tables ───────────────────────────────── -->
+  <div style="margin-top:1.5rem;">
+    <!-- Overdue invoices (always shown if any) -->
+    {% if overdue_invoices %}
+    <div class="chart-card mb-3">
+      <p class="section-title" style="color:#ef4444;"><i class='bx bx-error' style="vertical-align:middle;"></i> Factures en retard de paiement ({{ overdue_count }})</p>
+      <div style="overflow-x:auto;">
+        <table class="dash-table">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Client</th>
+              <th>Date facture</th>
+              <th>Échéance</th>
+              <th>Retard (j)</th>
+              <th class="num">Total TTC</th>
+              <th class="num">Solde dû</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in overdue_invoices %}
+            <tr class="overdue-row">
+              <td><a href="{% url 'sales:client_invoice_detail' inv.id %}">{{ inv.reference }}</a></td>
+              <td>{{ inv.client.raison_sociale }}</td>
+              <td>{{ inv.invoice_date|date:"d/m/Y" }}</td>
+              <td>{{ inv.due_date|date:"d/m/Y" }}</td>
+              <td><strong>{{ inv.days_overdue }}</strong></td>
+              <td class="num"><span data-money="{{ inv.total_ttc }}" data-money-suffix="">{{ inv.total_ttc|floatformat:2 }}</span></td>
+              <td class="num" style="color:#dc2626;font-weight:700;"><span data-money="{{ inv.balance_due }}" data-money-suffix="">{{ inv.balance_due|floatformat:2 }}</span></td>
+              <td>
+                <a href="{% url 'sales:client_invoice_detail' inv.id %}" style="color:var(--accent);font-size:.75rem;">Voir →</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabbed activity panel -->
+    <div class="chart-card">
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab(event,'tab-invoices')">
+          Factures <span style="background:var(--accent-dim);color:var(--accent);border-radius:99px;padding:0 6px;font-size:.65rem;">{{ invoice_count }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab(event,'tab-dns')">
+          Bons de livraison <span style="background:var(--bg-raised);color:var(--text-muted);border-radius:99px;padding:0 6px;font-size:.65rem;">{{ dn_count }}</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab(event,'tab-payments')">
+          Encaissements <span style="background:var(--bg-raised);color:var(--text-muted);border-radius:99px;padding:0 6px;font-size:.65rem;">{{ payment_count }}</span>
+        </button>
+      </div>
+
+      <!-- Invoices tab -->
+      <div id="tab-invoices" class="tab-pane active">
+        {% if recent_invoices %}
+        <div style="overflow-x:auto;">
+          <table class="dash-table">
+            <thead>
+              <tr>
+                <th>Référence</th>
+                <th>Client</th>
+                <th>Date</th>
+                <th>Échéance</th>
+                <th>Statut</th>
+                <th class="num">Total TTC</th>
+                <th class="num">Solde dû</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for inv in recent_invoices %}
+              <tr>
+                <td><a href="{% url 'sales:client_invoice_detail' inv.id %}" style="color:var(--accent);font-weight:600;">{{ inv.reference }}</a></td>
+                <td>{{ inv.client.raison_sociale }}</td>
+                <td>{{ inv.invoice_date|date:"d/m/Y" }}</td>
+                <td>
+                  {{ inv.due_date|date:"d/m/Y" }}
+                  {% if inv.is_overdue %}<span style="color:#dc2626;font-size:.65rem;font-weight:700;"> ↑ retard</span>{% endif %}
+                </td>
+                <td><span class="badge-dash badge-{{ inv.status }}">{{ inv.get_status_display }}</span></td>
+                <td class="num"><span data-money="{{ inv.total_ttc }}" data-money-suffix="">{{ inv.total_ttc|floatformat:2 }}</span></td>
+                <td class="num">
+                  {% if inv.balance_due > 0 %}
+                  <span style="color:#dc2626;"><span data-money="{{ inv.balance_due }}" data-money-suffix="">{{ inv.balance_due|floatformat:2 }}</span></span>
+                  {% else %}—{% endif %}
+                </td>
+                <td><a href="{% url 'sales:client_invoice_detail' inv.id %}" style="color:var(--text-muted);font-size:.75rem;">Voir →</a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="text-align:right;margin-top:.75rem;">
+          <a href="{% url 'sales:client_invoices_list' %}?date_from={{ date_from|date:'Y-m-d' }}&date_to={{ date_to|date:'Y-m-d' }}" style="font-size:.75rem;color:var(--accent);">
+            Voir toutes les factures →
+          </a>
+        </div>
+        {% else %}
+        <div class="empty-state"><i class='bx bx-receipt'></i>Aucune facture sur la période.</div>
+        {% endif %}
+      </div>
+
+      <!-- DNs tab -->
+      <div id="tab-dns" class="tab-pane">
+        {% if recent_dns %}
+        <div style="overflow-x:auto;">
+          <table class="dash-table">
+            <thead>
+              <tr>
+                <th>Référence</th>
+                <th>Client</th>
+                <th>Date livraison</th>
+                <th>Statut</th>
+                <th class="num">Total HT</th>
+                <th>Validé par</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dn in recent_dns %}
+              <tr>
+                <td><a href="{% url 'sales:client_dn_detail' dn.id %}" style="color:var(--accent);font-weight:600;">{{ dn.reference }}</a></td>
+                <td>{{ dn.client.raison_sociale }}</td>
+                <td>{{ dn.delivery_date|date:"d/m/Y" }}</td>
+                <td><span class="badge-dash badge-{{ dn.status }}">{{ dn.get_status_display }}</span></td>
+                <td class="num"><span data-money="{{ dn.total_ht }}" data-money-suffix="">{{ dn.total_ht|floatformat:2 }}</span></td>
+                <td>{{ dn.validated_by.get_full_name|default:"—" }}</td>
+                <td><a href="{% url 'sales:client_dn_detail' dn.id %}" style="color:var(--text-muted);font-size:.75rem;">Voir →</a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="text-align:right;margin-top:.75rem;">
+          <a href="{% url 'sales:client_dns_list' %}?date_from={{ date_from|date:'Y-m-d' }}&date_to={{ date_to|date:'Y-m-d' }}" style="font-size:.75rem;color:var(--accent);">
+            Voir tous les BL →
+          </a>
+        </div>
+        {% else %}
+        <div class="empty-state"><i class='bx bx-package'></i>Aucun bon de livraison sur la période.</div>
+        {% endif %}
+      </div>
+
+      <!-- Payments tab -->
+      <div id="tab-payments" class="tab-pane">
+        {% if recent_payments %}
+        <div style="overflow-x:auto;">
+          <table class="dash-table">
+            <thead>
+              <tr>
+                <th>Référence</th>
+                <th>Client</th>
+                <th>Date</th>
+                <th>Mode</th>
+                <th>Facture liée</th>
+                <th>Réf. banque</th>
+                <th class="num">Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pay in recent_payments %}
+              <tr>
+                <td style="font-weight:600;font-size:.75rem;">{{ pay.reference }}</td>
+                <td>{{ pay.client.raison_sociale }}</td>
+                <td>{{ pay.payment_date|date:"d/m/Y" }}</td>
+                <td>{{ pay.get_payment_method_display }}</td>
+                <td>
+                  <a href="{% url 'sales:client_invoice_detail' pay.client_invoice.id %}" style="color:var(--accent);">
+                    {{ pay.client_invoice.reference }}
+                  </a>
+                </td>
+                <td style="color:var(--text-muted);">{{ pay.bank_reference|default:"—" }}</td>
+                <td class="num" style="color:#059669;font-weight:700;"><span data-money="{{ pay.amount }}" data-money-suffix="">{{ pay.amount|floatformat:2 }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state"><i class='bx bx-money'></i>Aucun encaissement sur la période.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── Chart data from Django ─────────────────────────────── */
+const revenueData        = {{ revenue_chart_json|safe }};
+const invoiceStatusData  = {{ invoice_status_chart_json|safe }};
+const topClientsData     = {{ top_clients_chart_json|safe }};
+const paymentMethodData  = {{ payment_method_chart_json|safe }};
+const dnStatusData       = {{ dn_status_chart_json|safe }};
+const agingData          = {{ aging_chart_json|safe }};
+
+/* ── Palette ─────────────────────────────────────────────── */
+const TEAL   = '#0f766e';
+const TEAL_L = '#14b8a6';
+const BLUE   = '#3b82f6';
+const GREEN  = '#10b981';
+const AMBER  = '#f59e0b';
+const RED    = '#ef4444';
+const PURPLE = '#8b5cf6';
+const SKY    = '#0ea5e9';
+const ROSE   = '#f43f5e';
+const SLATE  = '#64748b';
+
+const PALETTE_6 = [TEAL, BLUE, GREEN, AMBER, PURPLE, ROSE];
+const PALETTE_STATUS_INV = {
+  'Émise':          AMBER,
+  'Part. payée':    BLUE,
+  'Payée':          GREEN,
+  'En litige':      RED,
+  'Annulée':        SLATE,
+};
+const PALETTE_STATUS_DN = {
+  'Brouillon':  SLATE,
+  'Validé':     BLUE,
+  'Livré':      TEAL,
+  'Facturé':    PURPLE,
+  'Annulé':     RED,
+};
+
+function fmtDA(val) {
+  return new Intl.NumberFormat('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val) + ' DA';
+}
+
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 11;
+Chart.defaults.color = '#94a3b8';
+
+/* ── 1. Revenue line chart ───────────────────────────────── */
+new Chart(document.getElementById('revenueChart'), {
+  type: 'line',
+  data: {
+    labels: revenueData.labels,
+    datasets: [
+      {
+        label: 'Facturé TTC',
+        data: revenueData.invoiced,
+        borderColor: TEAL,
+        backgroundColor: 'rgba(15,118,110,.08)',
+        fill: true,
+        tension: .4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 2,
+      },
+      {
+        label: 'Encaissé',
+        data: revenueData.collected,
+        borderColor: GREEN,
+        backgroundColor: 'rgba(16,185,129,.06)',
+        fill: true,
+        tension: .4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        borderWidth: 2,
+        borderDash: [5, 3],
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } },
+      tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtDA(ctx.parsed.y) } }
+    },
+    scales: {
+      x: { grid: { color: 'rgba(0,0,0,.04)' } },
+      y: {
+        grid: { color: 'rgba(0,0,0,.04)' },
+        ticks: { callback: v => fmtDA(v) }
+      }
+    }
+  }
+});
+
+/* ── 2. Invoice status doughnut ─────────────────────────── */
+if (invoiceStatusData.labels.length > 0) {
+  new Chart(document.getElementById('invoiceStatusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: invoiceStatusData.labels,
+      datasets: [{
+        data: invoiceStatusData.totals,
+        backgroundColor: invoiceStatusData.labels.map(l => PALETTE_STATUS_INV[l] || SLATE),
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.label + ': ' + fmtDA(ctx.parsed) + ' (' + invoiceStatusData.counts[ctx.dataIndex] + ')'
+          }
+        }
+      }
+    }
+  });
+} else {
+  document.getElementById('invoiceStatusChart').closest('.chart-canvas-wrap').innerHTML =
+    '<div class="empty-state" style="padding:4rem 1rem;"><i class="bx bx-pie-chart-alt" style="font-size:2rem;opacity:.2;display:block;"></i>Aucune donnée</div>';
+}
+
+/* ── 3. Top clients horizontal bar ─────────────────────── */
+if (topClientsData.labels.length > 0) {
+  new Chart(document.getElementById('topClientsChart'), {
+    type: 'bar',
+    data: {
+      labels: topClientsData.labels,
+      datasets: [{
+        label: 'CA TTC (DA)',
+        data: topClientsData.totals,
+        backgroundColor: topClientsData.totals.map((_, i) =>
+          i === 0 ? TEAL : i === 1 ? TEAL_L : 'rgba(15,118,110,' + (0.5 - i * 0.04) + ')'
+        ),
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: ctx => topClientsData.full_names[ctx[0].dataIndex],
+            label: ctx => fmtDA(ctx.parsed.x),
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,.04)' }, ticks: { callback: v => fmtDA(v) } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+} else {
+  document.getElementById('topClientsChart').closest('.chart-canvas-wrap').innerHTML =
+    '<div class="empty-state" style="padding:4rem 1rem;"><i class="bx bx-user" style="font-size:2rem;opacity:.2;display:block;"></i>Aucun client</div>';
+}
+
+/* ── 4. Payment methods doughnut ────────────────────────── */
+if (paymentMethodData.labels.length > 0) {
+  new Chart(document.getElementById('paymentMethodChart'), {
+    type: 'doughnut',
+    data: {
+      labels: paymentMethodData.labels,
+      datasets: [{
+        data: paymentMethodData.totals,
+        backgroundColor: [GREEN, BLUE, AMBER, PURPLE, ROSE],
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverOffset: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.label + ': ' + fmtDA(ctx.parsed) + ' (' + paymentMethodData.counts[ctx.dataIndex] + ')'
+          }
+        }
+      }
+    }
+  });
+} else {
+  document.getElementById('paymentMethodChart').closest('.chart-canvas-wrap').innerHTML =
+    '<div class="empty-state" style="padding:4rem 1rem;"><i class="bx bx-credit-card" style="font-size:2rem;opacity:.2;display:block;"></i>Aucun paiement</div>';
+}
+
+/* ── 5. DN status doughnut ──────────────────────────────── */
+if (dnStatusData.labels.length > 0) {
+  new Chart(document.getElementById('dnStatusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: dnStatusData.labels,
+      datasets: [{
+        data: dnStatusData.counts,
+        backgroundColor: dnStatusData.labels.map(l => PALETTE_STATUS_DN[l] || SLATE),
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverOffset: 5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 10 } } },
+        tooltip: {
+          callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + ' BL' }
+        }
+      }
+    }
+  });
+} else {
+  document.getElementById('dnStatusChart').closest('.chart-canvas-wrap').innerHTML =
+    '<div class="empty-state" style="padding:4rem 1rem;"><i class="bx bx-package" style="font-size:2rem;opacity:.2;display:block;"></i>Aucun BL</div>';
+}
+
+/* ── 6. Aging horizontal bar ─────────────────────────────── */
+new Chart(document.getElementById('agingChart'), {
+  type: 'bar',
+  data: {
+    labels: agingData.labels,
+    datasets: [{
+      label: 'Créances (DA)',
+      data: agingData.totals,
+      backgroundColor: [AMBER, ROSE, RED, '#7f1d1d'],
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => fmtDA(ctx.parsed.x) } }
+    },
+    scales: {
+      x: { grid: { color: 'rgba(0,0,0,.04)' }, ticks: { callback: v => fmtDA(v) } },
+      y: { grid: { display: false } }
+    }
+  }
+});
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+function switchTab(e, id) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById(id).classList.add('active');
+}
+</script>
+{% endblock %}

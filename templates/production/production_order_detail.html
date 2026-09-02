@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+{% load static %}
+{% load factory_filters %}
+
+{% block title %}{{ order.reference }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-0">
+    <li class="breadcrumb-item"><a href="{% url 'core:dashboard' %}">Accueil</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'production:production_orders_list' %}">Ordres de production</a></li>
+    <li class="breadcrumb-item active">{{ order.reference }}</li>
+  </ol>
+</nav>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.timeline-step { display:flex; align-items:center; gap:8px; }
+.timeline-step .step-dot { width:12px; height:12px; border-radius:50%; border:2px solid var(--border-strong); background:var(--bg-surface); flex-shrink:0; }
+.timeline-step.done .step-dot { background:var(--accent); border-color:var(--accent); }
+.timeline-step.active .step-dot { background:#f59e0b; border-color:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.2); }
+.timeline-line { width:32px; height:2px; background:var(--border); flex-shrink:0; }
+.timeline-line.done { background:var(--accent); }
+.info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+.info-cell { padding:10px 14px; background:var(--bg-raised); border-radius:var(--radius-sm); border:1px solid var(--border); }
+.info-cell .label { font-size:11px; font-weight:500; color:var(--text-muted); margin-bottom:3px; font-family:'Inter',sans-serif; text-transform:uppercase; letter-spacing:.04em; }
+.info-cell .value { font-size:15px; font-weight:600; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{# ─── Header ─── #}
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <div class="d-flex align-items-center gap-2 mb-1">
+      <span style="font-family:monospace;font-size:13px;color:var(--text-muted);">{{ order.reference }}</span>
+      <span class="badge-en-attente" style="background:var(--bg-raised);color:var(--text-secondary);">{{ order.site.code }}</span>
+      {% if order.status == 'pending' %}<span class="badge-en-attente">En attente</span>
+      {% elif order.status == 'validated' %}<span class="badge-valide">Validé</span>
+      {% elif order.status == 'in_progress' %}<span class="badge-commande">En cours</span>
+      {% elif order.status == 'pending_qc_release' %}<span class="badge-en-attente">Attente libération QC</span>
+      {% elif order.status == 'completed_investigation' %}<span class="badge-annule">Sous investigation</span>
+      {% elif order.status == 'completed' %}<span class="badge-valide">Clôturé</span>
+      {% elif order.status == 'cancelled' %}<span class="badge-annule">Annulé</span>
+      {% endif %}
+    </div>
+    <h1 class="page-title mb-1">{{ order.formulation.designation }}</h1>
+    <p class="text-muted small mb-0">
+      Formulation <a href="{% url 'production:formulation_detail' order.formulation.id %}" class="text-decoration-none" style="color:var(--accent);">{{ order.formulation.reference }} v{{ order.formulation.version }}</a>
+      &nbsp;·&nbsp; Site {{ order.site.name }}
+      &nbsp;·&nbsp; Créé le {{ order.created_at|date:"d/m/Y" }} par {{ order.created_by.get_full_name|default:order.created_by.username }}
+    </p>
+  </div>
+  {# Action buttons based on status #}
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_validate %}
+    <form method="post" action="{% url 'production:production_order_validate' order.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-validate"><i class="bi bi-patch-check me-1"></i> Valider (vérif. stock)</button>
+    </form>
+    {% endif %}
+    {% if can_launch %}
+    <form method="post" action="{% url 'production:production_order_launch' order.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary-app"><i class="bi bi-play-fill me-1"></i> Lancer</button>
+    </form>
+    {% endif %}
+    {% if can_close %}
+    <a href="{% url 'production:production_order_close' order.id %}" class="btn-primary-app">
+      <i class="bi bi-flag-fill me-1"></i> Clôturer
+    </a>
+    {% endif %}
+    {% if can_reconcile %}
+    <a href="{% url 'production:production_order_reconcile' order.id %}" class="btn-secondary-app">
+      <i class="bi bi-magic me-1"></i> Corriger avec v{{ latest_formulation.version }}
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+{% if order.corrects_order %}
+<div class="alert-banner mb-3" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;">
+  <i class="bi bi-info-circle-fill me-1"></i>
+  Cet ordre est une <strong>correction</strong> de
+  <a href="{% url 'production:production_order_detail' order.corrects_order.id %}" style="color:#1d4ed8;">{{ order.corrects_order.reference }}</a>,
+  suite au passage à la formulation v{{ order.formulation_version }}.
+</div>
+{% endif %}
+{% if order.corrections.all %}
+<div class="alert-banner mb-3" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;">
+  <i class="bi bi-arrow-return-right me-1"></i>
+  Corrigé par :
+  {% for c in order.corrections.all %}
+  <a href="{% url 'production:production_order_detail' c.id %}" style="color:#15803d;">{{ c.reference }}</a>{% if not forloop.last %}, {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ─── QA/QC Gate B: advisory in-process hold ─── #}
+{% if order.gate_b_hold %}
+<div class="alert-banner alert-banner-{% if order.gate_b_hold_acknowledged %}warning{% else %}error{% endif %} mb-3">
+  <i class="bi bi-exclamation-triangle-fill me-1"></i>
+  <strong>Alerte qualité Gate B :</strong> {{ order.gate_b_hold_note }}
+  {% if order.gate_b_hold_acknowledged %}
+    <span class="small">— acquittée par {{ order.gate_b_ack_by.username }} : {{ order.gate_b_ack_note }}</span>
+  {% else %}
+    <span class="small">— non acquittée (BR-QA-07 : bloque la clôture)</span>
+  {% endif %}
+</div>
+{% if can_ack_hold %}
+<div class="card-app p-3 mb-3">
+  <form method="post" action="{% url 'production:production_order_acknowledge_hold' order.id %}">
+    {% csrf_token %}
+    <div class="mb-2"><textarea name="note" class="form-control" placeholder="Note d'acquittement" required></textarea></div>
+    <button type="submit" name="decision" value="continue" class="btn-primary-app btn-sm">Acquitter et poursuivre</button>
+    <button type="submit" name="decision" value="abort" class="btn-secondary-app btn-sm" style="color:#b91c1c;">Acquitter et avorter l'OP</button>
+  </form>
+</div>
+{% endif %}
+{% endif %}
+
+{% if can_draw_gate_b_sample %}
+<div class="card-app p-3 mb-3">
+  <span class="card-app-title d-block mb-2">Contrôle qualité en cours (Gate B)</span>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'quality:gate_bc_sample_draw' order.id 'B' %}" class="btn-secondary-app btn-sm">
+      <i class="bx bx-test-tube"></i> Prélever un échantillon
+    </a>
+  </div>
+  {% if gate_b_checkpoints %}<p class="small text-muted mt-2 mb-0">Points de contrôle prévus : {{ gate_b_checkpoints|join:", " }}</p>{% endif %}
+</div>
+{% endif %}
+
+{# ─── QA/QC Gate C: post-production release ─── #}
+{% if order.status == 'pending_qc_release' %}
+<div class="alert-banner alert-banner-warning mb-3">
+  <i class="bi bi-clipboard-check me-1"></i>
+  <strong>En attente de libération QC (Gate C).</strong> Rendement : {{ order.yield_rate|default:"—" }}% — statut {{ order.get_yield_status_display|default:order.yield_status }}.
+</div>
+<div class="card-app p-3 mb-3">
+  <span class="card-app-title d-block mb-2">Libération finale (Gate C)</span>
+  <p class="small text-muted">
+    Échantillon PF :
+    {% if gate_c_sample %}
+      <a href="{% url 'quality:sample_detail' gate_c_sample.id %}">{{ gate_c_sample.reference }}</a> — {{ gate_c_sample.get_status_display }}
+    {% else %}Aucun prélevé.{% endif %}
+  </p>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_draw_gate_c_sample %}
+    <a href="{% url 'quality:gate_bc_sample_draw' order.id 'C' %}" class="btn-secondary-app btn-sm">
+      <i class="bx bx-test-tube"></i> Prélever un échantillon
+    </a>
+    {% endif %}
+    {% if can_release_gate_c %}
+    <form method="post" action="{% url 'production:production_order_release_gate_c' order.id %}">
+      {% csrf_token %}
+      <button type="submit" class="btn-primary-app btn-sm"><i class="bx bx-check-shield"></i> Libérer / Statuer</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if order.status == 'completed_investigation' %}
+<div class="alert-banner alert-banner-error mb-3">
+  <i class="bi bi-search me-1"></i>
+  <strong>OP sous investigation qualité.</strong> Le stock PF ne sera crédité qu'après clôture de la NCR liée.
+</div>
+{% endif %}
+
+{% if open_ncrs %}
+<div class="card-app p-3 mb-3">
+  <span class="card-app-title d-block mb-2">Non-conformités liées</span>
+  {% for ncr in open_ncrs %}
+  <a href="{% url 'quality:ncr_detail' ncr.id %}" class="d-block small">{{ ncr.reference }} — {{ ncr.get_status_display }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ─── Status timeline ─── #}
+<div class="d-flex align-items-center mb-4 flex-wrap gap-1">
+  <div class="timeline-step {% if order.status in 'pending,validated,in_progress,completed' %}done{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">En attente</span>
+  </div>
+  <div class="timeline-line {% if order.status in 'validated,in_progress,completed' %}done{% endif %}"></div>
+  <div class="timeline-step {% if order.status in 'validated,in_progress,completed' %}done{% elif order.status == 'pending' %}{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">Validé</span>
+  </div>
+  <div class="timeline-line {% if order.status in 'in_progress,completed' %}done{% endif %}"></div>
+  <div class="timeline-step {% if order.status in 'in_progress,completed' %}done{% elif order.status == 'in_progress' %}active{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">En cours</span>
+  </div>
+  <div class="timeline-line {% if order.status == 'completed' %}done{% endif %}"></div>
+  <div class="timeline-step {% if order.status == 'completed' %}done{% endif %}">
+    <div class="step-dot"></div>
+    <span class="small text-muted">Clôturé</span>
+  </div>
+</div>
+
+<div class="row g-3">
+  {# ─── Key metrics ─── #}
+  <div class="col-12">
+    <div class="info-grid">
+      <div class="info-cell">
+        <div class="label">Produit fini</div>
+        <div class="value">{{ order.formulation.finished_product.designation }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Qté cible</div>
+        <div class="value">
+          {% if order.target_qty_kg is not None %}{{ order.target_qty_kg|floatformat:3 }} kg{% else %}{{ order.target_qty|floatformat:3 }} {{ order.target_unit.symbol }}{% endif %}
+        </div>
+        <div class="text-muted small mt-1">{{ order.target_qty|floatformat:3 }} {{ order.target_unit.symbol }}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Qté produite</div>
+        <div class="value">
+          {% if order.actual_qty_produced %}{{ order.actual_qty_produced|floatformat:3 }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Rendement réel</div>
+        <div class="value">
+          {% if order.yield_rate is not None %}
+            {% if order.yield_status == 'normal' %}<span style="color:#16a34a;">
+            {% elif order.yield_status == 'warning' %}<span style="color:#d97706;">
+            {% else %}<span style="color:#dc2626;">{% endif %}
+              {{ order.yield_rate|floatformat:1 }} %
+            </span>
+          {% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Date lancement</div>
+        <div class="value">{{ order.launch_date|date:"d/m/Y" }}</div>
+      </div>
+      {% if order.closure_date %}
+      <div class="info-cell">
+        <div class="label">Date clôture</div>
+        <div class="value">{{ order.closure_date|date:"d/m/Y" }}</div>
+      </div>
+      {% endif %}
+      {% if order.stock_check_passed is not None %}
+      <div class="info-cell">
+        <div class="label">Vérif. stock</div>
+        <div class="value">
+          {% if order.stock_check_passed %}
+            <span style="color:#16a34a;"><i class="bi bi-check-circle-fill me-1"></i>OK</span>
+          {% else %}
+            <span style="color:#d97706;"><i class="bi bi-exclamation-triangle-fill me-1"></i>Insuffisant</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if order.notes %}
+  <div class="col-12">
+    <div class="card-app">
+      <div class="card-app-header"><span class="card-app-title">Notes</span></div>
+      <div class="card-app-body">
+        <p class="mb-0" style="font-family:'Inter',sans-serif;white-space:pre-line;">{{ order.notes }}</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── Consumption lines ─── #}
+  <div class="col-12">
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title">Matières premières consommées</span>
+      </div>
+      <div class="card-app-body p-0">
+        {% if consumption_lines %}
+        <div class="table-container" style="border:none;border-radius:0;">
+          <table class="table table-hover mb-0">
+            <thead class="bg-raised">
+              <tr>
+                <th>Matière première</th>
+                <th class="text-end">Qté théorique</th>
+                <th class="text-end">Qté réelle</th>
+                <th class="text-end">Écart</th>
+                <th class="text-end">Impact financier</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in consumption_lines %}
+              <tr>
+                <td>
+                  <span class="fw-500" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ line.raw_material.designation }}</span>
+                  <br><small class="text-muted font-mono">{{ line.raw_material.reference }}</small>
+                </td>
+                <td class="text-end">
+                  {% if line.qty_theoretical_kg is not None %}
+                  <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">{{ line.qty_theoretical_kg|floatformat:3 }} kg</span>
+                  {% else %}
+                  <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;">{{ line.qty_theoretical|floatformat:3 }} {{ line.raw_material.unit_of_measure.symbol }}</span>
+                  {% endif %}
+                  <br><small class="text-muted">{{ line.qty_theoretical|floatformat:3 }} {{ line.raw_material.unit_of_measure.symbol }}</small>
+                </td>
+                <td class="text-end">
+                  {% if line.qty_actual is not None %}
+                    {% if line.qty_actual_kg is not None %}
+                    <span class="fw-700" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ line.qty_actual_kg|floatformat:3 }} kg</span>
+                    {% else %}
+                    <span class="fw-700" style="font-family:'Plus Jakarta Sans',sans-serif;">{{ line.qty_actual|floatformat:3 }} {{ line.raw_material.unit_of_measure.symbol }}</span>
+                    {% endif %}
+                    <br><small class="text-muted">{{ line.qty_actual|floatformat:3 }} {{ line.raw_material.unit_of_measure.symbol }}</small>
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if line.delta_qty is not None %}
+                    {% if line.delta_qty == 0 %}
+                      <span class="delta-ok">—</span>
+                    {% elif line.delta_qty|abs < 5 %}
+                      <span class="delta-minor">{% if line.delta_qty > 0 %}+{% endif %}{{ line.delta_qty|floatformat:3 }}</span>
+                    {% else %}
+                      <span class="delta-alert">{% if line.delta_qty > 0 %}+{% endif %}{{ line.delta_qty|floatformat:3 }}</span>
+                    {% endif %}
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if line.financial_impact is not None %}
+                    {% if line.financial_impact > 0 %}
+                      <span class="text-danger fw-600">+<span data-money="{{ line.financial_impact }}" data-money-suffix=" DA">{{ line.financial_impact|floatformat:2 }} DA</span></span>
+                    {% elif line.financial_impact < 0 %}
+                      <span class="text-success fw-600"><span data-money="{{ line.financial_impact }}" data-money-suffix=" DA">{{ line.financial_impact|floatformat:2 }} DA</span></span>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:24px;">
+          <i class="bi bi-archive"></i>
+          <p class="mb-0 small">Les lignes de consommation seront disponibles après lancement de l'OP</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

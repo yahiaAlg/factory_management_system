@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'catalog:finished_products_list' %}">Produits finis</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Nouveau</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-subtitle">La référence PF-NNN sera générée automatiquement à la création.</p>
+  </div>
+  <div class="page-actions">
+    <a href="{% url 'catalog:finished_products_list' %}" class="btn-secondary-app">
+      <i class="bx bx-arrow-back"></i> Retour
+    </a>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="row g-4">
+
+    <div class="col-lg-8">
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-box" style="color:var(--accent);margin-right:7px;"></i>Identification</span>
+        </div>
+        <div class="card-app-body">
+          {% if form.non_field_errors %}
+          <div class="alert-banner error mb-3">
+            <i class="bx bx-error-circle"></i>
+            {% for e in form.non_field_errors %}{{ e }}{% endfor %}
+          </div>
+          {% endif %}
+          <div class="row g-3">
+
+            <div class="col-12">
+              <label class="form-label-app" for="{{ form.designation.id_for_label }}">
+                Désignation <span class="required">*</span>
+              </label>
+              <input
+                type="text"
+                id="{{ form.designation.id_for_label }}"
+                name="{{ form.designation.html_name }}"
+                value="{{ form.designation.value|default:'' }}"
+                class="form-control-app {% if form.designation.errors %}is-invalid{% endif %}"
+                placeholder="Nom complet du produit fini"
+                required
+              />
+              {% for e in form.designation.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.sales_unit.id_for_label }}">
+                Unité de vente <span class="required">*</span>
+              </label>
+              <select id="{{ form.sales_unit.id_for_label }}" name="{{ form.sales_unit.html_name }}"
+                class="form-control-app {% if form.sales_unit.errors %}is-invalid{% endif %}" required>
+                <option value="">— Sélectionner —</option>
+                {% for uom in form.fields.sales_unit.queryset %}
+                <option value="{{ uom.id }}" {% if form.sales_unit.value|stringformat:"s" == uom.id|stringformat:"s" %}selected{% endif %}>
+                  {{ uom.name }} ({{ uom.symbol }})
+                </option>
+                {% endfor %}
+              </select>
+              {% for e in form.sales_unit.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.reference_selling_price.id_for_label }}">
+                Prix de vente de référence (DA)
+              </label>
+              <input
+                type="number" step="0.01" min="0"
+                id="{{ form.reference_selling_price.id_for_label }}"
+                name="{{ form.reference_selling_price.html_name }}"
+                value="{{ form.reference_selling_price.value|default:'0.00' }}"
+                class="form-control-app {% if form.reference_selling_price.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Prix indicatif pour calculs de marge. Modifiable sur les BL.</div>
+              {% for e in form.reference_selling_price.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.alert_threshold.id_for_label }}">
+                Seuil d'alerte stock
+              </label>
+              <input
+                type="number" step="0.001" min="0"
+                id="{{ form.alert_threshold.id_for_label }}"
+                name="{{ form.alert_threshold.html_name }}"
+                value="{{ form.alert_threshold.value|default:'0.000' }}"
+                class="form-control-app {% if form.alert_threshold.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Déclenche une alerte stock <span class="badge-presque" style="font-size:10px;">Alerte</span> en dessous de ce niveau.</div>
+              {% for e in form.alert_threshold.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.row_color.id_for_label }}">
+                Couleur de ligne (catalogue)
+              </label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input
+                  type="color"
+                  id="{{ form.row_color.id_for_label }}"
+                  name="{{ form.row_color.html_name }}"
+                  value="{{ form.row_color.value|default:'#7c3aed' }}"
+                  class="form-control-app {% if form.row_color.errors %}is-invalid{% endif %}"
+                  style="width:56px;height:38px;padding:2px;cursor:pointer;flex-shrink:0;"
+                />
+                <span class="text-muted small">Utilisée pour repérer ce produit dans la liste.</span>
+              </div>
+              {% for e in form.row_color.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-6 d-flex align-items-end">
+              <div class="card-app w-100" style="background:var(--accent-dim);border-color:var(--accent-glow);padding:0;">
+                <div style="padding:14px 16px;display:flex;align-items:flex-start;gap:10px;">
+                  <i class="bx bx-info-circle" style="color:var(--accent);font-size:18px;flex-shrink:0;margin-top:1px;"></i>
+                  <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">
+                    <strong style="color:var(--accent);">CMP non saisi ici.</strong>
+                    Le Coût Moyen Pondéré est calculé automatiquement après clôture de chaque ordre de production (spec S3).
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- SPEC S22 — KG-Equivalent Mass Formulation Engine -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">
+            <i class="bx bx-flask" style="color:var(--accent);margin-right:7px;"></i>Équivalence kg — production
+          </span>
+          <span style="font-size:12px;color:var(--text-muted);">Non renseigné = 1 unité = 1 kg par défaut</span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.kg_equivalent_mode.id_for_label }}">Mode d'équivalence</label>
+              <select
+                id="{{ form.kg_equivalent_mode.id_for_label }}"
+                name="{{ form.kg_equivalent_mode.html_name }}"
+                class="form-control-app {% if form.kg_equivalent_mode.errors %}is-invalid{% endif %}"
+              >
+                <option value="">— Non configuré (1 unité = 1 kg) —</option>
+                {% for val, label in form.fields.kg_equivalent_mode.choices %}
+                  {% if val %}
+                  <option value="{{ val }}" {% if form.kg_equivalent_mode.value == val %}selected{% endif %}>{{ label }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+              <div class="form-hint">Utilisé pour standardiser les quantités de production en kg (§22).</div>
+              {% for e in form.kg_equivalent_mode.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-6" id="kgPerUnitField">
+              <label class="form-label-app" for="{{ form.kg_per_unit.id_for_label }}">Kg par unité</label>
+              <input
+                type="number" step="0.0001" min="0.0001"
+                id="{{ form.kg_per_unit.id_for_label }}"
+                name="{{ form.kg_per_unit.html_name }}"
+                value="{{ form.kg_per_unit.value|default_if_none:'' }}"
+                class="form-control-app {% if form.kg_per_unit.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Requis si mode = Direct.</div>
+              {% for e in form.kg_per_unit.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-6" id="densityField">
+              <label class="form-label-app" for="{{ form.density_kg_per_liter.id_for_label }}">Densité (kg/L)</label>
+              <input
+                type="number" step="0.0001" min="0.0001"
+                id="{{ form.density_kg_per_liter.id_for_label }}"
+                name="{{ form.density_kg_per_liter.html_name }}"
+                value="{{ form.density_kg_per_liter.value|default_if_none:'' }}"
+                class="form-control-app {% if form.density_kg_per_liter.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Requis si mode = Densité (unité de vente volumétrique uniquement).</div>
+              {% for e in form.density_kg_per_liter.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.volumetric_factor.id_for_label }}">Facteur volumétrique</label>
+              <input
+                type="number" step="0.0001" min="0.0001"
+                id="{{ form.volumetric_factor.id_for_label }}"
+                name="{{ form.volumetric_factor.html_name }}"
+                value="{{ form.volumetric_factor.value|default:'1.0000' }}"
+                class="form-control-app {% if form.volumetric_factor.errors %}is-invalid{% endif %}"
+              />
+              <div class="form-hint">Poids volumétrique = équivalent kg × ce facteur (§22.6).</div>
+              {% for e in form.volumetric_factor.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- BR-DUAL-01 — Article à double entrée -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title"><i class="bx bx-git-merge" style="color:var(--accent);margin-right:7px;"></i>Article à double entrée</span>
+        </div>
+        <div class="card-app-body">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input
+              type="checkbox"
+              name="{{ form.dual.html_name }}"
+              id="{{ form.dual.id_for_label }}"
+              {% if form.dual.value %}checked{% endif %}
+              style="width:18px;height:18px;margin-top:2px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;"
+            />
+            <div>
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:14px;color:var(--text-primary);">{{ form.dual.label }}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{ form.dual.help_text }}</div>
+            </div>
+          </label>
+
+          <div id="categoryTwinField" style="margin-top:14px;{% if not form.dual.value %}display:none;{% endif %}">
+            <label class="form-label-app" for="{{ form.category_twin.id_for_label }}">
+              Catégorie de la matière première jumelle {% if not product.twin_raw_material %}<span class="required">*</span>{% endif %}
+            </label>
+            <select
+              id="{{ form.category_twin.id_for_label }}"
+              name="{{ form.category_twin.html_name }}"
+              class="form-control-app {% if form.category_twin.errors %}is-invalid{% endif %}"
+            >
+              <option value="">— Sélectionner —</option>
+              {% for c in form.fields.category_twin.queryset %}
+              <option value="{{ c.id }}" {% if form.category_twin.value|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+            {% for e in form.category_twin.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+          </div>
+
+          {% if product.twin_raw_material %}
+          <div style="display:flex;align-items:center;gap:8px;margin-top:12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:var(--radius-sm);padding:8px 12px;font-size:12.5px;color:var(--text-secondary);">
+            <i class="bx bxs-link" style="color:#3b82f6;"></i>
+            <span>
+              Actuellement liée à la matière première
+              <a href="{% url 'catalog:raw_material_detail' product.twin_raw_material.id %}" style="font-weight:700;">{{ product.twin_raw_material }}</a>
+              — stock et désignation synchronisés automatiquement (BR-DUAL-01).
+            </span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right -->
+    <div class="col-lg-4">
+
+      <div class="card-app mb-4">
+        <div class="card-app-header"><span class="card-app-title">Statut</span></div>
+        <div class="card-app-body">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+            <input
+              type="checkbox"
+              name="{{ form.is_active.html_name }}"
+              {% if form.is_active.value != False %}checked{% endif %}
+              style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;"
+            />
+            <div>
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:14px;">Produit actif</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Les produits inactifs n'apparaissent plus dans les BL clients.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="card-app">
+        <div class="card-app-body" style="padding:14px 16px;">
+          {% if form.errors %}
+          <div class="alert-banner error mb-3" style="padding:9px 12px;font-size:13px;">
+            <i class="bx bx-error-circle"></i> Corrigez les erreurs.
+          </div>
+          {% endif %}
+          <button type="submit" class="btn-primary-app w-100" style="justify-content:center;">
+            <i class="bx bx-save"></i> Créer le produit
+          </button>
+          <a href="{% url 'catalog:finished_products_list' %}" class="btn-secondary-app w-100 mt-2" style="justify-content:center;">
+            Annuler
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</form>
+
+<script>
+  function updateFpKgModeFields() {
+    var mode = document.getElementById('{{ form.kg_equivalent_mode.id_for_label }}').value;
+    document.getElementById('kgPerUnitField').style.display = (mode === 'direct') ? '' : 'none';
+    document.getElementById('densityField').style.display = (mode === 'density') ? '' : 'none';
+  }
+  document.getElementById('{{ form.kg_equivalent_mode.id_for_label }}').addEventListener('change', updateFpKgModeFields);
+  updateFpKgModeFields();
+
+  // BR-DUAL-01 — show the twin category picker only while "dual" is checked
+  var dualCheckbox = document.getElementById('{{ form.dual.id_for_label }}');
+  var categoryTwinField = document.getElementById('categoryTwinField');
+  if (dualCheckbox && categoryTwinField) {
+    dualCheckbox.addEventListener('change', function () {
+      categoryTwinField.style.display = this.checked ? '' : 'none';
+    });
+  }
+</script>
+{% endblock %}

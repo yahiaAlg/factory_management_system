@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Ajouter un justificatif — {{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_invoices_list' %}">Factures Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_invoice_detail' invoice.id %}">{{ invoice.reference }}</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Ajouter un justificatif</span>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+      <div>
+        <h1 style="font-size:22px;font-weight:700;margin:0;">Ajouter un justificatif</h1>
+        <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">
+          Facture Fournisseur · <span style="font-family:monospace;">{{ invoice.reference }}</span>
+          · {{ invoice.supplier.raison_sociale }}
+        </p>
+      </div>
+      <a href="{% url 'supplier_ops:supplier_invoice_detail' invoice.id %}" class="btn-secondary-app">
+        <i class="bx bx-arrow-back"></i> Retour
+      </a>
+    </div>
+
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-paperclip me-2" style="font-size:15px;"></i>Document justificatif</span>
+      </div>
+      <div class="card-app-body">
+
+        <!-- Context strip -->
+        <div class="p-3 mb-4" style="background:var(--bg-raised);border-radius:var(--radius-sm);border:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Facture</div>
+            <div style="font-family:monospace;font-weight:600;font-size:13px;">{{ invoice.reference }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Fournisseur</div>
+            <div style="font-size:13px;font-weight:500;">{{ invoice.supplier.raison_sociale }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Date</div>
+            <div style="font-size:13px;">{{ invoice.invoice_date|date:"d/m/Y" }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Total TTC</div>
+            <div style="font-size:13px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;"><span data-money="{{ invoice.total_ttc }}" data-money-suffix=" DA">{{ invoice.total_ttc|floatformat:2 }} DA</span></div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Statut</div>
+            <div>
+              {% if invoice.status == 'entered' %}<span class="badge-en-attente">Saisie</span>
+              {% elif invoice.status == 'verified' %}<span class="badge-valide">Vérifiée</span>
+              {% elif invoice.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+              {% elif invoice.status == 'unpaid' %}<span class="badge-non-paye">Impayée</span>
+              {% elif invoice.status == 'partially_paid' %}<span class="badge-partiellement">Part. payée</span>
+              {% elif invoice.status == 'paid' %}<span class="badge-paye">Payée</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="alert-banner alert-banner-error mb-4">
+          {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label-app" for="{{ form.doc_type.id_for_label }}">
+              {{ form.doc_type.label }} <span style="color:#dc2626;">*</span>
+            </label>
+            {{ form.doc_type }}
+            {% if form.doc_type.errors %}
+            <div class="form-error-app">{{ form.doc_type.errors|join:", " }}</div>
+            {% endif %}
+            <div class="form-hint-app mt-1" style="font-size:11.5px;color:var(--text-muted);">
+              <strong>SD-INV-F</strong> — Original papier ·
+              <strong>SD-PAY-F</strong> — Preuve de paiement ·
+              <strong>SD-CORR</strong> — Note de correction
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label-app" for="{{ form.description.id_for_label }}">
+              {{ form.description.label }} <span style="color:#dc2626;">*</span>
+            </label>
+            {{ form.description }}
+            {% if form.description.errors %}
+            <div class="form-error-app">{{ form.description.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label-app" for="{{ form.file.id_for_label }}">
+              {{ form.file.label }} <span style="color:#dc2626;">*</span>
+            </label>
+            {{ form.file }}
+            {% if form.file.help_text %}
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">{{ form.file.help_text }}</div>
+            {% endif %}
+            {% if form.file.errors %}
+            <div class="form-error-app">{{ form.file.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{% url 'supplier_ops:supplier_invoice_detail' invoice.id %}" class="btn-secondary-app">Annuler</a>
+            <button type="submit" class="btn-primary-app">
+              <i class="bx bx-save"></i> Enregistrer le document
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var docTypeEl = document.getElementById('{{ form.doc_type.id_for_label }}');
+  var descEl    = document.getElementById('{{ form.description.id_for_label }}');
+
+  var CTX = {
+    reference  : "{{ invoice.reference }}",
+    supplier   : "{{ invoice.supplier.raison_sociale|escapejs }}",
+    invoiceDate: "{{ invoice.invoice_date|date:'d/m/Y' }}",
+    dueDate    : "{{ invoice.due_date|date:'d/m/Y' }}",
+    extRef     : "{{ invoice.external_reference|default:''|escapejs }}",
+    status     : "{{ invoice.get_status_display|escapejs }}",
+    totalTTC   : "{{ invoice.total_ttc|floatformat:0 }} DA",
+    balanceDue : "{{ invoice.balance_due|floatformat:0 }} DA",
+    payMethod  : "{{ invoice.get_payment_method_display|escapejs }}",
+  };
+
+  var TEMPLATES = {
+    "SD-INV-F": function(c) {
+      return "Facture originale — " + c.reference
+           + " | " + c.supplier
+           + " | Réf. ext. : " + (c.extRef || "—")
+           + " | Date : " + c.invoiceDate
+           + " | Échéance : " + c.dueDate
+           + " | Total TTC : " + c.totalTTC
+           + " | Mode : " + c.payMethod;
+    },
+    "SD-PAY-F": function(c) {
+      return "Justificatif de paiement — " + c.reference
+           + " | " + c.supplier
+           + " | Solde dû : " + c.balanceDue
+           + " | Mode : " + c.payMethod
+           + " | Statut : " + c.status;
+    },
+    "SD-CORR": function(c) {
+      return "Document de correction — " + c.reference
+           + " | " + c.supplier
+           + " | Date facture : " + c.invoiceDate
+           + " | Statut : " + c.status;
+    },
+  };
+
+  var lastAutoValue = "";
+
+  function fill() {
+    var key = docTypeEl ? docTypeEl.value : "";
+    var tpl = TEMPLATES[key];
+    if (!tpl) return;
+
+    var current = descEl ? descEl.value.trim() : "";
+    if (current === "" || current === lastAutoValue) {
+      lastAutoValue = tpl(CTX);
+      if (descEl) descEl.value = lastAutoValue;
+    }
+  }
+
+  if (docTypeEl) {
+    docTypeEl.addEventListener('change', fill);
+    if (docTypeEl.value) fill();
+  }
+})();
+</script>
+{% endblock %}

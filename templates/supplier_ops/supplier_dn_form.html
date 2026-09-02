@@ -1,0 +1,632 @@
+{% extends "base.html" %}
+{% load static %}
+{% load factory_filters %}
+
+{% block title %}Nouveau BL Fournisseur{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<a href="{% url 'supplier_ops:supplier_dns_list' %}">BL Fournisseurs</a>
+<i class="bx bx-chevron-right" style="color:var(--text-muted);font-size:14px;"></i>
+<span>Nouveau BL</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.line-row td { vertical-align: middle; padding: 8px 10px; }
+.delete-line-btn { color: #dc2626; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-xs); }
+.delete-line-btn:hover { background: #fef2f2; }
+.line-total-cell { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; text-align: right; font-size: 13px; }
+#line-total-ht { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 18px; font-weight: 700; color: var(--accent); }
+
+/* Style Django-rendered form fields without waiting for JS */
+#dn-form input[type="text"],
+#dn-form input[type="date"],
+#dn-form input[type="number"],
+#dn-form select,
+#dn-form textarea,
+#lines-body input[type="text"],
+#lines-body input[type="number"],
+#lines-body select {
+  display: block; width: 100%; padding: 8px 12px; font-size: 13px;
+  font-family: 'Inter', sans-serif; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none; line-height: 1.5;
+}
+#dn-form input[type="text"]:focus,
+#dn-form input[type="date"]:focus,
+#dn-form input[type="number"]:focus,
+#dn-form select:focus,
+#dn-form textarea:focus,
+#lines-body input:focus,
+#lines-body select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+#lines-body input[type="checkbox"] {
+  width: 15px; height: 15px; accent-color: var(--accent);
+  cursor: pointer; display: inline;
+}
+.field-error { color: #dc2626; font-size: 12px; margin-top: 3px; }
+.rm-select-wrap { display: flex; gap: 6px; align-items: flex-start; }
+.rm-select-wrap select { flex: 1; }
+.btn-add-rm { flex-shrink: 0; padding: 7px 9px; background: var(--bg-raised); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--accent); cursor: pointer; font-size: 15px; line-height: 1; transition: background .15s; }
+.btn-add-rm:hover { background: var(--accent-dim, #e6f4f1); }
+.unit-auto-badge { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: none; }
+.price-auto-badge { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0;">Nouveau BL Fournisseur</h1>
+    <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Bon de livraison fournisseur</p>
+  </div>
+  <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="btn-secondary-app">
+    <i class="bx bx-arrow-back"></i> Retour
+  </a>
+</div>
+
+<form method="post" id="dn-form" enctype="multipart/form-data">
+  {% csrf_token %}
+
+  <!-- En-tête du BL -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-file ic-teal me-2" style="font-size:16px;"></i>Informations générales</span>
+    </div>
+    <div class="card-app-body">
+      {% if form.non_field_errors %}
+      <div class="alert-banner alert-banner-error mb-3">
+        {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label-app">Site <span style="color:#dc2626;">*</span></label>
+          {{ form.site }}
+          {% if form.site.errors %}<div class="field-error">{{ form.site.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Fournisseur <span style="color:#dc2626;">*</span></label>
+          {{ form.supplier }}
+          {% if form.supplier.errors %}<div class="field-error">{{ form.supplier.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Référence fournisseur <span style="color:#dc2626;">*</span></label>
+          {{ form.external_reference }}
+          {% if form.external_reference.errors %}<div class="field-error">{{ form.external_reference.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Date de livraison <span style="color:#dc2626;">*</span></label>
+          {{ form.delivery_date }}
+          {% if form.delivery_date.errors %}<div class="field-error">{{ form.delivery_date.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-12">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+            <label class="form-label-app mb-0">Observations</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);cursor:pointer;user-select:none;">
+                <input type="checkbox" id="liveRecapToggle" style="display:inline-block!important;width:13px;height:13px;accent-color:var(--accent);cursor:pointer;">
+                <span>Auto</span>
+              </label>
+              <button type="button" id="genRecapBtn" style="font-size:11px;font-weight:500;color:var(--accent);background:var(--accent-dim);border:1px solid var(--accent-glow);border-radius:var(--radius-sm);padding:3px 10px;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                <i class="bx bx-refresh"></i> Générer récap
+              </button>
+            </div>
+          </div>
+          {{ form.remarks }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lignes -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-list-ul ic-blue me-2" style="font-size:16px;"></i>Lignes de livraison</span>
+      <div class="card-header-actions">
+        <button type="button" class="btn-secondary-app" id="add-line-btn">
+          <i class="bx bx-plus"></i> Ajouter une ligne
+        </button>
+      </div>
+    </div>
+    <div class="card-app-body p-0">
+      {{ formset.management_form }}
+      <div class="table-container" style="border:none;border-radius:0;">
+        <table class="table mb-0" id="lines-table">
+          <thead class="bg-raised">
+            <tr>
+              <th style="width:30%;">Matière première</th>
+              <th style="width:15%;">Quantité reçue</th>
+              <th style="width:18%;">Unité</th>
+              <th style="width:18%;">Prix unitaire (DA)</th>
+              <th style="width:14%;text-align:right;">Montant HT</th>
+              <th style="width:5%;"></th>
+            </tr>
+          </thead>
+          <tbody id="lines-body">
+            {% for line_form in formset %}
+            <tr class="line-row" id="line-row-{{ forloop.counter0 }}">
+              <td>
+                <div class="rm-select-wrap">
+                  <div style="flex:1;">
+                    {{ line_form.raw_material }}
+                    {{ line_form.id }}
+                    {% if line_form.raw_material.errors %}<div class="field-error">{{ line_form.raw_material.errors.0 }}</div>{% endif %}
+                    <div class="unit-auto-badge"><i class="bx bx-check-circle"></i> Unité préremplie</div>
+                  </div>
+                  <button type="button" class="btn-add-rm" title="Créer une nouvelle matière première" data-action="open-rm-modal">
+                    <i class="bx bx-plus"></i>
+                  </button>
+                </div>
+              </td>
+              <td>
+                {{ line_form.quantity_received }}
+                {% if line_form.quantity_received.errors %}<div class="field-error">{{ line_form.quantity_received.errors.0 }}</div>{% endif %}
+              </td>
+              <td>
+                {{ line_form.unit_of_measure }}
+                {% if line_form.unit_of_measure.errors %}<div class="field-error">{{ line_form.unit_of_measure.errors.0 }}</div>{% endif %}
+              </td>
+              <td>
+                {{ line_form.agreed_unit_price }}
+                {% if line_form.agreed_unit_price.errors %}<div class="field-error">{{ line_form.agreed_unit_price.errors.0 }}</div>{% endif %}
+                <div class="price-auto-badge"><i class="bx bx-check-circle"></i> Prix prérempli</div>
+              </td>
+              <td class="line-total-cell" data-line="{{ forloop.counter0 }}">—</td>
+              <td>
+                {% if line_form.DELETE %}
+                <button type="button" class="delete-line-btn" title="Supprimer">
+                  <i class="bx bx-trash" style="font-size:15px;"></i>
+                </button>
+                {{ line_form.DELETE }}
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Total footer -->
+      <div class="d-flex align-items-center justify-content-end gap-3 p-3" style="border-top:1px solid var(--border);">
+        <span style="font-size:13px;color:var(--text-secondary);font-weight:500;">Total HT :</span>
+        <span id="line-total-ht">0 DA</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document justificatif (optionnel) -->
+  <div class="card-app mb-4">
+    <div class="card-app-header">
+      <span class="card-app-title"><i class="bx bx-paperclip me-2" style="font-size:15px;"></i>Document justificatif <span style="color:var(--text-muted); font-weight:400; font-size:12px;">(optionnel)</span></span>
+    </div>
+    <div class="card-app-body">
+      <div class="mb-3">
+        <label class="form-label-app" for="{{ doc_form.doc_type.id_for_label }}">{{ doc_form.doc_type.label }}</label>
+        {{ doc_form.doc_type }}
+        {% if doc_form.doc_type.errors %}
+        <div class="form-error-app">{{ doc_form.doc_type.errors|join:", " }}</div>
+        {% endif %}
+      </div>
+      <div class="mb-3">
+        <label class="form-label-app" for="{{ doc_form.description.id_for_label }}">{{ doc_form.description.label }}</label>
+        {{ doc_form.description }}
+        {% if doc_form.description.errors %}
+        <div class="form-error-app">{{ doc_form.description.errors|join:", " }}</div>
+        {% endif %}
+      </div>
+      <div>
+        <label class="form-label-app" for="{{ doc_form.file.id_for_label }}">{{ doc_form.file.label }}</label>
+        {{ doc_form.file }}
+        {% if doc_form.file.help_text %}
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">{{ doc_form.file.help_text }} Peut aussi être ajouté plus tard depuis la fiche du BL.</div>
+        {% endif %}
+        {% if doc_form.file.errors %}
+        <div class="form-error-app">{{ doc_form.file.errors|join:", " }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="d-flex justify-content-end gap-3">
+    <a href="{% url 'supplier_ops:supplier_dns_list' %}" class="btn-secondary-app">Annuler</a>
+    <button type="submit" class="btn-primary-app">
+      <i class="bx bx-save"></i> Enregistrer le BL
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  /* ── Store a clone template from the first row before any interaction ── */
+  var linesBody = document.getElementById('lines-body');
+  var firstRow = linesBody.querySelector('.line-row');
+  var rowTemplate = firstRow ? firstRow.cloneNode(true) : null;
+
+  /* ── Line total computation ── */
+  function getFloat(el) { return parseFloat(el ? el.value : '') || 0; }
+
+  function recomputeLineTotals() {
+    var grandTotal = 0;
+    linesBody.querySelectorAll('.line-row').forEach(function (row) {
+      if (row.style.display === 'none') return;
+      var qty = getFloat(row.querySelector('input[name$="-quantity_received"]'));
+      var price = getFloat(row.querySelector('input[name$="-agreed_unit_price"]'));
+      var amount = qty * price;
+      grandTotal += amount;
+      var cell = row.querySelector('.line-total-cell');
+      if (cell) cell.textContent = amount > 0 ? amount.toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DA' : '—';
+    });
+    document.getElementById('line-total-ht').textContent =
+      grandTotal.toLocaleString('fr-DZ', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' DA';
+  }
+
+  linesBody.addEventListener('input', recomputeLineTotals);
+  linesBody.addEventListener('change', recomputeLineTotals);
+  recomputeLineTotals();
+
+  /* ── Delete line ── */
+  linesBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('.delete-line-btn');
+    if (!btn) return;
+    var row = btn.closest('.line-row');
+    var chk = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    var hiddenId = row.querySelector('input[name$="-id"]');
+    var isExisting = hiddenId && hiddenId.value;
+    if (chk && isExisting) {
+      chk.checked = true;
+      row.style.display = 'none';
+    } else {
+      row.remove();
+    }
+    recomputeLineTotals();
+  });
+
+  /* ── Add new line ── */
+  document.getElementById('add-line-btn').addEventListener('click', function () {
+    if (!rowTemplate) { console.error('No row template available.'); return; }
+    var totalFormsEl = document.getElementById('id_lines-TOTAL_FORMS');
+    var formCount = parseInt(totalFormsEl.value, 10);
+
+    var clone = rowTemplate.cloneNode(true);
+    clone.id = 'line-row-' + formCount;
+    clone.style.display = '';
+
+    clone.querySelectorAll('[name],[id],[for]').forEach(function (el) {
+      ['name', 'id', 'for'].forEach(function (attr) {
+        var val = el.getAttribute(attr);
+        if (val) el.setAttribute(attr, val.replace(/-\d+-/, '-' + formCount + '-'));
+      });
+      if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.value = '';
+      if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      if (el.type === 'checkbox') el.checked = false;
+      if (el.type === 'hidden' && el.name && el.name.endsWith('-id')) el.value = '';
+    });
+
+    // Hide the unit-auto-badge for new rows
+    var badge = clone.querySelector('.unit-auto-badge');
+    if (badge) badge.style.display = 'none';
+
+    var totalCell = clone.querySelector('.line-total-cell');
+    if (totalCell) { totalCell.textContent = '—'; totalCell.setAttribute('data-line', formCount); }
+
+    linesBody.appendChild(clone);
+    totalFormsEl.value = formCount + 1;
+    recomputeLineTotals();
+  });
+
+  /* ── Auto-fill unit of measure AND reference price on raw material change ── */
+  linesBody.addEventListener('change', function (e) {
+    var sel = e.target;
+    if (!sel.name || !sel.name.endsWith('-raw_material')) return;
+    var row = sel.closest('.line-row');
+    if (!row) return;
+    var uomSel    = row.querySelector('select[name$="-unit_of_measure"]');
+    var priceInp  = row.querySelector('input[name$="-agreed_unit_price"]');
+    var unitBadge = row.querySelector('.unit-auto-badge');
+    var priceBadge = row.querySelector('.price-auto-badge');
+    var matId = sel.value;
+    if (!matId) {
+      if (unitBadge)  unitBadge.style.display  = 'none';
+      if (priceBadge) priceBadge.style.display = 'none';
+      return;
+    }
+
+    fetch('/catalog/raw-materials/' + matId + '/unit/', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (data.unit_id && uomSel) {
+        uomSel.value = data.unit_id;
+        if (unitBadge) unitBadge.style.display = 'block';
+      }
+      if (data.reference_price != null && priceInp) {
+        priceInp.value = parseFloat(data.reference_price).toFixed(2);
+        if (priceBadge) priceBadge.style.display = 'block';
+        recomputeLineTotals();
+      }
+    })
+    .catch(function(){});
+  });
+
+  /* ── Quick-create raw material modal trigger ── */
+  var _activeRmSelect = null;
+  linesBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-action="open-rm-modal"]');
+    if (!btn) return;
+    var row = btn.closest('.line-row');
+    _activeRmSelect = row ? row.querySelector('select[name$="-raw_material"]') : null;
+    var modal = new bootstrap.Modal(document.getElementById('newRmModal'));
+    modal.show();
+  });
+
+  /* Expose for modal script */
+  window._getRmActiveSelect = function() { return _activeRmSelect; };
+
+})();
+</script>
+
+<!-- Quick-create raw material modal -->
+<div class="modal fade" id="newRmModal" tabindex="-1" aria-labelledby="newRmModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius:var(--radius-md,10px);border:1px solid var(--border);">
+      <div class="modal-header" style="border-bottom:1px solid var(--border);padding:16px 20px;">
+        <h5 class="modal-title" id="newRmModalLabel" style="font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;">
+          <i class="bx bx-cube" style="color:var(--accent);"></i> Nouvelle matière première
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body" style="padding:20px;">
+        <div id="rm-modal-alert" class="alert-banner alert-banner-error mb-3" style="display:none;"></div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label-app">Désignation <span style="color:#dc2626;">*</span></label>
+            <input type="text" id="nm-designation" class="form-control-app" placeholder="Ex: Polypropylène granulé naturel" />
+          </div>
+          <div class="col-6">
+            <label class="form-label-app">Catégorie <span style="color:#dc2626;">*</span></label>
+            <select id="nm-category" class="form-control-app">
+              <option value="">— Sélectionner —</option>
+              {% for cat in rm_categories %}
+              <option value="{{ cat.id }}">{{ cat.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label-app">Unité de mesure <span style="color:#dc2626;">*</span></label>
+            <select id="nm-uom" class="form-control-app">
+              <option value="">— Sélectionner —</option>
+              {% for uom in uom_choices %}
+              <option value="{{ uom.id }}">{{ uom.name }} ({{ uom.symbol }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label-app">Prix de référence (DA)</label>
+            <input type="number" id="nm-price" class="form-control-app" value="0.00" step="0.01" min="0" />
+          </div>
+          <div class="col-6">
+            <label class="form-label-app">Fournisseur par défaut</label>
+            <select id="nm-supplier" class="form-control-app">
+              <option value="">— Aucun —</option>
+              {% for sup in active_suppliers %}
+              <option value="{{ sup.id }}">{{ sup.code }} — {{ sup.raison_sociale }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label-app">Seuil d'alerte <span style="color:#dc2626;">*</span></label>
+            <input type="number" id="nm-alert" class="form-control-app" value="10.000" step="0.001" min="0" />
+          </div>
+          <div class="col-6">
+            <label class="form-label-app">Seuil de rupture <span style="color:#dc2626;">*</span></label>
+            <input type="number" id="nm-stockout" class="form-control-app" value="5.000" step="0.001" min="0" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px;gap:10px;">
+        <button type="button" class="btn-secondary-app" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn-primary-app" id="btn-save-rm">
+          <i class="bx bx-check me-1"></i> Créer la matière
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal    = document.getElementById('newRmModal');
+  var saveBtn  = document.getElementById('btn-save-rm');
+  var alertBox = document.getElementById('rm-modal-alert');
+
+  function showAlert(msg) { alertBox.textContent = msg; alertBox.style.display = ''; }
+  function clearAlert()   { alertBox.style.display = 'none'; alertBox.textContent = ''; }
+
+  modal.addEventListener('show.bs.modal', function () {
+    clearAlert();
+    document.getElementById('nm-designation').value = '';
+    document.getElementById('nm-category').value    = '';
+    document.getElementById('nm-uom').value         = '';
+    document.getElementById('nm-price').value       = '0.00';
+    document.getElementById('nm-supplier').value    = '';
+    document.getElementById('nm-alert').value       = '10.000';
+    document.getElementById('nm-stockout').value    = '5.000';
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer la matière';
+  });
+
+  saveBtn.addEventListener('click', function () {
+    clearAlert();
+    var designation = document.getElementById('nm-designation').value.trim();
+    var category    = document.getElementById('nm-category').value;
+    var uom         = document.getElementById('nm-uom').value;
+    var price       = document.getElementById('nm-price').value;
+    var supplier    = document.getElementById('nm-supplier').value;
+    var alert_t     = document.getElementById('nm-alert').value;
+    var stockout_t  = document.getElementById('nm-stockout').value;
+
+    if (!designation) { showAlert('La désignation est obligatoire.'); return; }
+    if (!category)    { showAlert('La catégorie est obligatoire.'); return; }
+    if (!uom)         { showAlert("L'unité de mesure est obligatoire."); return; }
+    if (parseFloat(alert_t) <= parseFloat(stockout_t)) {
+      showAlert('Le seuil d\'alerte doit être strictement supérieur au seuil de rupture.'); return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin me-1"></i> Création…';
+
+    fetch("{% url 'catalog:raw_material_quick_create' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+      },
+      body: JSON.stringify({
+        designation: designation,
+        category: category,
+        unit_of_measure: uom,
+        reference_price: price,
+        default_supplier: supplier || null,
+        alert_threshold: alert_t,
+        stockout_threshold: stockout_t,
+      }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.success) {
+        // Inject into every raw_material select in lines table (keeps all rows in sync)
+        document.querySelectorAll('select[name$="-raw_material"]').forEach(function(sel) {
+          var opt = new Option(data.label, data.id);
+          sel.appendChild(opt);
+        });
+        // Select in the row that triggered the modal
+        var targetSel = window._getRmActiveSelect && window._getRmActiveSelect();
+        if (targetSel) {
+          targetSel.value = data.id;
+          // Also pre-fill the unit on the same row
+          var row = targetSel.closest('.line-row');
+          if (row) {
+            var uomSel = row.querySelector('select[name$="-unit_of_measure"]');
+            if (uomSel && data.unit_id) {
+              uomSel.value = data.unit_id;
+              var badge = row.querySelector('.unit-auto-badge');
+              if (badge) badge.style.display = 'block';
+            }
+            if (data.reference_price != null) {
+              var priceInp = row.querySelector('input[name$="-agreed_unit_price"]');
+              if (priceInp) {
+                priceInp.value = parseFloat(data.reference_price).toFixed(2);
+                var priceBadge = row.querySelector('.price-auto-badge');
+                if (priceBadge) priceBadge.style.display = 'block';
+              }
+            }
+          }
+        }
+        bootstrap.Modal.getInstance(modal).hide();
+      } else {
+        showAlert(data.error || 'Erreur lors de la création.');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer la matière';
+      }
+    })
+    .catch(function() {
+      showAlert('Erreur réseau — veuillez réessayer.');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bx bx-check me-1"></i> Créer la matière';
+    });
+  });
+})();
+</script>
+
+<script>
+/* ── Observations — récap automatique BL Fournisseur ─────────────── */
+(function () {
+
+  function buildRecap() {
+    var supSel  = document.querySelector('[name="supplier"]');
+    var supName = supSel ? (supSel.options[supSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+    var extRef  = (document.querySelector('[name="external_reference"]')?.value || '').trim();
+    var dateVal = document.querySelector('[name="delivery_date"]')?.value || '';
+    var dateStr = '';
+    if (dateVal) {
+      var p = dateVal.split('-');
+      if (p.length === 3) dateStr = p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    var rows = document.querySelectorAll('#lines-body .line-row');
+    var lines = [], grandTotal = 0;
+
+    rows.forEach(function (row) {
+      if (row.style.display === 'none') return;
+      var delCb = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (delCb && delCb.checked) return;
+
+      var rmSel    = row.querySelector('select[name$="-raw_material"]');
+      var uomSel   = row.querySelector('select[name$="-unit_of_measure"]');
+      var qtyInp   = row.querySelector('input[name$="-quantity_received"]');
+      var priceInp = row.querySelector('input[name$="-agreed_unit_price"]');
+
+      var rmName  = rmSel  ? (rmSel.options[rmSel.selectedIndex]?.text   || '').replace(/^-+$/, '').trim() : '';
+      var uomName = uomSel ? (uomSel.options[uomSel.selectedIndex]?.text || '').replace(/^-+$/, '').trim() : '';
+      var qty     = parseFloat(qtyInp?.value)   || 0;
+      var price   = parseFloat(priceInp?.value) || 0;
+      var amount  = qty * price;
+
+      if (!rmName || qty === 0) return;
+      grandTotal += amount;
+      lines.push('  • ' + rmName + ' — ' + qty + (uomName ? ' ' + uomName : '') + ' × ' + price.toFixed(2) + ' DA = ' + amount.toFixed(2) + ' DA');
+    });
+
+    if (!supName && lines.length === 0) return '';
+
+    var out = [];
+    if (supName) out.push('Fournisseur : ' + supName);
+    if (extRef)  out.push('Réf. fournisseur : ' + extRef);
+    if (dateStr) out.push('Livraison : ' + dateStr);
+    if (lines.length) { out.push('Lignes :'); lines.forEach(function(l){ out.push(l); }); }
+    out.push('');
+    out.push('Total HT : ' + grandTotal.toFixed(2) + ' DA');
+    return out.join('\n');
+  }
+
+  var remarksTA  = document.querySelector('[name="remarks"]');
+  var liveToggle = document.getElementById('liveRecapToggle');
+  var genBtn     = document.getElementById('genRecapBtn');
+  if (!remarksTA || !genBtn) return;
+
+  genBtn.addEventListener('click', function () {
+    var txt = buildRecap();
+    if (txt) remarksTA.value = txt;
+  });
+
+  function triggerLiveRecap() {
+    if (liveToggle && liveToggle.checked) remarksTA.value = buildRecap();
+  }
+
+  document.querySelector('[name="supplier"]')?.addEventListener('change', triggerLiveRecap);
+  document.querySelector('[name="external_reference"]')?.addEventListener('input', triggerLiveRecap);
+  document.querySelector('[name="delivery_date"]')?.addEventListener('change', triggerLiveRecap);
+  document.getElementById('lines-body')?.addEventListener('input',  triggerLiveRecap);
+  document.getElementById('lines-body')?.addEventListener('change', triggerLiveRecap);
+  document.getElementById('add-line-btn')?.addEventListener('click', function () { setTimeout(triggerLiveRecap, 60); });
+  document.getElementById('lines-body')?.addEventListener('click', function (e) {
+    if (e.target.closest('.delete-line-btn')) setTimeout(triggerLiveRecap, 60);
+  });
+
+})();
+</script>
+{% endblock %}

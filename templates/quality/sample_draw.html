@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block content %}
+<h1 class="page-title mb-3">{{ title }}</h1>
+
+<div class="card-app p-4" style="max-width:600px;">
+  {% if line %}
+  <p class="text-muted small">BL {{ line.supplier_dn.reference }} — {{ line.raw_material.designation }} ({{ line.quantity_received }} {{ line.unit_of_measure }})</p>
+  {% endif %}
+  {% if order %}
+  <p class="text-muted small">OP {{ order.reference }} — {{ order.formulation.finished_product.designation }}</p>
+  {% if checkpoints %}
+  <div class="mb-3">
+    <label class="form-label-app">Point de contrôle suggéré</label>
+    <div class="d-flex gap-2 flex-wrap">
+      {% for cp in checkpoints %}
+      <button type="button" class="btn-secondary-app btn-sm" onclick="document.getElementById('id_checkpoint_label').value='{{ cp }}'">{{ cp }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="mb-3">
+      <label class="form-label-app">{{ field.label }}</label>
+      {{ field }}
+      {% if field.help_text %}<div class="form-hint">{{ field.help_text }}</div>{% endif %}
+      {% if field.errors %}<div class="form-error">{{ field.errors.0 }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn-primary-app">
+      <i class="bx bx-test-tube me-1"></i> Enregistrer le prélèvement
+    </button>
+  </form>
+</div>
+{% endblock %}

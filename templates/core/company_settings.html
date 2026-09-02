@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Paramètres société{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">Paramètres société</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .settings-nav {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .settings-nav-item {
+    padding: 7px 16px;
+    border-radius: var(--radius-sm);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s, color 0.15s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .settings-nav-item:hover { background: var(--bg-surface); color: var(--text-primary); }
+  .settings-nav-item.active {
+    background: var(--bg-surface);
+    color: var(--accent);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .logo-preview-box {
+    width: 100%;
+    height: 110px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-raised);
+    overflow: hidden;
+    position: relative;
+  }
+  .logo-preview-box img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .logo-preview-box .logo-placeholder {
+    font-size: 32px;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .logo-placeholder span {
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .fiscal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .info-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-radius: var(--radius-xs);
+    padding: 3px 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Paramètres société</h1>
+    <p class="page-subtitle">Informations légales, fiscales et bancaires de la société</p>
+  </div>
+</div>
+
+<!-- Settings sub-nav -->
+<nav class="settings-nav">
+  <a href="{% url 'core:company_settings' %}" class="settings-nav-item active">
+    <i class="bx bx-building"></i> Société
+  </a>
+  <a href="{% url 'core:system_parameters' %}" class="settings-nav-item">
+    <i class="bx bx-slider-alt"></i> Paramètres système
+  </a>
+  <a href="{% url 'accounts:user_management' %}" class="settings-nav-item">
+    <i class="bx bx-group"></i> Utilisateurs
+  </a>
+  <a href="{% url 'accounts:audit_log' %}" class="settings-nav-item">
+    <i class="bx bx-shield-quarter"></i> Journal d'audit
+  </a>
+</nav>
+
+<form method="post" enctype="multipart/form-data" id="companyForm">
+  {% csrf_token %}
+
+  <div class="row g-4">
+
+    <!-- Left column -->
+    <div class="col-lg-8">
+
+      <!-- Identification légale -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">
+            <i class="bx bx-id-card" style="color:var(--accent);margin-right:7px;"></i>
+            Identification légale
+          </span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+
+            <div class="col-8">
+              <label class="form-label-app" for="{{ form.raison_sociale.id_for_label }}">
+                Raison sociale <span class="required">*</span>
+              </label>
+              <input
+                type="text"
+                id="{{ form.raison_sociale.id_for_label }}"
+                name="{{ form.raison_sociale.html_name }}"
+                value="{{ form.raison_sociale.value|default:'' }}"
+                class="form-control-app {% if form.raison_sociale.errors %}is-invalid{% endif %}"
+                placeholder="Dénomination sociale"
+                required
+              />
+              {% for e in form.raison_sociale.errors %}
+              <div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>
+              {% endfor %}
+            </div>
+
+            <div class="col-4">
+              <label class="form-label-app" for="{{ form.forme_juridique.id_for_label }}">
+                Forme juridique
+              </label>
+              <input
+                type="text"
+                id="{{ form.forme_juridique.id_for_label }}"
+                name="{{ form.forme_juridique.html_name }}"
+                value="{{ form.forme_juridique.value|default:'' }}"
+                class="form-control-app"
+                placeholder="ex: SARL, SPA, EURL"
+              />
+            </div>
+
+          </div>
+
+          <hr class="section-divider" />
+
+          <div class="form-section-title" style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+            Identifiants fiscaux algériens
+            <span class="info-badge"><i class="bx bx-info-circle"></i> Optionnels</span>
+            <span style="flex:1;height:1px;background:var(--border);"></span>
+          </div>
+
+          <div class="fiscal-grid">
+            <div>
+              <label class="form-label-app" for="{{ form.nif.id_for_label }}">NIF</label>
+              <input type="text" id="{{ form.nif.id_for_label }}" name="{{ form.nif.html_name }}"
+                value="{{ form.nif.value|default:'' }}" class="form-control-app" placeholder="Numéro d'identification fiscale" />
+            </div>
+            <div>
+              <label class="form-label-app" for="{{ form.nis.id_for_label }}">NIS</label>
+              <input type="text" id="{{ form.nis.id_for_label }}" name="{{ form.nis.html_name }}"
+                value="{{ form.nis.value|default:'' }}" class="form-control-app" placeholder="Numéro d'identification statistique" />
+            </div>
+            <div>
+              <label class="form-label-app" for="{{ form.rc.id_for_label }}">RC</label>
+              <input type="text" id="{{ form.rc.id_for_label }}" name="{{ form.rc.html_name }}"
+                value="{{ form.rc.value|default:'' }}" class="form-control-app" placeholder="Registre de commerce" />
+            </div>
+            <div>
+              <label class="form-label-app" for="{{ form.ai.id_for_label }}">AI</label>
+              <input type="text" id="{{ form.ai.id_for_label }}" name="{{ form.ai.html_name }}"
+                value="{{ form.ai.value|default:'' }}" class="form-control-app" placeholder="Article d'imposition" />
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Coordonnées -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">
+            <i class="bx bx-map" style="color:var(--accent);margin-right:7px;"></i>
+            Coordonnées
+          </span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+
+            <div class="col-12">
+              <label class="form-label-app" for="{{ form.address.id_for_label }}">
+                Adresse <span class="required">*</span>
+              </label>
+              <textarea
+                id="{{ form.address.id_for_label }}"
+                name="{{ form.address.html_name }}"
+                class="form-control-app {% if form.address.errors %}is-invalid{% endif %}"
+                rows="2"
+                placeholder="Adresse complète"
+                required
+              >{{ form.address.value|default:'' }}</textarea>
+              {% for e in form.address.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-4">
+              <label class="form-label-app" for="{{ form.wilaya.id_for_label }}">
+                Wilaya <span class="required">*</span>
+              </label>
+              <input type="text" id="{{ form.wilaya.id_for_label }}" name="{{ form.wilaya.html_name }}"
+                value="{{ form.wilaya.value|default:'' }}"
+                class="form-control-app {% if form.wilaya.errors %}is-invalid{% endif %}"
+                placeholder="ex: Sétif" required />
+              {% for e in form.wilaya.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-4">
+              <label class="form-label-app" for="{{ form.phone.id_for_label }}">Téléphone</label>
+              <input type="text" id="{{ form.phone.id_for_label }}" name="{{ form.phone.html_name }}"
+                value="{{ form.phone.value|default:'' }}" class="form-control-app" placeholder="+213 XX XX XX XX" />
+            </div>
+
+            <div class="col-4">
+              <label class="form-label-app" for="{{ form.email.id_for_label }}">Email</label>
+              <input type="email" id="{{ form.email.id_for_label }}" name="{{ form.email.html_name }}"
+                value="{{ form.email.value|default:'' }}" class="form-control-app" placeholder="contact@société.dz" />
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Informations bancaires -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">
+            <i class="bx bx-credit-card" style="color:var(--accent);margin-right:7px;"></i>
+            Informations bancaires
+          </span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.bank_name.id_for_label }}">Banque</label>
+              <input type="text" id="{{ form.bank_name.id_for_label }}" name="{{ form.bank_name.html_name }}"
+                value="{{ form.bank_name.value|default:'' }}" class="form-control-app" placeholder="ex: BNA, BEA, CPA" />
+            </div>
+
+            <div class="col-6">
+              <label class="form-label-app" for="{{ form.bank_account.id_for_label }}">Numéro de compte</label>
+              <input type="text" id="{{ form.bank_account.id_for_label }}" name="{{ form.bank_account.html_name }}"
+                value="{{ form.bank_account.value|default:'' }}" class="form-control-app" placeholder="Numéro de compte" />
+            </div>
+
+            <div class="col-12">
+              <label class="form-label-app" for="{{ form.rib.id_for_label }}">RIB (23 chiffres)</label>
+              <input type="text" id="{{ form.rib.id_for_label }}" name="{{ form.rib.html_name }}"
+                value="{{ form.rib.value|default:'' }}" class="form-control-app"
+                placeholder="GGGGG AAAAA NNNNNNNNNNN CC" maxlength="23" />
+              <div class="form-hint">Format : 5 chiffres guichet + 5 code banque + 11 compte + 2 clé</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Paramètres fiscaux -->
+      <div class="card-app">
+        <div class="card-app-header">
+          <span class="card-app-title">
+            <i class="bx bx-calculator" style="color:var(--accent);margin-right:7px;"></i>
+            Paramètres fiscaux
+          </span>
+        </div>
+        <div class="card-app-body">
+          <div class="row g-3">
+
+            <div class="col-4">
+              <label class="form-label-app" for="{{ form.vat_rate.id_for_label }}">
+                Taux de TVA <span class="required">*</span>
+              </label>
+              <div style="position:relative;">
+                <input
+                  type="number"
+                  step="0.0001" min="0" max="1"
+                  id="{{ form.vat_rate.id_for_label }}"
+                  name="{{ form.vat_rate.html_name }}"
+                  value="{{ form.vat_rate.value|default:'0.19' }}"
+                  class="form-control-app {% if form.vat_rate.errors %}is-invalid{% endif %}"
+                />
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text-muted);pointer-events:none;">décimal</span>
+              </div>
+              <div class="form-hint">Ex : 0.19 = 19% — taux légal algérien</div>
+              {% for e in form.vat_rate.errors %}<div class="form-error"><i class="bx bx-x-circle"></i> {{ e }}</div>{% endfor %}
+            </div>
+
+            <div class="col-8">
+              <label class="form-label-app" for="{{ form.fiscal_regime.id_for_label }}">Régime fiscal</label>
+              <input type="text" id="{{ form.fiscal_regime.id_for_label }}" name="{{ form.fiscal_regime.html_name }}"
+                value="{{ form.fiscal_regime.value|default:'' }}" class="form-control-app"
+                placeholder="ex: Régime du réel" />
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column: logo + submit -->
+    <div class="col-lg-4">
+
+      <!-- Logo -->
+      <div class="card-app mb-4">
+        <div class="card-app-header">
+          <span class="card-app-title">Logo société</span>
+        </div>
+        <div class="card-app-body">
+          <div class="logo-preview-box mb-3" id="logoPreviewBox">
+            {% if form.instance.logo %}
+            <img src="{{ form.instance.logo.url }}" alt="Logo société" id="logoPreviewImg" />
+            {% else %}
+            <div class="logo-placeholder" id="logoPlaceholder">
+              <i class="bx bx-image-add"></i>
+              <span>Aucun logo</span>
+            </div>
+            {% endif %}
+          </div>
+          <label class="form-label-app">Importer un logo</label>
+          <input
+            type="file"
+            id="{{ form.logo.id_for_label }}"
+            name="{{ form.logo.html_name }}"
+            accept="image/*"
+            class="form-control-app"
+            style="padding:7px 10px;font-size:13px;"
+          />
+          <div class="form-hint">PNG, JPG ou SVG — max 2 Mo. Affiché sur les documents imprimés.</div>
+        </div>
+      </div>
+
+      <!-- Summary card -->
+      <div class="card-app mb-4" style="background:var(--accent-dim);border-color:var(--accent-glow);">
+        <div class="card-app-body" style="padding:16px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <i class="bx bx-info-circle" style="color:var(--accent);font-size:18px;"></i>
+            <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;color:var(--accent);">Documents imprimés</span>
+          </div>
+          <p style="font-size:12.5px;color:var(--text-secondary);margin:0;line-height:1.6;">
+            Ces informations apparaissent dans l'en-tête de tous les
+            documents fiscaux imprimés : BL fournisseurs, factures client,
+            reçus de paiement.
+          </p>
+        </div>
+      </div>
+
+      <!-- Save button -->
+      <div class="card-app">
+        <div class="card-app-body" style="padding:16px;">
+          {% if form.errors %}
+          <div class="alert-banner error mb-3" style="padding:10px 14px;">
+            <i class="bx bx-error-circle" style="flex-shrink:0;"></i>
+            <span>Corrigez les erreurs ci-dessus avant d'enregistrer.</span>
+          </div>
+          {% endif %}
+          <button type="submit" class="btn-primary-app w-100" style="justify-content:center;">
+            <i class="bx bx-save"></i>
+            Enregistrer les modifications
+          </button>
+          <a href="{% url 'core:dashboard' %}" class="btn-secondary-app w-100 mt-2" style="justify-content:center;">
+            Annuler
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Live logo preview
+  document.getElementById('{{ form.logo.id_for_label }}').addEventListener('change', function () {
+    var file = this.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var box = document.getElementById('logoPreviewBox');
+      var ph  = document.getElementById('logoPlaceholder');
+      var img = document.getElementById('logoPreviewImg');
+      if (ph) ph.style.display = 'none';
+      if (!img) {
+        img = document.createElement('img');
+        img.id = 'logoPreviewImg';
+        img.alt = 'Logo société';
+        box.appendChild(img);
+      }
+      img.src = e.target.result;
+      img.style.display = '';
+    };
+    reader.readAsDataURL(file);
+  });
+</script>
+{% endblock %}

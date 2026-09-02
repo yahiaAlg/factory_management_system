@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — UsineERP{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'quality:quality_dashboard' %}">Qualité</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<a href="{% url 'quality:specification_list' %}">Spécifications qualité</a>
+<span class="bc-sep"><i class="bx bx-chevron-right"></i></span>
+<span class="bc-current">{{ title }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  #lines-tbody tr.marked-delete { opacity: .45; background: #fff5f5; }
+  .formset-empty-row { display: none; }
+  .gate-cb-group { display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+  .gate-cb-group label { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 3px; margin: 0; cursor: pointer; }
+  #lines-tbody td { vertical-align: middle; }
+  tr.row-has-error { background: #fef2f2 !important; box-shadow: inset 3px 0 0 #dc2626; }
+  .line-field-error { font-size: 11px; color: #dc2626; margin-top: 2px; }
+
+  /* Lines table: fixed layout so columns are sized to their content,
+     the whole card stays inside the page, and only this table scrolls
+     horizontally on smaller screens (see .table-container overflow-x). */
+  #lines-table { table-layout: fixed; width: 100%; min-width: 980px; }
+  #lines-table select, #lines-table input { width: 100%; min-width: 0; }
+  #lines-table col.col-property   { width: 17%; }
+  #lines-table col.col-gates      { width: 11%; }
+  #lines-table col.col-num        { width: 9%; }
+  #lines-table col.col-critical   { width: 7%; }
+  #lines-table col.col-expected   { width: 10%; }
+  #lines-table col.col-categories { width: 13%; }
+  #lines-table col.col-actions    { width: 40px; }
+  #lines-table th, #lines-table td { padding-left: 10px; padding-right: 10px; }
+  #lines-table td.text-center { text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1 class="page-title mb-3">{{ title }}</h1>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert-banner alert-banner-{{ msg.tags }} mb-3">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if not properties_exist %}
+<div class="alert-banner alert-banner-warning mb-3">
+  <i class="bx bx-info-circle" style="font-size:16px;"></i>
+  <div>Aucune propriété n'est encore définie dans le <a href="{% url 'quality:property_create' %}">catalogue Propriétés / Tests</a>. Créez-en au moins une avant d'ajouter des lignes ci-dessous.</div>
+</div>
+{% endif %}
+
+<form method="post">
+  {% csrf_token %}
+
+  <div class="card-app mb-3">
+    <div class="card-app-header"><span class="card-app-title">Cible et version</span></div>
+    <div class="card-app-body">
+      {% if form.non_field_errors %}
+      <div class="alert-banner alert-banner-error mb-3">
+        {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label-app">Matière première</label>
+          {{ form.raw_material }}
+          {% if form.raw_material.errors %}<div class="form-error">{{ form.raw_material.errors.0 }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label-app">Produit fini</label>
+          {{ form.finished_product }}
+          {% if form.finished_product.errors %}<div class="form-error">{{ form.finished_product.errors.0 }}</div>{% endif %}
+          <div class="form-hint">Renseignez l'une ou l'autre, jamais les deux.</div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-app">Version</label>
+          {{ form.version }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label-app">Date d'effet</label>
+          {{ form.effective_date }}
+        </div>
+        <div class="col-12 d-flex align-items-center gap-2">
+          {{ form.is_active }}
+          <label class="form-label-app mb-0" for="{{ form.is_active.id_for_label }}">Version active</label>
+          <span class="form-hint mb-0">(désactive automatiquement toute autre version active de la même cible)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-app mb-3">
+    <div class="card-app-header">
+      <span class="card-app-title">Lignes de spécification</span>
+      <span class="card-header-actions">
+        <button type="button" id="add-line-btn" class="btn-secondary-app btn-sm"><i class="bx bx-plus me-1"></i> Ajouter une ligne</button>
+      </span>
+    </div>
+    <div class="card-app-body p-0">
+      {{ formset.management_form }}
+      {% if formset.non_form_errors %}
+      <div class="alert-banner alert-banner-error mx-3 mt-3">
+        {% for e in formset.non_form_errors %}<div>{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}
+      <div class="table-container" style="border:none;border-radius:0;overflow-x:auto;">
+        <table class="table table-hover mb-0" id="lines-table">
+          <colgroup>
+            <col class="col-property">
+            <col class="col-gates">
+            <col class="col-num">
+            <col class="col-num">
+            <col class="col-num">
+            <col class="col-num">
+            <col class="col-critical">
+            <col class="col-expected">
+            <col class="col-categories">
+            <col class="col-actions">
+          </colgroup>
+          <thead class="bg-raised">
+            <tr>
+              <th>Propriété</th>
+              <th title="Contrôlé à quel(s) gate(s)">Gates</th>
+              <th>Nominal</th>
+              <th>Tolérance %</th>
+              <th>Min absolu</th>
+              <th>Max absolu</th>
+              <th>Critique</th>
+              <th>Attendu (bool.)</th>
+              <th>Catégories acceptées</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="lines-tbody">
+            {% for lf in formset %}
+            <tr class="line-row {% if lf.instance.pk and lf.DELETE.value %}marked-delete{% endif %} {% if lf.errors %}row-has-error{% endif %}">
+              <td>
+                {{ lf.property }}
+                {% if lf.property.errors %}<div class="line-field-error">{{ lf.property.errors.0 }}</div>{% endif %}
+              </td>
+              <td>
+                <div class="gate-cb-group">
+                  <label>{{ lf.gate_a }} A</label>
+                  <label>{{ lf.gate_b }} B</label>
+                  <label>{{ lf.gate_c }} C</label>
+                </div>
+              </td>
+              <td>{{ lf.nominal_value }}</td>
+              <td>{{ lf.tolerance_pct }}</td>
+              <td>{{ lf.hard_min }}</td>
+              <td>{{ lf.hard_max }}</td>
+              <td class="text-center">{{ lf.is_critical }}</td>
+              <td>{{ lf.expected_boolean }}</td>
+              <td>{{ lf.accepted_categories }}</td>
+              <td>
+                {% if lf.instance.pk %}
+                  <div style="display:none;">{{ lf.DELETE }}</div>
+                  <button type="button" class="btn-icon btn-danger-line-toggle" title="Supprimer la ligne"><i class="bx bx-trash"></i></button>
+                {% else %}
+                  <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer"><i class="bx bx-x"></i></button>
+                {% endif %}
+                {% for hidden in lf.hidden_fields %}{{ hidden }}{% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div id="empty-form-template" class="formset-empty-row">
+        <table><tbody>
+          <tr class="line-row">
+            {% with formset.empty_form as ef %}
+            <td>{{ ef.property }}</td>
+            <td>
+              <div class="gate-cb-group">
+                <label>{{ ef.gate_a }} A</label>
+                <label>{{ ef.gate_b }} B</label>
+                <label>{{ ef.gate_c }} C</label>
+              </div>
+            </td>
+            <td>{{ ef.nominal_value }}</td>
+            <td>{{ ef.tolerance_pct }}</td>
+            <td>{{ ef.hard_min }}</td>
+            <td>{{ ef.hard_max }}</td>
+            <td class="text-center">{{ ef.is_critical }}</td>
+            <td>{{ ef.expected_boolean }}</td>
+            <td>{{ ef.accepted_categories }}</td>
+            <td>
+              <button type="button" class="btn-icon btn-remove-empty-line" title="Retirer"><i class="bx bx-x"></i></button>
+              {% for hidden in ef.hidden_fields %}{{ hidden }}{% endfor %}
+            </td>
+            {% endwith %}
+          </tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mb-4">
+    <button type="submit" class="btn-primary-app"><i class="bx bx-save me-1"></i> Enregistrer</button>
+    <a href="{% url 'quality:specification_list' %}" class="btn-secondary-app">Annuler</a>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const tbody = document.getElementById('lines-tbody');
+  const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
+  const emptyTemplate = document.getElementById('empty-form-template').innerHTML;
+
+  document.getElementById('add-line-btn').addEventListener('click', () => {
+    const index = parseInt(totalForms.value, 10);
+    const html = emptyTemplate.replace(/__prefix__/g, index);
+    const wrapper = document.createElement('tbody');
+    wrapper.innerHTML = html;
+    tbody.appendChild(wrapper.firstElementChild);
+    totalForms.value = index + 1;
+  });
+
+  tbody.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.btn-remove-empty-line');
+    if (removeBtn) {
+      removeBtn.closest('tr').remove();
+      return;
+    }
+    const deleteBtn = e.target.closest('.btn-danger-line-toggle');
+    if (deleteBtn) {
+      const row = deleteBtn.closest('tr');
+      const delInput = row.querySelector('input[name$="-DELETE"]');
+      if (delInput) {
+        delInput.checked = !delInput.checked;
+        row.classList.toggle('marked-delete', delInput.checked);
+      }
+    }
+  });
+})();
+</script>
+{% endblock %}

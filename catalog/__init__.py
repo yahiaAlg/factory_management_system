@@ -1,0 +1,1 @@
+# Catalog app for raw materials and finished products

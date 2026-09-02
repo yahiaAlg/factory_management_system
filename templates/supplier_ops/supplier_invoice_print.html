@@ -1,0 +1,204 @@
+{% load static %}
+{% load factory_filters %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Facture Fournisseur — {{ invoice.reference }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; font-size: 13px; color: #0f172a; background: #fff; padding: 32px 40px; }
+    h1, h2, h3, .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+    .doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f766e; padding-bottom: 20px; margin-bottom: 24px; }
+    .company-name { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 20px; font-weight: 800; color: #0f766e; }
+    .company-meta { font-size: 11.5px; color: #475569; margin-top: 4px; line-height: 1.7; }
+    .doc-title-block { text-align: right; }
+    .doc-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 700; }
+    .doc-ref { font-family: monospace; font-size: 13px; color: #475569; margin-top: 4px; }
+    .doc-status { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; margin-top: 6px; }
+    .status-paid      { background: #dcfce7; color: #166534; }
+    .status-partial   { background: #dbeafe; color: #1e40af; }
+    .status-unpaid    { background: #fef9c3; color: #854d0e; }
+    .status-dispute   { background: #fee2e2; color: #991b1b; }
+    .status-neutral   { background: #f1f5f9; color: #475569; }
+
+    .parties-row { display: flex; gap: 24px; margin-bottom: 24px; }
+    .party-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; }
+    .party-box-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 8px; }
+    .party-name { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .party-meta { font-size: 11.5px; color: #475569; line-height: 1.7; }
+
+    .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; background: #f1f5f9; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px; }
+    .meta-item label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: #94a3b8; display: block; margin-bottom: 2px; }
+    .meta-item .meta-val { font-size: 13px; font-weight: 500; }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #f1f5f9; }
+    th { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: #475569; padding: 9px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .table-wrap { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+    .num-col { text-align: right; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; }
+    .ref-col { font-family: monospace; font-size: 12px; color: #475569; }
+
+    .totals-row { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+    .totals-box { border: 2px solid #0f766e; border-radius: 8px; padding: 16px 20px; min-width: 280px; }
+    .t-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+    .t-row.sep { border-top: 1px solid #e2e8f0; margin-top: 6px; padding-top: 8px; }
+    .t-row.grand { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 16px; font-weight: 800; color: #0f766e; }
+    .t-row.balance { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 15px; font-weight: 700; color: #dc2626; }
+
+    .section-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 10px; color: #0f172a; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+
+    .pay-row { display: flex; justify-content: space-between; font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid #f1f5f9; }
+    .pay-row:last-child { border-bottom: none; }
+
+    .signatures { display: flex; gap: 40px; margin-top: 32px; }
+    .sig-box { flex: 1; border-top: 1px solid #cbd5e1; padding-top: 10px; text-align: center; font-size: 11.5px; color: #475569; }
+    .footer-note { text-align: center; margin-top: 24px; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 14px; }
+
+    @media print {
+      body { padding: 16px 24px; }
+      .no-print { display: none !important; }
+      @page { margin: 12mm 15mm; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="no-print" style="text-align:right;margin-bottom:20px;">
+  <button onclick="window.print()" style="background:#0f766e;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;cursor:pointer;font-size:13px;">
+    🖨 Imprimer
+  </button>
+  <a href="{% url 'supplier_ops:supplier_invoice_detail' invoice.id %}" style="margin-left:10px;color:#475569;font-size:13px;">← Retour</a>
+</div>
+
+<!-- Header -->
+<div class="doc-header">
+  <div>
+    <div class="company-name">UsineERP</div>
+    <div class="company-meta">Unité de production · Algérie</div>
+  </div>
+  <div class="doc-title-block">
+    <div class="doc-title">FACTURE FOURNISSEUR</div>
+    <div class="doc-ref">{{ invoice.reference }}</div>
+    <div>
+      {% if invoice.status == 'paid' %}<span class="doc-status status-paid">Payée</span>
+      {% elif invoice.status == 'partially_paid' %}<span class="doc-status status-partial">Partiellement payée</span>
+      {% elif invoice.status == 'unpaid' %}<span class="doc-status status-unpaid">Impayée</span>
+      {% elif invoice.status == 'in_dispute' %}<span class="doc-status status-dispute">En litige</span>
+      {% else %}<span class="doc-status status-neutral">{{ invoice.get_status_display }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Parties -->
+<div class="parties-row">
+  <div class="party-box">
+    <div class="party-box-title">Fournisseur</div>
+    <div class="party-name">{{ invoice.supplier.raison_sociale }}</div>
+    <div class="party-meta">
+      {% if invoice.supplier.forme_juridique %}{{ invoice.supplier.forme_juridique }}<br>{% endif %}
+      {% if invoice.supplier.nif %}NIF : {{ invoice.supplier.nif }}<br>{% endif %}
+      {% if invoice.supplier.nis %}NIS : {{ invoice.supplier.nis }}<br>{% endif %}
+      {% if invoice.supplier.rc %}RC : {{ invoice.supplier.rc }}<br>{% endif %}
+      {% if invoice.supplier.ai %}AI : {{ invoice.supplier.ai }}<br>{% endif %}
+      {{ invoice.supplier.address }}{% if invoice.supplier.wilaya %}, {{ invoice.supplier.wilaya }}{% endif %}
+    </div>
+  </div>
+  <div class="party-box">
+    <div class="party-box-title">Informations facture</div>
+    <div class="party-meta" style="line-height:2;">
+      <strong>Réf. fournisseur :</strong> {{ invoice.external_reference }}<br>
+      <strong>Date facture :</strong> {{ invoice.invoice_date|date:"d/m/Y" }}<br>
+      <strong>Échéance :</strong> <span {% if invoice.is_overdue %}style="color:#dc2626;font-weight:600;"{% endif %}>{{ invoice.due_date|date:"d/m/Y" }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- Meta -->
+<div class="meta-grid">
+  <div class="meta-item">
+    <label>Référence interne</label>
+    <div class="meta-val" style="font-family:monospace;">{{ invoice.reference }}</div>
+  </div>
+  <div class="meta-item">
+    <label>Date facture</label>
+    <div class="meta-val">{{ invoice.invoice_date|date:"d/m/Y" }}</div>
+  </div>
+  <div class="meta-item">
+    <label>Échéance</label>
+    <div class="meta-val">{{ invoice.due_date|date:"d/m/Y" }}</div>
+  </div>
+  <div class="meta-item">
+    <label>Créée par</label>
+    <div class="meta-val">{{ invoice.created_by.get_full_name|default:invoice.created_by.username }}</div>
+  </div>
+</div>
+
+<!-- Invoice lines -->
+<div class="section-title">Lignes de facturation</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Réf. MP</th>
+        <th>Désignation</th>
+        <th style="text-align:right;">Quantité</th>
+        <th style="text-align:right;">Prix unitaire (DA)</th>
+        <th style="text-align:right;">Montant HT (DA)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td style="color:#94a3b8;font-size:11.5px;">{{ forloop.counter }}</td>
+        <td class="ref-col">{{ line.raw_material.reference }}</td>
+        <td>{{ line.designation }}</td>
+        <td class="num-col">{{ line.quantity_invoiced|floatformat:3 }}</td>
+        <td class="num-col"><span data-money="{{ line.unit_price_invoiced }}" data-money-suffix="">{{ line.unit_price_invoiced|floatformat:2 }}</span></td>
+        <td class="num-col"><span data-money="{{ line.line_amount }}" data-money-suffix="">{{ line.line_amount|floatformat:2 }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Totals -->
+<div class="totals-row">
+  <div class="totals-box">
+    <div class="t-row"><span>Total HT</span><span><span data-money="{{ invoice.total_ht }}" data-money-suffix=" DA">{{ invoice.total_ht|floatformat:2 }} DA</span></span></div>
+    <div class="t-row"><span>TVA (19%)</span><span><span data-money="{{ invoice.vat_amount }}" data-money-suffix=" DA">{{ invoice.vat_amount|floatformat:2 }} DA</span></span></div>
+    <div class="t-row sep grand"><span>Total TTC</span><span><span data-money="{{ invoice.total_ttc }}" data-money-suffix=" DA">{{ invoice.total_ttc|floatformat:2 }} DA</span></span></div>
+    {% if invoice.timbre_fiscal > 0 %}
+    <div class="t-row" style="color:#92400e;font-size:12px;"><span>Timbre fiscal</span><span>+ <span data-money="{{ invoice.timbre_fiscal }}" data-money-suffix=" DA">{{ invoice.timbre_fiscal|floatformat:2 }} DA</span></span></div>
+    <div class="t-row" style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:14px;border-top:1px dashed #e2e8f0;margin-top:4px;padding-top:6px;"><span>Net à payer</span><span><span data-money="{{ invoice.total_net }}" data-money-suffix=" DA">{{ invoice.total_net|floatformat:2 }} DA</span></span></div>
+    {% endif %}
+    <div class="t-row" style="font-size:12px;color:#475569;padding-top:4px;"><span>Mode de règlement</span><span>{{ invoice.get_payment_method_display }}</span></div>
+    {% if invoice.payments.exists %}
+    {% for p in invoice.payments.all %}
+    <div class="t-row" style="color:#166534;font-size:12px;"><span>Paiement {{ p.payment_date|date:"d/m/Y" }}</span><span>- <span data-money="{{ p.amount }}" data-money-suffix=" DA">{{ p.amount|floatformat:2 }} DA</span></span></div>
+    {% endfor %}
+    <div class="t-row balance sep"><span>Solde dû</span><span><span data-money="{{ invoice.balance_due }}" data-money-suffix=" DA">{{ invoice.balance_due|floatformat:2 }} DA</span></span></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Signatures -->
+<div class="signatures">
+  <div class="sig-box">Comptable<br><br><br><br>Signature</div>
+  <div class="sig-box">Responsable Financier<br><br><br><br>Signature & cachet</div>
+  <div class="sig-box">Approbation Manager<br><br><br><br>Signature & cachet</div>
+</div>
+
+<div class="footer-note">
+  Document généré le {% now "d/m/Y à H:i" %} — UsineERP · Copie interne confidentielle
+</div>
+
+</body>
+</html>

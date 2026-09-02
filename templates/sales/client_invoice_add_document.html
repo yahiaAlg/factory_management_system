@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Ajouter un justificatif — {{ invoice.reference }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'core:dashboard' %}">Accueil</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoices_list' %}">Factures Clients</a>
+<span class="bc-sep">/</span>
+<a href="{% url 'sales:client_invoice_detail' invoice_id=invoice.id %}">{{ invoice.reference }}</a>
+<span class="bc-sep">/</span>
+<span class="bc-current">Ajouter un justificatif</span>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+      <div>
+        <h1 style="font-size:22px;font-weight:700;margin:0;">Ajouter un justificatif</h1>
+        <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">
+          Facture Client · <span style="font-family:monospace;">{{ invoice.reference }}</span>
+          · {{ invoice.client.raison_sociale }}
+        </p>
+      </div>
+      <a href="{% url 'sales:client_invoice_detail' invoice_id=invoice.id %}" class="btn-secondary-app">
+        <i class="bx bx-arrow-back"></i> Retour
+      </a>
+    </div>
+
+    <div class="card-app">
+      <div class="card-app-header">
+        <span class="card-app-title"><i class="bx bx-paperclip me-2" style="font-size:15px;"></i>Document justificatif</span>
+      </div>
+      <div class="card-app-body">
+
+        <div class="p-3 mb-4" style="background:var(--bg-raised);border-radius:var(--radius-sm);border:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Facture</div>
+            <div style="font-family:monospace;font-weight:600;font-size:13px;">{{ invoice.reference }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Client</div>
+            <div style="font-size:13px;font-weight:500;">{{ invoice.client.raison_sociale }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Date facture</div>
+            <div style="font-size:13px;">{{ invoice.invoice_date|date:"d/m/Y" }}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Statut</div>
+            <div>
+              {% if invoice.status == 'issued' %}<span class="badge-en-attente">Émise</span>
+              {% elif invoice.status == 'partially_paid' %}<span class="badge-en-attente">Partiellement payée</span>
+              {% elif invoice.status == 'paid' %}<span class="badge-valide">Payée</span>
+              {% elif invoice.status == 'in_dispute' %}<span class="badge-en-litige">En litige</span>
+              {% elif invoice.status == 'cancelled' %}<span class="badge-en-litige">Annulée</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="alert-banner alert-banner-error mb-4">
+          {% for error in form.non_field_errors %}
+          <div>{{ error }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="form-label-app" for="{{ form.doc_type.id_for_label }}">
+              {{ form.doc_type.label }} <span style="color:#dc2626;">*</span>
+            </label>
+            {{ form.doc_type }}
+            {% if form.doc_type.errors %}
+            <div class="form-error-app">{{ form.doc_type.errors|join:", " }}</div>
+            {% endif %}
+            <div class="form-hint-app mt-1" style="font-size:11.5px;color:var(--text-muted);">
+              <strong>SD-INV-C</strong> — facture émise ·
+              <strong>SD-PAY-C</strong> — justificatif d'encaissement ·
+              <strong>SD-CORR</strong> — document de correction
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label-app" for="{{ form.description.id_for_label }}">
+              {{ form.description.label }} <span style="color:#dc2626;">*</span>
+            </label>
+            {{ form.description }}
+            {% if form.description.errors %}
+            <div class="form-error-app">{{ form.description.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label-app" for="{{ form.file.id_for_label }}">
+              {{ form.file.label }} <span style="color:#dc2626;">*</span>
+            </label>
+            {{ form.file }}
+            {% if form.file.help_text %}
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">{{ form.file.help_text }}</div>
+            {% endif %}
+            {% if form.file.errors %}
+            <div class="form-error-app">{{ form.file.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+
+          <div class="d-flex gap-2 justify-content-end">
+            <a href="{% url 'sales:client_invoice_detail' invoice_id=invoice.id %}" class="btn-secondary-app">Annuler</a>
+            <button type="submit" class="btn-primary-app">
+              <i class="bx bx-save"></i> Enregistrer le document
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

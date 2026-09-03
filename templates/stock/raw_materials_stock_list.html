@@ -144,19 +144,21 @@
     <option value="stockout" {% if request.GET.status == 'stockout' %}selected{% endif %}>Rupture</option>
     <option value="on_order" {% if request.GET.status == 'on_order' %}selected{% endif %}>Commandé</option>
   </select>
-  <select name="site" class="form-control-app" onchange="document.getElementById('filterForm').submit()">
-    <option value="all" {% if selected_site == 'all' %}selected{% endif %}>Tous les sites</option>
-    {% for s in sites %}
-    <option value="{{ s.id }}" {% if selected_site == s.id|stringformat:'s' %}selected{% endif %}>{{ s.name }} ({{ s.code }})</option>
-    {% endfor %}
-  </select>
-  {% if request.GET.search or request.GET.status or request.GET.category or request.GET.site %}
+  {% if request.GET.search or request.GET.status or request.GET.category %}
   <a href="{% url 'stock:raw_materials_stock_list' %}" class="filter-reset">
     <i class="bx bx-x"></i> Réinitialiser
   </a>
   {% endif %}
 </div>
 </form>
+{% if not active_site %}
+<div class="alert-banner alert-banner-info mb-3">
+  <i class="bx bxs-info-circle"></i>
+  Vue globale — <strong>toutes les sites</strong>.
+  <a href="{% url 'core:site_switch' %}?next={{ request.path|urlencode }}">Filtrer par site</a>
+</div>
+{% endif %}
+
 
 <!-- Table -->
 <div class="card-app">

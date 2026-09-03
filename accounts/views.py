@@ -63,6 +63,7 @@ def user_management(request):
             user = user_form.save()
             profile = user.userprofile
             profile.role = profile_form.cleaned_data["role"]
+            profile.site = profile_form.cleaned_data["site"]
             profile.is_active = profile_form.cleaned_data["is_active"]
             profile.save()
 
@@ -71,7 +72,10 @@ def user_management(request):
                 action_type="create",
                 module="accounts",
                 instance=user,
-                details={"role": profile.role},
+                details={
+                    "role": profile.role,
+                    "site": profile.site.code if profile.site else None,
+                },
                 request=request,
             )
 
@@ -81,7 +85,9 @@ def user_management(request):
         user_form = UserForm()
         profile_form = UserProfileForm()
 
-    users = User.objects.filter(userprofile__isnull=False).select_related("userprofile")
+    users = User.objects.filter(userprofile__isnull=False).select_related(
+        "userprofile", "userprofile__site"
+    )
 
     return render(
         request,

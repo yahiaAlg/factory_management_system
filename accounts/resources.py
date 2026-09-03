@@ -12,6 +12,9 @@ class UserProfileResource(resources.ModelResource):
     Import notes:
       - 'user' is matched by username via ForeignKeyWidget.
       - 'role' must be one of the defined ROLES choices.
+      - 'site' is matched by ProductionSite.code — required for
+        stock_prod/sales, optional for accountant/viewer, must stay blank
+        for manager/qa_manager/qc_technician (functional spec §25.2).
       - Importing triggers User.post_save signal which auto-creates a profile,
         so prefer updating existing profiles rather than bulk-creating.
     """
@@ -21,6 +24,11 @@ class UserProfileResource(resources.ModelResource):
         attribute="user",
         widget=ForeignKeyWidget(User, field="username"),
     )
+    site = fields.Field(
+        column_name="site",
+        attribute="site",
+        widget=ForeignKeyWidget("core.ProductionSite", field="code"),
+    )
 
     class Meta:
         model = UserProfile
@@ -29,6 +37,7 @@ class UserProfileResource(resources.ModelResource):
             "id",
             "user",
             "role",
+            "site",
             "is_active",
             "created_at",
             "updated_at",
@@ -42,6 +51,9 @@ class UserProfileResource(resources.ModelResource):
 
     def dehydrate_role(self, obj):
         return obj.get_role_display()
+
+    def dehydrate_site(self, obj):
+        return obj.site.code if obj.site else ""
 
 
 class AuditLogResource(resources.ModelResource):

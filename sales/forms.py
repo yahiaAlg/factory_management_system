@@ -2,10 +2,11 @@
 from django import forms
 from django.forms import inlineformset_factory
 from decimal import Decimal
+from core.forms import SiteLockedFormMixin
 from .models import ClientDN, ClientDNLine, ClientInvoice, ClientPayment
 
 
-class ClientDNForm(forms.ModelForm):
+class ClientDNForm(SiteLockedFormMixin, forms.ModelForm):
     class Meta:
         model = ClientDN
         fields = ["site", "client", "delivery_date", "discount_pct", "remarks"]
@@ -18,10 +19,13 @@ class ClientDNForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        # functional spec §25.2.5: defaults to whichever site the user
-        # most recently worked in — resolved by the view via
-        # core.utils.get_default_site and passed in here as `initial_site`.
+        # functional spec §25.2.5 + avicole-style role-locking (§3.5.4):
+        #   - `initial_site=<ProductionSite>` just pre-fills (editable).
+        #   - `site=<ProductionSite>` locks AND hides the field — used for
+        #     sales (or a site-bound accountant/viewer).
         initial_site = kwargs.pop("initial_site", None)
+        locked_site = kwargs.pop("site", None)
+        self._locked_site = locked_site
         super().__init__(*args, **kwargs)
         # Filter active clients with good credit status
         from clients.models import Client
@@ -31,7 +35,10 @@ class ClientDNForm(forms.ModelForm):
             is_active=True, credit_status__in=["active", "suspended"]
         )
         self.fields["site"].queryset = ProductionSite.objects.filter(is_active=True)
-        if initial_site is not None and not self.is_bound:
+        if locked_site is not None:
+            self.fields["site"].initial = locked_site.pk
+            self.fields["site"].widget = forms.HiddenInput()
+        elif initial_site is not None and not self.is_bound:
             self.fields["site"].initial = initial_site.pk
 
     def clean(self):

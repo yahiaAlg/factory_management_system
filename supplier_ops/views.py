@@ -10,7 +10,14 @@ from django.utils import timezone
 from accounts.utils import role_required
 from accounts.models import AuditLog
 from core.models import ProductionSite
-from core.utils import get_default_site, remember_site, site_filter_kwargs
+from core.utils import (
+    get_default_site,
+    remember_site,
+    site_scope_kwargs,
+    site_form_kwargs,
+    require_site_context,
+    site_object_or_404,
+)
 from expenses.models import Expense
 from .models import (
     SupplierDN,
@@ -31,7 +38,7 @@ from .forms import (
 @login_required
 def supplier_dns_list(request):
     dns = SupplierDN.objects.select_related("supplier", "validated_by", "site").filter(
-        **site_filter_kwargs(request)
+        **site_scope_kwargs(request)
     )
 
     search = request.GET.get("search")
@@ -64,7 +71,6 @@ def supplier_dns_list(request):
             "dns": dns.order_by("-delivery_date"),
             "status_choices": SupplierDN.STATUS_CHOICES,
             "sites": ProductionSite.objects.filter(is_active=True),
-            "selected_site": request.GET.get("site", "all"),
             "title": "Bons de livraison fournisseurs",
         },
     )
@@ -72,9 +78,10 @@ def supplier_dns_list(request):
 
 @login_required
 @role_required(["manager", "stock_prod"])
+@require_site_context
 def supplier_dn_create(request):
     if request.method == "POST":
-        form = SupplierDNForm(request.POST)
+        form = SupplierDNForm(request.POST, **site_form_kwargs(request))
         formset = SupplierDNLineFormSet(request.POST)
         # Optional inline attachment: only build/validate the doc sub-form
         # when a file was actually provided, keeping the upload optional.
@@ -114,7 +121,7 @@ def supplier_dn_create(request):
             messages.success(request, f"BL Fournisseur {dn.reference} créé avec succès")
             return redirect("supplier_ops:supplier_dn_detail", dn_id=dn.id)
     else:
-        form = SupplierDNForm(initial_site=get_default_site(request))
+        form = SupplierDNForm(**site_form_kwargs(request))
         formset = SupplierDNLineFormSet()
         doc_form = SupplierSupportingDocForm(entity_type="dn")
 
@@ -135,7 +142,7 @@ def supplier_dn_create(request):
 
 @login_required
 def supplier_dn_detail(request, dn_id):
-    dn = get_object_or_404(SupplierDN, id=dn_id)
+    dn = site_object_or_404(request, SupplierDN, id=dn_id)
 
     supporting_docs = dn.pieces_jointes.select_related("uploaded_by").order_by(
         "-created_at"
@@ -176,7 +183,7 @@ def supplier_dn_detail(request, dn_id):
 def supplier_dn_qc_release(request, dn_id):
     """QA/QC Gate A (§4.2 Step 5c): move a DN from Pending QC Sampling to
     QC Passed (or Rejected — Returned) once all flagged lines have results."""
-    dn = get_object_or_404(SupplierDN, pk=dn_id)
+    dn = site_object_or_404(request, SupplierDN, pk=dn_id)
     if not request.user.userprofile.can_release_gate_a():
         messages.error(request, "Vous n'avez pas la permission de libérer le contrôle QC.")
         return redirect("supplier_ops:supplier_dn_detail", dn_id=dn_id)
@@ -199,7 +206,7 @@ def supplier_dn_qc_release(request, dn_id):
 @login_required
 @require_POST
 def supplier_dn_validate(request, dn_id):
-    dn = get_object_or_404(SupplierDN, pk=dn_id)
+    dn = site_object_or_404(request, SupplierDN, pk=dn_id)
 
     if request.user.userprofile.role not in ("manager", "accountant"):
         messages.error(request, "Vous n'avez pas la permission de valider un BL.")
@@ -561,7 +568,7 @@ def supplier_payment_create(request, invoice_id):
 @role_required(["manager", "accountant", "stock_prod"])
 def supplier_dn_add_document(request, dn_id):
     """Attach a SupportingDocument to a SupplierDN."""
-    dn = get_object_or_404(SupplierDN, pk=dn_id)
+    dn = site_object_or_404(request, SupplierDN, pk=dn_id)
     if request.method == "POST":
         form = SupplierSupportingDocForm(request.POST, request.FILES, entity_type="dn")
         if form.is_valid():
@@ -781,7 +788,7 @@ def supplier_account_settlement(request, supplier_id):
 
 @login_required
 def supplier_dn_print(request, dn_id):
-    dn = get_object_or_404(SupplierDN, id=dn_id)
+    dn = site_object_or_404(request, SupplierDN, id=dn_id)
     return render(
         request,
         "supplier_ops/supplier_dn_print.html",
@@ -812,7 +819,7 @@ def supplier_dn_change_status(request, dn_id):
     Admin (manager): force any valid status via select.
     Others: guided transition to a single next state.
     """
-    dn = get_object_or_404(SupplierDN, pk=dn_id)
+    dn = site_object_or_404(request, SupplierDN, pk=dn_id)
     role = request.user.userprofile.role
     new_status = request.POST.get("new_status", "").strip()
 
@@ -946,7 +953,7 @@ def supplier_invoice_change_status(request, invoice_id):
 @role_required(["manager", "stock_prod"])
 def supplier_dn_submit(request, dn_id):
     """Transition draft → pending (submit for validation)."""
-    dn = get_object_or_404(SupplierDN, id=dn_id)
+    dn = site_object_or_404(request, SupplierDN, id=dn_id)
     if request.method == "POST":
         try:
             dn.transition_to("pending", request.user)

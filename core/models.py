@@ -277,14 +277,17 @@ class PieceJointe(models.Model):
 # and the stock/documents that feed it become site-aware (RawMaterialStock-
 # Balance, FinishedProductStockBalance, StockMovement, StockAdjustment,
 # ProductionOrder, SupplierDN, ClientDN). Suppliers, clients, invoicing,
-# expenses in general, and payroll stay company-wide. No new role is
-# introduced (§25.2.5): every factory keeps working exactly as before until
-# a second ProductionSite is registered — forms simply gain a Site selector
-# that defaults to whichever site the user most recently used (see
-# core.utils.get_default_site / remember_site), and list/report views gain
-# a plain "?site=<id>" GET filter (core.utils.site_filter_kwargs). There is
-# no session-bound "active site" and no middleware, unlike a role-locked
-# branch-switcher design.
+# expenses in general, and payroll stay company-wide.
+#
+# Extended to mirror the avicole project's role-locked Branche switcher
+# (§3.5): stock_prod/sales are locked to exactly one site
+# (UserProfile.site, SITE_REQUIRED_ROLES) with no switcher; manager (and an
+# unbound accountant/viewer) get a session-based active-site switcher
+# (core.utils.get_active_site / core:site_switch) defaulting to "toutes les
+# sites" (global view, read-only for creates — core.utils.
+# require_site_context). See accounts.models.UserProfile and core.utils for
+# the full resolution logic.
+
 
 
 class ProductionSite(models.Model):

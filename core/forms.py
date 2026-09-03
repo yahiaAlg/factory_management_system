@@ -3,6 +3,33 @@ from django import forms
 from django.contrib.contenttypes.forms import generic_inlineformset_factory
 from .models import CompanyInformation, SystemParameter, PieceJointe
 
+
+class SiteLockedFormMixin:
+    """
+    Mixin for the four site-scoped create forms (ProductionOrderForm,
+    StockAdjustmentForm, ClientDNForm, SupplierDNForm).
+
+    Each of those forms already pops a `site=<ProductionSite>` kwarg in
+    its own `__init__` to hide the field (`forms.HiddenInput()`) and must
+    store it as `self._locked_site` before calling `super().__init__()`.
+    This mixin's `clean()` then forces `cleaned_data["site"]` back to
+    `self._locked_site` regardless of whatever value actually arrived in
+    POST — a role-locked user (stock_prod/sales, or a site-bound
+    accountant/viewer) must never be able to write into another site's
+    records by tampering with the hidden input client-side. Mirrors
+    avicole's BLFournisseurForm(branche=…) intent, but closes the gap
+    where avicole trusts the hidden field's submitted value as-is.
+    """
+
+    _locked_site = None
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if self._locked_site is not None:
+            cleaned_data["site"] = self._locked_site
+        return cleaned_data
+
+
 class CompanyInformationForm(forms.ModelForm):
     class Meta:
         model = CompanyInformation
@@ -26,6 +53,38 @@ class SystemParameterForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 3}),
             'value': forms.Textarea(attrs={'rows': 2}),
         }
+
+
+# ---------------------------------------------------------------------------
+# Site switcher (functional spec §25.2, extended to mirror avicole's
+# BrancheSwitchForm, §3.5.4)
+# ---------------------------------------------------------------------------
+
+
+class SiteSwitchForm(forms.Form):
+    """
+    Non-model form backing the manager/unbound-accountant/unbound-viewer
+    site switcher. Leaving `site` blank selects **toutes les sites** — the
+    aggregate, read-only global view. Only roles with
+    `profile.can_switch_site` (manager, or accountant/viewer left unbound)
+    should ever be shown this form; stock_prod/sales are locked to their
+    own site and never see a switcher.
+    """
+
+    site = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        empty_label="🌐 Toutes les sites (vue globale)",
+        label="Site actif",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import ProductionSite
+
+        self.fields['site'].queryset = ProductionSite.objects.filter(
+            is_active=True
+        ).order_by('name')
 
 # ---------------------------------------------------------------------------
 # PieceJointe (generic document-proof model, core.models) — mirrors the

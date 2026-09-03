@@ -13,7 +13,14 @@ from decimal import Decimal
 from accounts.utils import role_required
 from accounts.models import AuditLog
 from core.models import ProductionSite
-from core.utils import get_default_site, remember_site, site_filter_kwargs
+from core.utils import (
+    get_default_site,
+    remember_site,
+    site_scope_kwargs,
+    site_form_kwargs,
+    require_site_context,
+    site_object_or_404,
+)
 from .models import ClientDN, ClientDNLine, ClientInvoice, ClientPayment
 from .forms import (
     ClientDNForm,
@@ -29,7 +36,7 @@ from django.db.models.functions import TruncMonth
 @login_required
 def client_dns_list(request):
     dns = ClientDN.objects.select_related("client", "validated_by", "site").filter(
-        **site_filter_kwargs(request)
+        **site_scope_kwargs(request)
     )
     search = request.GET.get("search")
     if search:
@@ -55,7 +62,6 @@ def client_dns_list(request):
             "dns": dns.order_by("-delivery_date"),
             "status_choices": ClientDN.STATUS_CHOICES,
             "sites": ProductionSite.objects.filter(is_active=True),
-            "selected_site": request.GET.get("site", "all"),
             "title": "Bons de livraison clients",
         },
     )
@@ -63,9 +69,10 @@ def client_dns_list(request):
 
 @login_required
 @role_required(["manager", "sales"])
+@require_site_context
 def client_dn_create(request):
     if request.method == "POST":
-        form = ClientDNForm(request.POST)
+        form = ClientDNForm(request.POST, **site_form_kwargs(request))
         # Optional inline attachment: only build/validate the doc sub-form
         # when a file was actually provided, keeping the upload optional.
         doc_form = (
@@ -106,7 +113,7 @@ def client_dn_create(request):
         else:
             formset = ClientDNLineFormSet(request.POST)
     else:
-        form = ClientDNForm(initial_site=get_default_site(request))
+        form = ClientDNForm(**site_form_kwargs(request))
         formset = ClientDNLineFormSet()
         doc_form = ClientSupportingDocForm(entity_type="dn")
     return render(
@@ -123,12 +130,12 @@ def client_dn_create(request):
 
 @login_required
 def client_dn_edit(request, dn_id):
-    dn = get_object_or_404(ClientDN, id=dn_id)
+    dn = site_object_or_404(request, ClientDN, id=dn_id)
     if dn.status != "draft":
         messages.error(request, "Seuls les BL en brouillon peuvent être modifiés.")
         return redirect("sales:client_dn_detail", dn_id=dn.id)
     if request.method == "POST":
-        form = ClientDNForm(request.POST, instance=dn)
+        form = ClientDNForm(request.POST, instance=dn, **site_form_kwargs(request))
         formset = ClientDNLineFormSet(request.POST, instance=dn)
         if form.is_valid() and formset.is_valid():
             form.save()
@@ -136,7 +143,7 @@ def client_dn_edit(request, dn_id):
             messages.success(request, f"BL {dn.reference} mis à jour.")
             return redirect("sales:client_dn_detail", dn_id=dn.id)
     else:
-        form = ClientDNForm(instance=dn)
+        form = ClientDNForm(instance=dn, **site_form_kwargs(request))
         formset = ClientDNLineFormSet(instance=dn)
     return render(
         request,
@@ -152,7 +159,7 @@ def client_dn_edit(request, dn_id):
 
 @login_required
 def client_dn_detail(request, dn_id):
-    dn = get_object_or_404(ClientDN, id=dn_id)
+    dn = site_object_or_404(request, ClientDN, id=dn_id)
     role = request.user.userprofile.role
     lines = dn.lines.select_related("finished_product", "unit_of_measure").all()
     gross_ht = sum(line.line_amount for line in lines)
@@ -181,7 +188,7 @@ def client_dn_detail(request, dn_id):
 @role_required(["manager", "sales", "accountant"])
 def client_dn_add_document(request, dn_id):
     """Attach a PieceJointe to a ClientDN (mirrors supplier_dn_add_document)."""
-    dn = get_object_or_404(ClientDN, pk=dn_id)
+    dn = site_object_or_404(request, ClientDN, pk=dn_id)
     if request.method == "POST":
         form = ClientSupportingDocForm(request.POST, request.FILES, entity_type="dn")
         if form.is_valid():
@@ -216,7 +223,7 @@ def client_dn_add_document(request, dn_id):
 @login_required
 @role_required(["manager", "sales"])
 def client_dn_validate(request, dn_id):
-    dn = get_object_or_404(ClientDN, id=dn_id)
+    dn = site_object_or_404(request, ClientDN, id=dn_id)
     if request.method == "POST":
         try:
             dn.validate(request.user)
@@ -591,7 +598,7 @@ def client_payment_create(request, invoice_id):
 def client_dn_print(request, dn_id):
     from core.models import CompanyInformation
 
-    dn = get_object_or_404(ClientDN, id=dn_id)
+    dn = site_object_or_404(request, ClientDN, id=dn_id)
     company = CompanyInformation.objects.first()
     lines = dn.lines.select_related("finished_product", "unit_of_measure").all()
     gross_ht = sum(line.line_amount for line in lines)

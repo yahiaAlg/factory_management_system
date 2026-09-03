@@ -11,7 +11,15 @@ import json
 from accounts.utils import role_required
 from accounts.models import AuditLog
 from core.models import ProductionSite
-from core.utils import get_default_site, remember_site, site_filter_kwargs
+from core.utils import (
+    get_default_site,
+    remember_site,
+    site_scope_kwargs,
+    site_form_kwargs,
+    require_site_context,
+    site_object_or_404,
+    get_active_site,
+)
 from .models import Formulation, FormulationLine, ProductionOrder, ProductionOrderLine
 from .forms import (
     FormulationForm,
@@ -323,7 +331,7 @@ def production_orders_list(request):
     """
     orders = ProductionOrder.objects.select_related(
         "formulation", "formulation__finished_product", "created_by", "site"
-    ).filter(**site_filter_kwargs(request))
+    ).filter(**site_scope_kwargs(request))
 
     search = request.GET.get("search")
     if search:
@@ -362,7 +370,6 @@ def production_orders_list(request):
                 ("critical", "Critique"),
             ],
             "sites": ProductionSite.objects.filter(is_active=True),
-            "selected_site": request.GET.get("site", "all"),
             "title": "Ordres de production",
         },
     )
@@ -370,9 +377,10 @@ def production_orders_list(request):
 
 @login_required
 @role_required(["manager", "stock_prod"])
+@require_site_context
 def production_order_create(request):
     if request.method == "POST":
-        form = ProductionOrderForm(request.POST)
+        form = ProductionOrderForm(request.POST, **site_form_kwargs(request))
         if form.is_valid():
             order = form.save(commit=False)
             order.created_by = request.user
@@ -390,7 +398,7 @@ def production_order_create(request):
             )
             return redirect("production:production_order_detail", order_id=order.id)
     else:
-        form = ProductionOrderForm(initial_site=get_default_site(request))
+        form = ProductionOrderForm(**site_form_kwargs(request))
 
     import json as _json
     from .models import Formulation
@@ -414,7 +422,7 @@ def production_order_create(request):
 
 @login_required
 def production_order_detail(request, order_id):
-    order = get_object_or_404(ProductionOrder, id=order_id)
+    order = site_object_or_404(request, ProductionOrder, id=order_id)
     role = request.user.userprofile.role
     latest_formulation = (
         Formulation.objects.filter(reference=order.formulation.reference)
@@ -488,7 +496,7 @@ def production_order_validate(request, order_id):
     validated → in_progress.  validate() runs the stock availability check and
     sets stock_check_passed.
     """
-    order = get_object_or_404(ProductionOrder, id=order_id)
+    order = site_object_or_404(request, ProductionOrder, id=order_id)
 
     if request.method == "POST":
         try:
@@ -524,7 +532,7 @@ def production_order_validate(request, order_id):
 @role_required(["manager", "stock_prod"])
 def production_order_launch(request, order_id):
     """validated → in_progress"""
-    order = get_object_or_404(ProductionOrder, id=order_id)
+    order = site_object_or_404(request, ProductionOrder, id=order_id)
 
     if request.method == "POST":
         try:
@@ -547,7 +555,7 @@ def production_order_launch(request, order_id):
 @login_required
 def production_order_acknowledge_hold(request, order_id):
     """QA/QC Gate B (§5.3): Production Manager (or QA) acknowledges a hold."""
-    order = get_object_or_404(ProductionOrder, id=order_id)
+    order = site_object_or_404(request, ProductionOrder, id=order_id)
     if not request.user.userprofile.can_lift_production_hold():
         messages.error(request, "Accès non autorisé pour votre rôle")
         return redirect("production:production_order_detail", order_id=order.id)
@@ -575,7 +583,7 @@ def production_order_acknowledge_hold(request, order_id):
 @login_required
 def production_order_release_gate_c(request, order_id):
     """QA/QC Gate C (§6.2): release to Completed, or open investigation."""
-    order = get_object_or_404(ProductionOrder, id=order_id)
+    order = site_object_or_404(request, ProductionOrder, id=order_id)
     if not request.user.userprofile.can_release_gate_c():
         messages.error(request, "Accès non autorisé pour votre rôle")
         return redirect("production:production_order_detail", order_id=order.id)
@@ -607,7 +615,7 @@ def production_order_release_gate_c(request, order_id):
 @role_required(["manager", "stock_prod"])
 def production_order_close(request, order_id):
     """in_progress → completed"""
-    order = get_object_or_404(ProductionOrder, id=order_id)
+    order = site_object_or_404(request, ProductionOrder, id=order_id)
 
     if order.status != "in_progress":
         messages.error(request, "Cet ordre ne peut pas être clôturé")
@@ -670,7 +678,7 @@ def production_order_reconcile(request, order_id):
     — but every line is editable before submission so operators can adjust
     the suggested values by hand.
     """
-    old_order = get_object_or_404(ProductionOrder, id=order_id)
+    old_order = site_object_or_404(request, ProductionOrder, id=order_id)
     old_formulation = old_order.formulation
 
     latest_formulation = (
@@ -712,6 +720,7 @@ def production_order_reconcile(request, order_id):
         else:
             scale = target_qty / new_formulation.reference_batch_qty
             new_order = ProductionOrder(
+                site=old_order.site,
                 formulation=new_formulation,
                 formulation_version=new_formulation.version,
                 target_qty=target_qty,

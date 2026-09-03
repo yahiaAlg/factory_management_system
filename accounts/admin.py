@@ -10,15 +10,16 @@ from .resources import UserProfileResource, AuditLogResource
 class UserProfileAdmin(ImportExportModelAdmin):
     resource_class = UserProfileResource
 
-    list_display = ("user", "role_badge", "is_active", "created_at", "updated_at")
-    list_filter = ("role", "is_active")
+    list_display = ("user", "role_badge", "site", "is_active", "created_at", "updated_at")
+    list_filter = ("role", "site", "is_active")
     search_fields = ("user__username", "user__email", "user__first_name", "user__last_name")
     readonly_fields = ("created_at", "updated_at")
     ordering = ("user__username",)
+    autocomplete_fields = ("site",)
 
     fieldsets = (
         ("Utilisateur", {
-            "fields": ("user", "role", "is_active"),
+            "fields": ("user", "role", "site", "is_active"),
         }),
         ("Horodatage", {
             "fields": ("created_at", "updated_at"),

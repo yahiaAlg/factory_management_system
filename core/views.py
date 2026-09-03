@@ -5,7 +5,59 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 from accounts.utils import role_required
 from .models import CompanyInformation, SystemParameter
-from .forms import CompanyInformationForm, SystemParameterForm
+from .forms import CompanyInformationForm, SystemParameterForm, SiteSwitchForm
+
+
+# ---------------------------------------------------------------------------
+# Site switcher (functional spec §25.2, extended to mirror avicole's
+# branche_switch view, §3.5.4 / BR-BRA-03/04)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+def site_switch(request):
+    """
+    Manager / unbound accountant / unbound viewer switches the active site
+    context, or picks "toutes les sites" (global view). stock_prod, sales
+    (and a site-bound accountant/viewer) never see this — they have no
+    choice to make.
+    """
+    from core.utils import SITE_SESSION_KEY, can_switch_site, get_active_site
+
+    if not can_switch_site(request):
+        messages.error(request, "Vous n'avez pas la permission de changer de site.")
+        return redirect("core:dashboard")
+
+    next_url = request.POST.get("next") or request.GET.get("next") or "core:dashboard"
+
+    if request.method == "POST":
+        form = SiteSwitchForm(request.POST)
+        if form.is_valid():
+            site = form.cleaned_data.get("site")
+            if site:
+                request.session[SITE_SESSION_KEY] = site.pk
+                messages.success(request, f"Site actif : « {site.name} ».")
+            else:
+                request.session.pop(SITE_SESSION_KEY, None)
+                messages.success(
+                    request, "Vue globale activée (toutes les sites)."
+                )
+            return redirect(next_url)
+        else:
+            messages.error(request, "Veuillez corriger les erreurs du formulaire.")
+    else:
+        form = SiteSwitchForm(initial={"site": get_active_site(request)})
+
+    return render(
+        request,
+        "core/site_switch.html",
+        {
+            "form": form,
+            "title": "Changer de site",
+            "next": next_url,
+            "active_site": get_active_site(request),
+        },
+    )
 
 
 @login_required

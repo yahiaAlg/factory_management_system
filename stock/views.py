@@ -10,7 +10,14 @@ from decimal import Decimal
 from accounts.utils import role_required
 from accounts.models import AuditLog
 from core.models import ProductionSite
-from core.utils import get_default_site, remember_site, site_filter_kwargs
+from core.utils import (
+    get_default_site,
+    remember_site,
+    site_scope_kwargs,
+    site_form_kwargs,
+    require_site_context,
+    site_object_or_404,
+)
 from .models import (
     RawMaterialStockBalance,
     FinishedProductStockBalance,
@@ -31,7 +38,7 @@ def raw_materials_stock_list(request):
     # sites, each shown as its own row) when the GET param is absent/"all".
     balances = RawMaterialStockBalance.objects.select_related(
         "raw_material", "raw_material__category", "raw_material__unit_of_measure", "site"
-    ).filter(**site_filter_kwargs(request))
+    ).filter(**site_scope_kwargs(request))
     search = request.GET.get("search")
     if search:
         balances = balances.filter(
@@ -66,7 +73,7 @@ def raw_materials_stock_list(request):
 def finished_products_stock_list(request):
     balances = FinishedProductStockBalance.objects.select_related(
         "finished_product", "finished_product__sales_unit", "site"
-    ).filter(**site_filter_kwargs(request))
+    ).filter(**site_scope_kwargs(request))
     search = request.GET.get("search")
     if search:
         balances = balances.filter(
@@ -98,7 +105,7 @@ def finished_products_stock_list(request):
 def stock_movements_list(request):
     movements = StockMovement.objects.select_related(
         "raw_material", "finished_product", "created_by", "site"
-    ).filter(**site_filter_kwargs(request))
+    ).filter(**site_scope_kwargs(request))
     material_type = request.GET.get("material_type")
     material_id = request.GET.get("material_id")
     if material_type == "raw_material" and material_id:
@@ -197,11 +204,10 @@ def finished_product_stock_detail(request, product_id):
 @login_required
 def stock_adjustments_list(request):
     from core.models import ProductionSite
-    from core.utils import site_filter_kwargs
 
     adjustments = StockAdjustment.objects.select_related(
         "created_by", "approved_by", "site"
-    ).filter(**site_filter_kwargs(request))
+    ).filter(**site_scope_kwargs(request))
     type_filter = request.GET.get("adjustment_type")
     if type_filter:
         adjustments = adjustments.filter(adjustment_type=type_filter)
@@ -225,17 +231,25 @@ def stock_adjustments_list(request):
 
 @login_required
 @role_required(["manager", "stock_prod"])
+@require_site_context
 def stock_adjustment_create(request):
     from core.models import ProductionSite
-    from core.utils import get_default_site, remember_site
 
     if request.method == "POST":
         # The line formset's clean() needs the parent's site (§25.2.3) to
         # look up the right per-site balance for quantity_before, so we
         # resolve it from the raw POST data before building the formset.
-        site = ProductionSite.objects.filter(pk=request.POST.get("site")).first()
-        form = StockAdjustmentForm(request.POST)
-        formset = StockAdjustmentLineFormSet(request.POST, form_kwargs={"site": site})
+        # For a role-locked user (stock_prod), site_form_kwargs already
+        # forces this to their own site server-side via SiteLockedFormMixin
+        # regardless of the raw POST value, so this is only the *display*
+        # site used for the formset's balance lookups.
+        posted_site = ProductionSite.objects.filter(pk=request.POST.get("site")).first()
+        form_kwargs = site_form_kwargs(request)
+        site_for_formset = form_kwargs.get("site") or posted_site
+        form = StockAdjustmentForm(request.POST, **form_kwargs)
+        formset = StockAdjustmentLineFormSet(
+            request.POST, form_kwargs={"site": site_for_formset}
+        )
         # Optional inline attachment: only build/validate the doc sub-form
         # when a file was actually provided, keeping the upload optional.
         doc_form = (
@@ -279,7 +293,7 @@ def stock_adjustment_create(request):
             )
     else:
         default_site = get_default_site(request)
-        form = StockAdjustmentForm(initial_site=default_site)
+        form = StockAdjustmentForm(**site_form_kwargs(request))
         formset = StockAdjustmentLineFormSet(form_kwargs={"site": default_site})
         doc_form = StockAdjustmentSupportingDocForm()
     return render(
@@ -296,7 +310,7 @@ def stock_adjustment_create(request):
 
 @login_required
 def stock_adjustment_detail(request, adjustment_id):
-    adjustment = get_object_or_404(StockAdjustment, id=adjustment_id)
+    adjustment = site_object_or_404(request, StockAdjustment, id=adjustment_id)
     supporting_docs = adjustment.pieces_jointes.select_related("uploaded_by").order_by(
         "-created_at"
     )
@@ -319,7 +333,7 @@ def stock_adjustment_detail(request, adjustment_id):
 def stock_adjustment_add_document(request, adjustment_id):
     """Attach a PieceJointe to a StockAdjustment (optional, no gate — mirrors
     client_dn_add_document / supplier_dn_add_document)."""
-    adjustment = get_object_or_404(StockAdjustment, pk=adjustment_id)
+    adjustment = site_object_or_404(request, StockAdjustment, pk=adjustment_id)
     if request.method == "POST":
         form = StockAdjustmentSupportingDocForm(request.POST, request.FILES)
         if form.is_valid():
@@ -360,7 +374,7 @@ def stock_adjustment_add_document(request, adjustment_id):
 @login_required
 @role_required(["manager"])
 def stock_adjustment_approve(request, adjustment_id):
-    adjustment = get_object_or_404(StockAdjustment, id=adjustment_id)
+    adjustment = site_object_or_404(request, StockAdjustment, id=adjustment_id)
     if request.method == "POST":
         if adjustment.approved_by:
             messages.error(request, "Cet ajustement est déjà approuvé")

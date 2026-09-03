@@ -7,7 +7,28 @@ import json
 
 
 class UserProfile(models.Model):
-    """User profile with role-based permissions"""
+    """User profile with role-based permissions.
+
+    Site binding (functional spec §25.2 — Multi-Site Architecture, extended
+    to mirror the avicole project's Branche role-locking, §3.5.2):
+      - manager                     : `site` always None. Not bound to a
+                                       single site — switches the *active*
+                                       site context per session (see
+                                       core.utils.get_active_site) or works
+                                       in "Toutes les sites" (global view).
+      - stock_prod / sales          : `site` is REQUIRED — locked to
+                                       exactly one site; every
+                                       production/stock/BL record they
+                                       create or see is implicitly filtered
+                                       to it, with no switcher.
+      - accountant / viewer         : `site` is OPTIONAL — set for
+                                       site-only visibility, left None for
+                                       company-wide (global) visibility.
+      - qa_manager / qc_technician  : `site` unused (the quality module
+                                       stays company-wide, functional spec
+                                       §25.2 scope) — never bound, never
+                                       shown a switcher.
+    """
 
     ROLES = [
         ("manager", "Manager / Administrateur"),
@@ -19,10 +40,38 @@ class UserProfile(models.Model):
         ("qc_technician", "Technicien QC (Contrôle Qualité)"),
     ]
 
+    #: Roles that MUST be bound to exactly one site (mirrors avicole's
+    #: ROLES_LIES_A_UNE_BRANCHE) — the field/site-operational roles that
+    #: create the site-scoped documents (SupplierDN, ClientDN,
+    #: ProductionOrder, StockAdjustment).
+    SITE_REQUIRED_ROLES = ("stock_prod", "sales")
+
+    #: Roles that MAY optionally be bound to one site — left blank means
+    #: company-wide (global) visibility, mirrors avicole's comptable.
+    SITE_OPTIONAL_ROLES = ("accountant", "viewer")
+
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="userprofile"
     )
     role = models.CharField(max_length=20, choices=ROLES, verbose_name="Rôle")
+    # on_delete=CASCADE mirrors avicole's UserProfile.branche tradeoff:
+    # deleting a ProductionSite from the admin is a deliberate wipe, and a
+    # stock_prod/sales profile locked to only that site goes with it (the
+    # underlying User row survives, profile-less) — reassign or recreate
+    # the affected account's profile manually afterwards.
+    site = models.ForeignKey(
+        "core.ProductionSite",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="userprofiles",
+        verbose_name="Site de production",
+        help_text=(
+            "Obligatoire pour Responsable Stock/Production et Commercial. "
+            "Optionnel pour Comptable et Consultation (vide = vue globale, "
+            "toutes les sites). Toujours vide pour Manager."
+        ),
+    )
     is_active = models.BooleanField(default=True, verbose_name="Actif")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -33,6 +82,56 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} ({self.get_role_display()})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.role in self.SITE_REQUIRED_ROLES and not self.site_id:
+            raise ValidationError(
+                {
+                    "site": (
+                        "Ce rôle nécessite un site de production obligatoire."
+                    )
+                }
+            )
+        if self.role == "manager" and self.site_id:
+            raise ValidationError(
+                {
+                    "site": (
+                        "Le manager n'est pas lié à un site unique — "
+                        "laissez ce champ vide (le site actif se change "
+                        "via le sélecteur de site en session)."
+                    )
+                }
+            )
+        if (
+            self.role in ("qa_manager", "qc_technician")
+            and self.site_id
+        ):
+            raise ValidationError(
+                {
+                    "site": (
+                        "Ce rôle reste transverse à tous les sites "
+                        "(module Qualité) — laissez ce champ vide."
+                    )
+                }
+            )
+
+    @property
+    def has_global_view(self):
+        """
+        True when this user can see/aggregate site-scoped data across ALL
+        sites (manager always; accountant/viewer only when left unbound) —
+        mirrors avicole's `a_vue_globale` (BR-BRA-04).
+        """
+        return self.role == "manager" or (
+            self.role in self.SITE_OPTIONAL_ROLES and self.site_id is None
+        )
+
+    @property
+    def can_switch_site(self):
+        """True for roles that get the active-site switcher in the UI."""
+        return self.has_global_view
 
     # --- permission helpers ---
 

@@ -194,6 +194,7 @@
           <th>Utilisateur</th>
           <th>Email</th>
           <th>Rôle</th>
+          <th>Site</th>
           <th>Statut</th>
           <th>Créé le</th>
           <th class="text-end">Actions</th>
@@ -232,6 +233,15 @@
                 <i class="bx bx-show"></i> Consultation
               {% endif %}
             </span>
+          </td>
+          <td style="color:var(--text-secondary);font-size:13px;">
+            {% if user.userprofile.site %}
+              <span title="{{ user.userprofile.site.name }}">{{ user.userprofile.site.code }}</span>
+            {% elif user.userprofile.has_global_view %}
+              <span style="color:var(--text-muted);">🌐 Vue globale</span>
+            {% else %}
+              —
+            {% endif %}
           </td>
           <td>
             <div style="display:flex;align-items:center;gap:7px;">
@@ -507,6 +517,7 @@
                 name="{{ profile_form.role.html_name }}"
                 class="form-control-app"
                 required
+                onchange="updateSiteFieldVisibility(this.value)"
               >
                 {% for value, label in profile_form.fields.role.choices %}
                 <option value="{{ value }}" {% if profile_form.role.value == value %}selected{% endif %}>
@@ -529,6 +540,37 @@
                   Actif
                 </label>
               </div>
+            </div>
+          </div>
+
+          <div class="row g-3 mt-1" id="siteFieldRow">
+            <div class="col-12">
+              <label class="form-label-app" for="{{ profile_form.site.id_for_label }}">
+                Site de production <span id="siteRequiredMark" class="required" style="display:none;">*</span>
+              </label>
+              <select
+                id="{{ profile_form.site.id_for_label }}"
+                name="{{ profile_form.site.html_name }}"
+                class="form-control-app {% if profile_form.site.errors %}is-invalid{% endif %}"
+              >
+                <option value="">{{ profile_form.fields.site.empty_label }}</option>
+                {% for site in profile_form.fields.site.queryset %}
+                <option value="{{ site.pk }}" {% if profile_form.site.value|stringformat:"s" == site.pk|stringformat:"s" %}selected{% endif %}>
+                  {{ site.name }} ({{ site.code }})
+                </option>
+                {% endfor %}
+              </select>
+              <div class="form-hint" style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">
+                Obligatoire pour Stock/Production et Commercial (compte verrouillé sur ce site).
+                Optionnel pour Comptable et Consultation (vide = vue globale).
+                Non applicable pour Manager, QA et QC.
+              </div>
+              {% if profile_form.site.errors %}
+              <div class="form-error">
+                <i class="bx bx-x-circle"></i>
+                {% for e in profile_form.site.errors %}{{ e }}{% endfor %}
+              </div>
+              {% endif %}
             </div>
           </div>
 
@@ -559,6 +601,33 @@
       var text = row.textContent.toLowerCase();
       row.style.display = text.includes(query) ? '' : 'none';
     });
+  });
+
+  // Multi-Site Architecture (functional spec §25.2): the site field's
+  // required-ness and visibility depend on the selected role — mirrors
+  // avicole's role-locked Branche field on the user form.
+  var SITE_REQUIRED_ROLES = ['stock_prod', 'sales'];
+  var SITE_HIDDEN_ROLES = ['manager', 'qa_manager', 'qc_technician'];
+
+  function updateSiteFieldVisibility(role) {
+    var row = document.getElementById('siteFieldRow');
+    var select = document.getElementById('{{ profile_form.site.id_for_label }}');
+    var mark = document.getElementById('siteRequiredMark');
+    if (!row || !select) return;
+
+    if (SITE_HIDDEN_ROLES.indexOf(role) !== -1) {
+      row.style.display = 'none';
+      select.value = '';
+      mark.style.display = 'none';
+    } else {
+      row.style.display = '';
+      mark.style.display = SITE_REQUIRED_ROLES.indexOf(role) !== -1 ? '' : 'none';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var roleSelect = document.getElementById('{{ profile_form.role.id_for_label }}');
+    if (roleSelect) updateSiteFieldVisibility(roleSelect.value);
   });
 
   // Re-open modal if form had errors (POST redirect would normally handle this,

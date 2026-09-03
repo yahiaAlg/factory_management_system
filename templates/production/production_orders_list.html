@@ -67,15 +67,19 @@
   </select>
   <input type="date" name="date_from" value="{{ request.GET.date_from }}" class="form-control-app">
   <input type="date" name="date_to" value="{{ request.GET.date_to }}" class="form-control-app">
-  <select name="site" class="form-control-app">
-    <option value="all" {% if selected_site == 'all' %}selected{% endif %}>Tous les sites</option>
-    {% for s in sites %}
-    <option value="{{ s.id }}" {% if selected_site == s.id|stringformat:'s' %}selected{% endif %}>{{ s.name }} ({{ s.code }})</option>
-    {% endfor %}
-  </select>
   <button type="submit" class="btn-secondary-app">Filtrer</button>
   <a href="{% url 'production:production_orders_list' %}" class="btn-secondary-app">Réinitialiser</a>
 </form>
+
+{# Site scope is now set globally (switcher in topbar for manager, or #}
+{# locked to your own site for stock_prod) rather than per-list-page. #}
+{% if not active_site %}
+<div class="alert-banner alert-banner-info mb-3">
+  <i class="bx bxs-info-circle"></i>
+  Vue globale — ordres de <strong>toutes les sites</strong>.
+  <a href="{% url 'core:site_switch' %}?next={{ request.path|urlencode }}">Filtrer par site</a>
+</div>
+{% endif %}
 
 <div class="card-app">
   <div class="card-app-header"><span class="card-app-title">Liste des ordres</span></div>

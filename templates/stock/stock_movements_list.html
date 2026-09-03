@@ -68,19 +68,21 @@
          class="form-control-app" style="width:auto;" onchange="document.getElementById('filterForm').submit()">
   <input type="date" name="date_to" value="{{ request.GET.date_to }}"
          class="form-control-app" style="width:auto;" onchange="document.getElementById('filterForm').submit()">
-  <select name="site" class="form-control-app" onchange="document.getElementById('filterForm').submit()">
-    <option value="all" {% if selected_site == 'all' %}selected{% endif %}>Tous les sites</option>
-    {% for s in sites %}
-    <option value="{{ s.id }}" {% if selected_site == s.id|stringformat:'s' %}selected{% endif %}>{{ s.name }} ({{ s.code }})</option>
-    {% endfor %}
-  </select>
-  {% if request.GET.movement_type or request.GET.material_type or request.GET.date_from or request.GET.date_to or request.GET.site %}
+  {% if request.GET.movement_type or request.GET.material_type or request.GET.date_from or request.GET.date_to %}
   <a href="{% url 'stock:stock_movements_list' %}" class="filter-reset">
     <i class="bx bx-x"></i> Réinitialiser
   </a>
   {% endif %}
 </div>
 </form>
+{% if not active_site %}
+<div class="alert-banner alert-banner-info mb-3">
+  <i class="bx bxs-info-circle"></i>
+  Vue globale — <strong>toutes les sites</strong>.
+  <a href="{% url 'core:site_switch' %}?next={{ request.path|urlencode }}">Filtrer par site</a>
+</div>
+{% endif %}
+
 
 <div class="card-app">
   <div class="card-app-header">

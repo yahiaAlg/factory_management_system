@@ -12,6 +12,6 @@ python manage.py makemigrations
 python manage.py migrate
 
 echo "==> Seeding database..."
-python manage.py populate_db
+python manage.py minimal_populate_db
 
 echo "==> Build complete."

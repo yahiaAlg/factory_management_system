@@ -1,5 +1,5 @@
 python manage.py flush
 python manage.py minimal_populate_db
-python manage.py seed_phase0_bidon_vert
-python manage.py seed_phase1_supplier_bl_invoice_bidon_vert
+# python manage.py seed_phase0_bidon_vert
+# python manage.py seed_phase1_supplier_bl_invoice_bidon_vert
 #python manage.py seed_phase5_client_bl_invoice_bidon_vert

@@ -654,6 +654,29 @@ input.field-auto-computed { background: var(--accent-dim) !important; border-col
   const totalForms = document.getElementById('id_lines-TOTAL_FORMS');
   const addBtn = document.getElementById('add-line-btn');
 
+  // Keep every row's field names/ids and TOTAL_FORMS in sync with what's
+  // actually in the DOM. Without this, removing a row (e.g. the always-
+  // present blank "extra" row Django renders) leaves TOTAL_FORMS
+  // overcounting: the server then binds a form for an index whose fields
+  // never arrive in POST at all, which defeats Django's "untouched extra
+  // form" exemption (tolerance_pct's server-side default makes that
+  // missing form look "changed") and surfaces bogus "Ce champ est
+  // obligatoire" errors on a row the user never touched.
+  function reindexRows() {
+    const rows = tbody.querySelectorAll('tr.line-row');
+    rows.forEach((row, i) => {
+      row.dataset.rowIndex = i;
+      row.querySelectorAll('[name],[id],[aria-describedby]').forEach(el => {
+        if (el.name) el.name = el.name.replace(/lines-\d+-/, `lines-${i}-`);
+        if (el.id) el.id = el.id.replace(/lines-\d+-/, `lines-${i}-`);
+        if (el.getAttribute('aria-describedby')) {
+          el.setAttribute('aria-describedby', el.getAttribute('aria-describedby').replace(/lines-\d+-/, `lines-${i}-`));
+        }
+      });
+    });
+    totalForms.value = rows.length;
+  }
+
   addBtn.addEventListener('click', () => {
     const currentCount = parseInt(totalForms.value, 10);
     const rawHtml = emptyTemplate.querySelector('tr').outerHTML
@@ -663,7 +686,7 @@ input.field-auto-computed { background: var(--accent-dim) !important; border-col
     const newRow = tmp.querySelector('tr');
     applyInputClass(newRow);
     tbody.appendChild(newRow);
-    totalForms.value = currentCount + 1;
+    reindexRows();
     bindRowActions(newRow);
     bindRmUnitListener(newRow);
     bindComplementExclusivity(newRow);
@@ -673,7 +696,7 @@ input.field-auto-computed { background: var(--accent-dim) !important; border-col
   function bindRowActions(row) {
     // Remove empty (unsaved) line
     const removeBtn = row.querySelector('.btn-remove-empty-line');
-    if (removeBtn) removeBtn.addEventListener('click', () => { row.remove(); updateMassBalance(); });
+    if (removeBtn) removeBtn.addEventListener('click', () => { row.remove(); reindexRows(); updateMassBalance(); });
 
     // Toggle delete for saved lines
     const deleteBtn = row.querySelector('.btn-danger-line-toggle');

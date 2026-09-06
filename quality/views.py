@@ -209,6 +209,21 @@ def sample_result_entry(request, sample_id):
     existing = {r.spec_line_id: r for r in sample.results.all()}
 
     if request.method == "POST":
+        if not spec_lines:
+            # Nothing to record: the active specification for this target has
+            # no line for this gate (e.g. an empty/duplicate specification —
+            # see QualitySpecification's version-uniqueness constraint). Do
+            # NOT call compute_outcome() or log an audit entry for a save that
+            # stored nothing, and do not show a success message.
+            messages.error(
+                request,
+                "Aucun résultat enregistré : la spécification active pour "
+                "cette cible ne contient aucune ligne pour ce point de "
+                "contrôle. Vérifiez la spécification qualité (Configuration "
+                "› Spécifications qualité) avant de ressaisir les résultats.",
+            )
+            return redirect("quality:sample_result_entry", sample_id=sample.id)
+
         for line in spec_lines:
             raw_value = request.POST.get(f"value_{line.id}", "").strip()
             instrument = request.POST.get(f"instrument_{line.id}", "").strip()

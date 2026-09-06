@@ -116,7 +116,25 @@ class QualitySpecification(models.Model):
         verbose_name = "Spécification qualité"
         verbose_name_plural = "Spécifications qualité"
         ordering = ["-effective_date", "-version"]
-        unique_together = [("raw_material", "finished_product", "version")]
+        # NOTE: a plain unique_together on (raw_material, finished_product, version)
+        # does NOT work here: exactly one of raw_material/finished_product is always
+        # NULL (see clean() below), and both Django's validate_unique() and the
+        # underlying SQL UNIQUE constraint skip the check entirely whenever any
+        # field in the tuple is NULL. Two conditional constraints (one per target
+        # type) are required instead — these are enforced at the DB level too,
+        # not just in full_clean().
+        constraints = [
+            models.UniqueConstraint(
+                fields=["raw_material", "version"],
+                condition=models.Q(finished_product__isnull=True),
+                name="uniq_quality_spec_version_per_raw_material",
+            ),
+            models.UniqueConstraint(
+                fields=["finished_product", "version"],
+                condition=models.Q(raw_material__isnull=True),
+                name="uniq_quality_spec_version_per_finished_product",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.target} — v{self.version}"
@@ -131,10 +149,32 @@ class QualitySpecification(models.Model):
                 "Une spécification qualité doit cibler soit une matière première, "
                 "soit un produit fini (pas les deux, pas aucun)."
             )
+        # Explicit duplicate-version check. This mirrors the Meta.constraints
+        # above at the Python/form level so the error surfaces as a normal
+        # ValidationError (caught by ModelForm/full_clean) instead of only as
+        # an IntegrityError from the DB — see the Meta.constraints note for why
+        # a bare unique_together can't be relied on for this nullable-target
+        # design.
+        qs = QualitySpecification.objects.exclude(pk=self.pk)
+        if self.raw_material_id:
+            qs = qs.filter(raw_material_id=self.raw_material_id, version=self.version)
+        else:
+            qs = qs.filter(finished_product_id=self.finished_product_id, version=self.version)
+        if qs.exists():
+            raise ValidationError(
+                {
+                    "version": (
+                        f"Une spécification v{self.version} existe déjà pour "
+                        f"{self.target}. Incrémentez la version, ou modifiez "
+                        f"la spécification existante plutôt que d'en créer une "
+                        f"nouvelle."
+                    )
+                }
+            )
 
     def save(self, *args, **kwargs):
         self.full_clean(exclude=[f.name for f in self._meta.fields if f.name not in
-                                  ("raw_material", "finished_product")])
+                                  ("raw_material", "finished_product", "version")])
         if self.is_active:
             # Only one active version per target (mirrors Formulation behavior).
             qs = QualitySpecification.objects.filter(is_active=True)

@@ -95,7 +95,10 @@ class FormulationLineForm(forms.ModelForm):
     class Meta:
         model = FormulationLine
         fields = [
-            "raw_material", "qty_per_batch", "unit_of_measure", "tolerance_pct",
+            "raw_material",
+            "qty_per_batch",
+            "unit_of_measure",
+            "tolerance_pct",
             "is_complement",
         ]
         widgets = {
@@ -162,10 +165,52 @@ class FormulationLineForm(forms.ModelForm):
         return cleaned_data
 
 
+class BaseFormulationLineFormSet(forms.BaseInlineFormSet):
+    """
+    SPEC S22.4: at most one line per formulation may be marked "Complément".
+
+    This used to be enforced in FormulationLine.clean() via a query against
+    already-saved sibling lines (`formulation.lines.filter(is_complement=True)`).
+    That check raced against this exact formset: reassigning the complement
+    flag from one row to another in a single submit (uncheck row A, check
+    row B) always failed, because row B's clean() ran against the database
+    *before* row A's uncheck had been saved, so A still counted as an
+    existing complement line and B was rejected as a duplicate.
+    Enforcing the rule here instead lets us look at every sibling row's
+    about-to-be-saved value in the same pass, so a same-submission
+    reassignment is evaluated correctly.
+    """
+
+    def clean(self):
+        super().clean()
+        # Don't pile on if individual rows already failed validation —
+        # cleaned_data is unreliable/absent for forms with errors.
+        if any(self.errors):
+            return
+        complement_forms = []
+        for form in self.forms:
+            if not hasattr(form, "cleaned_data") or not form.cleaned_data:
+                continue
+            if self.can_delete and self._should_delete_form(form):
+                continue
+            if form.cleaned_data.get("is_complement"):
+                complement_forms.append(form)
+        if len(complement_forms) > 1:
+            error = forms.ValidationError(
+                "Une seule ligne de formulation peut être marquée comme "
+                "complément (§22.4) : décochez les autres avant d'enregistrer.",
+                code="multiple_complements",
+            )
+            for form in complement_forms:
+                form.add_error("is_complement", error)
+            raise error
+
+
 FormulationLineFormSet = inlineformset_factory(
     Formulation,
     FormulationLine,
     form=FormulationLineForm,
+    formset=BaseFormulationLineFormSet,
     extra=1,
     can_delete=True,
 )

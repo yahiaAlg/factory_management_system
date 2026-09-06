@@ -124,7 +124,8 @@ class Formulation(models.Model):
                     "reconciliation_tolerance_epsilon", Decimal("500.00")
                 )
                 total_mass = sum(
-                    (line.kg_equivalent or Decimal("0.000")) for line in self.lines.all()
+                    (line.kg_equivalent or Decimal("0.000"))
+                    for line in self.lines.all()
                 )
                 if abs(total_mass - self.target_batch_mass_kg) > epsilon:
                     raise ValidationError(
@@ -300,21 +301,27 @@ class FormulationLine(models.Model):
 
     def clean(self):
         # SPEC S22.4: at most one complement line per formulation.
+        #
+        # BUGFIX: this used to also check `self.formulation.lines.filter(
+        # is_complement=True).exclude(pk=self.pk).exists()` here — i.e. a
+        # live DB query against sibling lines. That's fine for a single
+        # object save, but every formulation edit goes through the
+        # FormulationLineFormSet, where several sibling lines are being
+        # validated *before any of them are saved*. Moving the complement
+        # flag from one line to another in a single submit (uncheck A,
+        # check B) always failed: B's clean() would see A still marked
+        # `is_complement=True` in the database (A's uncheck hadn't been
+        # written yet) and reject B as a duplicate — even though the
+        # submission as a whole was perfectly valid. Because the template
+        # never rendered `is_complement` field errors, this surfaced as a
+        # confusing, unexplained "Ce champ est obligatoire" on whichever
+        # row's other fields (matière première / unité) happened to still
+        # be incomplete, with no visible indication of the real cause.
+        # The "only one complement line" rule is now enforced formset-wide
+        # in BaseFormulationLineFormSet.clean() (production/forms.py),
+        # which sees every sibling row's about-to-be-saved state in one
+        # pass instead of racing against not-yet-saved DB writes.
         if self.is_complement and self.formulation_id:
-            other_complement = (
-                self.formulation.lines.filter(is_complement=True)
-                .exclude(pk=self.pk)
-                .exists()
-            )
-            if other_complement:
-                raise ValidationError(
-                    {
-                        "is_complement": (
-                            "Cette formulation a déjà une ligne complément (§22.4) : "
-                            "une seule est autorisée."
-                        )
-                    }
-                )
             if self.raw_material_id and self.raw_material.effective_kg_per_unit is None:
                 raise ValidationError(
                     {
@@ -417,21 +424,28 @@ class ProductionOrder(models.Model):
 
     # --- QA/QC Gate B (functional spec §5) — soft/advisory hold ---
     gate_b_hold = models.BooleanField(
-        default=False, verbose_name="Alerte QC en cours (Gate B)",
+        default=False,
+        verbose_name="Alerte QC en cours (Gate B)",
     )
     gate_b_hold_note = models.TextField(blank=True, verbose_name="Note d'alerte Gate B")
     gate_b_hold_acknowledged = models.BooleanField(
-        default=False, verbose_name="Alerte Gate B acquittée (BR-QA-07)",
+        default=False,
+        verbose_name="Alerte Gate B acquittée (BR-QA-07)",
     )
     gate_b_ack_note = models.TextField(blank=True, verbose_name="Note d'acquittement")
     gate_b_ack_by = models.ForeignKey(
-        User, on_delete=models.PROTECT, null=True, blank=True,
-        related_name="gate_b_acks", verbose_name="Alerte acquittée par",
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="gate_b_acks",
+        verbose_name="Alerte acquittée par",
     )
 
     # --- QA/QC Gate C (functional spec §6) ---
     scrapped = models.BooleanField(
-        default=False, verbose_name="Rebuté (disposition NCR = Scrap)",
+        default=False,
+        verbose_name="Rebuté (disposition NCR = Scrap)",
         help_text="Si vrai, aucun stock PF n'est crédité à la clôture (§6.5).",
     )
 
@@ -621,7 +635,13 @@ class ProductionOrder(models.Model):
         self.gate_b_hold = True
         self.gate_b_hold_note = note
         self.gate_b_hold_acknowledged = False
-        self.save(update_fields=["gate_b_hold", "gate_b_hold_note", "gate_b_hold_acknowledged"])
+        self.save(
+            update_fields=[
+                "gate_b_hold",
+                "gate_b_hold_note",
+                "gate_b_hold_acknowledged",
+            ]
+        )
 
     def acknowledge_hold(self, user, note, abort=False):
         """Production Manager acknowledges a Gate B hold (§5.3). Acknowledging
@@ -630,7 +650,13 @@ class ProductionOrder(models.Model):
         self.gate_b_hold_acknowledged = True
         self.gate_b_ack_note = note
         self.gate_b_ack_by = user
-        self.save(update_fields=["gate_b_hold_acknowledged", "gate_b_ack_note", "gate_b_ack_by"])
+        self.save(
+            update_fields=[
+                "gate_b_hold_acknowledged",
+                "gate_b_ack_note",
+                "gate_b_ack_by",
+            ]
+        )
         if abort:
             self.cancel(user)
             from quality.models import NonConformityReport
@@ -675,7 +701,11 @@ class ProductionOrder(models.Model):
 
     def gate_c_sample_conforming(self):
         """Latest Gate C sample outcome for this order, or None if none drawn."""
-        sample = self.quality_samples.filter(control_point="C").order_by("-sampled_at").first()
+        sample = (
+            self.quality_samples.filter(control_point="C")
+            .order_by("-sampled_at")
+            .first()
+        )
         if not sample:
             return None
         return sample.is_conforming()
@@ -703,7 +733,10 @@ class ProductionOrder(models.Model):
 
         from quality.models import NonConformityReport
 
-        if not self.ncrs.filter(trigger_type="yield_deviation", status__in=["open", "under_review", "dispositioned"]).exists():
+        if not self.ncrs.filter(
+            trigger_type="yield_deviation",
+            status__in=["open", "under_review", "dispositioned"],
+        ).exists():
             deviating = [
                 f"{l.raw_material.designation}: écart {l.get_variance_percentage():.1f}%"
                 for l in self.consumption_lines.all()
@@ -711,9 +744,13 @@ class ProductionOrder(models.Model):
             ]
             NonConformityReport.objects.create(
                 gate="C",
-                trigger_type="yield_deviation" if quantitative_ok is False else "failed_sample",
+                trigger_type=(
+                    "yield_deviation" if quantitative_ok is False else "failed_sample"
+                ),
                 production_order=self,
-                sample=self.quality_samples.filter(control_point="C").order_by("-sampled_at").first(),
+                sample=self.quality_samples.filter(control_point="C")
+                .order_by("-sampled_at")
+                .first(),
                 description=(
                     f"OP {self.reference} : rendement={self.yield_rate}, "
                     f"statut={self.yield_status}. Écarts: {', '.join(deviating) or 'n/a'}."

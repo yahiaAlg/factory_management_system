@@ -201,7 +201,10 @@ input.field-auto-computed { background: var(--accent-dim) !important; border-col
                     {{ lf.tolerance_pct }}
                     {% if lf.tolerance_pct.errors %}<div class="line-field-error">{{ lf.tolerance_pct.errors.0 }}</div>{% endif %}
                   </td>
-                  <td class="complement-col">{{ lf.is_complement }}</td>
+                  <td class="complement-col">
+                    {{ lf.is_complement }}
+                    {% if lf.is_complement.errors %}<div class="line-field-error">{{ lf.is_complement.errors.0 }}</div>{% endif %}
+                  </td>
                   <td class="delete-col">
                     {% if lf.instance.pk %}
                       <div style="display:none;">{{ lf.DELETE }}</div>
